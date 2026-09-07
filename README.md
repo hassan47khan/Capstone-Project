@@ -8,11 +8,11 @@ Capstone project.
 2. Christian Pivaral
 3. Ankit Dhakal
 
-## Proposed Ideas
+## Proposed Ideas (By rank)
 
-1. LabelLens
-2.
-3.
+1. Subtrak
+2. LabelLens
+3. WhyWait
 
 ## Tech Stack
 
