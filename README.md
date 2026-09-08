@@ -10,9 +10,9 @@ Capstone project.
 
 ## Proposed Ideas
 
-1. LabelLens
-2.
-3.
+1. Subtrak
+2. LabelLens
+3. WhyWait
 
 ## Tech Stack
 
