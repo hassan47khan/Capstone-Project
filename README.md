@@ -1,4 +1,4 @@
-# LabelLens
+# SubTrak
 
 Capstone project.
 
