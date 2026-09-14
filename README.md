@@ -7,6 +7,7 @@ Capstone project.
 1. Hassan Khan
 2. Christian Pivaral
 3. Ankit Dhakal
+4. Ahmed Rafi
 
 ## Proposed Ideas (By rank)
 
