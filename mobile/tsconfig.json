@@ -1,35 +1,28 @@
 {
-  // Expo's base config sets the React Native JSX transform, module resolution and
-  // the lib/target that Hermes supports. Never replace it — only add on top.
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    // Required by the project prompt. No implicit any, strict null checks, the lot.
     "strict": true,
-
-    // expo/tsconfig.base narrows `types`, which leaves describe/it/expect
-    // undefined and produces hundreds of "Cannot find name 'describe'" errors
-    // in tsc even though the tests run fine. Naming them restores the globals.
-    "types": ["jest", "node"],
-
-    // Catch dead code and sloppy imports in review rather than at runtime.
+    "types": [
+      "jest",
+      "node"
+    ],
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-
-    // Indexing into a record returns `T | undefined`. This is what forces us to
-    // handle "currency has no stored exchange rate" instead of silently reading
-    // undefined and rendering NaN — see src/api/format.ts.
     "noUncheckedIndexedAccess": true,
-
-    // `@/...` resolves from src/, so moving a file never rewrites a dozen
-    // `../../../` imports. Metro reads this via expo/tsconfig.base.
-    //
-    // No `baseUrl`: TypeScript 6 deprecates it, and `paths` entries now resolve
-    // relative to this file's directory, which is what we wanted anyway.
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
 }
