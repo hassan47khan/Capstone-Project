@@ -21,22 +21,33 @@
  *   A font loading FAILURE does not block: the app renders in system fonts,
  *   which is ugly but usable. Hanging on a splash forever would not be.
  */
+import { QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import { queryClient } from '@/api/queryClient';
+import { RootNavigator } from '@/navigation/RootNavigator';
+import { SessionProvider } from '@/session/SessionContext';
+import { useAppFonts } from '@/theme';
 
 export default function App() {
+  const [fontsLoaded, fontError] = useAppFonts();
+
+  // Null keeps Expo's splash screen up. Once either condition is met we render:
+  // loaded means the real fonts are ready, an error means we accept the fallback.
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
-    <View style={styles.container}>
-      <Text>Mobile app scaffold</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider>
+          {/* Dark glyphs: the app is a single light theme on warm paper. */}
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </SessionProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-  },
-});

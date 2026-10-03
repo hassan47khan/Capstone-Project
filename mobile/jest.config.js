@@ -122,13 +122,16 @@ module.exports = {
    * structuredClone, ReadableStream, BroadcastChannel). They must exist before
    * MSW is imported, which is why this is `setupFiles` and not `setupFilesAfterEnv`.
    */
-  setupFiles: [],
+  // ORDER MATTERS. perf-shim must run before polyfills, because polyfills
+  // imports undici and undici captures `performance.markResourceTiming` at
+  // module load. See the header of perf-shim.ts.
+  setupFiles: ['<rootDir>/src/test/perf-shim.ts', '<rootDir>/src/test/polyfills.ts'],
 
   /**
    * Runs AFTER the framework is available, so it can call beforeAll/afterEach.
    * Starts the MSW server and installs the module mocks (fonts, icons, secure store).
    */
-  setupFilesAfterEnv: [],
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.tsx'],
 
   /**
    * Makes Node resolve the "react-native" export condition. Without this, `msw`
@@ -156,5 +159,4 @@ module.exports = {
   ],
 
   clearMocks: true,
-  passWithNoTests: true,
 };
