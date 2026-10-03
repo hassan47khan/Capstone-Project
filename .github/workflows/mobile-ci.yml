@@ -1,0 +1,82 @@
+# Mobile client CI.
+#
+# What this is for
+#   Running the checks that would otherwise only happen on whoever's laptop
+#   last touched the code: lint, typecheck and tests, on every push and pull
+#   request. The capstone guidelines require a pipeline that builds and tests on
+#   every push by Week 10.
+#
+# Why these four steps and not more
+#   They are the checks that can run honestly without a device. A simulator
+#   build, a screenshot comparison or an end-to-end run would need hardware this
+#   pipeline does not have, and a check that cannot really run is worse than no
+#   check — it reports green while proving nothing.
+#
+# Note for whoever adds the backend job
+#   The specification (section 13) describes a `backend-ci` workflow with real
+#   MongoDB and Redis service containers. It is NOT in this file: the backend is
+#   still a scaffold with no tests to run. Add it as a separate workflow so the
+#   two can fail independently, and make both required status checks on `main`.
+
+name: mobile-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch cancels the previous run, so a series of quick
+# fixes does not queue five redundant jobs.
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    # Everything lives in mobile/, so each step runs from there rather than
+    # repeating `cd mobile &&`.
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Node major the team develops on. Expo SDK 57 needs 20+.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      # `npm ci` rather than `npm install`: it installs exactly what the lock
+      # file says and fails if package.json and the lock have drifted, so CI
+      # tests the dependency tree a teammate would actually get.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Check formatting
+        run: npx prettier --check .
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npx jest --coverage --ci
+
+      # Uploaded rather than gated on a threshold for now. The specification
+      # sets a 75% floor rising each sprint; adding `--coverage-fail-under`
+      # belongs with Phase 4, once the screens that carry most of the logic
+      # exist and the number means something.
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-coverage
+          path: mobile/coverage/
+          retention-days: 14

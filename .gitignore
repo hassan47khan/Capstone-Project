@@ -17,6 +17,19 @@ staticfiles/
 # Environment variables
 .env
 
+# Node / Expo (mobile client)
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+coverage/
+
+# Personal env overrides only. mobile/.env.example and mobile/.env.development
+# are committed on purpose: they hold no secrets and give the team one default.
+mobile/.env.local
+mobile/.env*.local
+
 # Editors / OS
 .vscode/
 .idea/
@@ -25,4 +38,5 @@ Thumbs.db
 
 # Obsidian vault (personal notes, not part of the codebase)
 Capstone_CSC325/
+.claude/
 
