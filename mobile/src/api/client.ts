@@ -106,16 +106,54 @@ export function configureTokenHooks(hooks: TokenHooks): void {
 let refreshInFlight: Promise<string | null> | null = null;
 
 /**
+ * Bumped whenever the session changes hands (sign-in, sign-out). A refresh
+ * started under an older generation must not write its tokens back.
+ *
+ * Without this, a refresh that resolves just after the user taps Sign out
+ * persists a brand-new refresh token into a signed-out app, and the next cold
+ * start silently restores the session the user ended.
+ */
+let refreshGeneration = 0;
+
+/**
+ * Abandons any in-flight refresh. Called by the session layer on sign-in and
+ * sign-out, BEFORE it touches token storage, so a late refresh result is
+ * discarded rather than written over the new state.
+ */
+export function invalidateRefresh(): void {
+  refreshGeneration += 1;
+  refreshInFlight = null;
+}
+
+/**
+ * Whether a refresh endpoint status means the refresh token itself is dead.
+ *
+ * Only these do. A 5xx or 429 says the server is struggling, not that the
+ * session is invalid — signing everyone out because the backend restarted
+ * would turn a blip into a mass logout.
+ */
+export function isRefreshRejected(status: number): boolean {
+  return status === 400 || status === 401 || status === 403;
+}
+
+/**
  * Refreshes the access token, collapsing concurrent callers onto one request.
  * Resolves to the new access token, or null if the session is truly gone.
  */
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight;
 
-  refreshInFlight = (async () => {
+  const generation = refreshGeneration;
+  const isStale = () => generation !== refreshGeneration;
+
+  // Declared before assignment so the `finally` below can compare against it
+  // even if the body settles synchronously.
+  let attempt: Promise<string | null> | null = null;
+
+  attempt = (async () => {
     try {
       const refresh = await tokenHooks.getRefreshToken();
-      if (!refresh) return null;
+      if (!refresh || isStale()) return null;
 
       const response = await rawRequest('/auth/refresh', {
         method: 'POST',
@@ -123,8 +161,18 @@ async function refreshAccessToken(): Promise<string | null> {
         anonymous: true,
       });
 
-      if (response.status < 200 || response.status >= 300) {
+      // The session changed while we were waiting. Whatever came back belongs
+      // to a session that no longer exists; act on none of it.
+      if (isStale()) return null;
+
+      if (isRefreshRejected(response.status)) {
         await tokenHooks.onRefreshFailed();
+        return null;
+      }
+
+      // Any other failure is transient. Returning null surfaces the original
+      // 401 to the caller without ending the session; the next request retries.
+      if (response.status < 200 || response.status >= 300) {
         return null;
       }
 
@@ -145,17 +193,19 @@ async function refreshAccessToken(): Promise<string | null> {
       // the original error to the caller, which shows the offline state.
       return null;
     } finally {
-      // Cleared whatever happened, so the next 401 can start a fresh attempt.
-      refreshInFlight = null;
+      // Cleared whatever happened, so the next 401 can start a fresh attempt —
+      // unless this attempt was abandoned and a newer one now holds the slot.
+      if (refreshInFlight === attempt) refreshInFlight = null;
     }
   })();
 
-  return refreshInFlight;
+  refreshInFlight = attempt;
+  return attempt;
 }
 
 /** Test-only reset, so one test's in-flight refresh cannot leak into the next. */
 export function __resetRefreshState(): void {
-  refreshInFlight = null;
+  invalidateRefresh();
 }
 
 // ---------------------------------------------------------------------------

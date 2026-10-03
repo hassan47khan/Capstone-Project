@@ -34,8 +34,9 @@ import {
   type ReactNode,
 } from 'react';
 
-import { configureTokenHooks } from '@/api/client';
+import { configureTokenHooks, invalidateRefresh, isRefreshRejected } from '@/api/client';
 import { authApi } from '@/api/endpoints';
+import { ApiError } from '@/api/errors';
 import type { TokenPair } from '@/api/types';
 
 import { tokenStore } from './tokenStore';
@@ -64,12 +65,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    */
   const signOutRef = useRef<() => Promise<void>>(async () => {});
 
+  // Both start by abandoning any in-flight refresh, synchronously and before
+  // touching storage, so a refresh from the previous session cannot resolve
+  // afterwards and write its tokens over the new state.
   const signIn = useCallback(async (tokens: TokenPair) => {
+    invalidateRefresh();
     await tokenStore.setTokens(tokens);
     setStatus('authenticated');
   }, []);
 
   const signOut = useCallback(async () => {
+    invalidateRefresh();
     await tokenStore.clear();
     setStatus('unauthenticated');
   }, []);
@@ -126,13 +132,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         await tokenStore.setTokens(tokens);
         setStatus('authenticated');
-      } catch {
-        // Covers both a revoked token and being offline at launch. Signing out
-        // is the safe reading: the user can log in again, and an offline user
-        // could not have used the app anyway.
+      } catch (error) {
         if (cancelled) return;
-        await tokenStore.clear();
-        setStatus('unauthenticated');
+
+        // Only a rejection from the server proves the refresh token is dead.
+        if (error instanceof ApiError && isRefreshRejected(error.status)) {
+          await tokenStore.clear();
+          setStatus('unauthenticated');
+          return;
+        }
+
+        // Offline, timed out, or the server is having a bad moment. None of that
+        // says the session is invalid, and clearing here would delete a good
+        // refresh token and force a fresh login once the signal returns.
+        //
+        // So keep it and enter the app with no access token. The first request
+        // gets a 401, the client's normal refresh-on-401 path runs, and the user
+        // either sees the offline state or recovers transparently. If the token
+        // really was revoked, that refresh is rejected and `onRefreshFailed`
+        // signs them out then.
+        setStatus('authenticated');
       }
     })();
 
