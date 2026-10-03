@@ -18,6 +18,7 @@ import { http, HttpResponse } from 'msw';
 import {
   __resetRefreshState,
   configureTokenHooks,
+  invalidateRefresh,
   newIdempotencyKey,
   request,
 } from './client';
@@ -306,6 +307,165 @@ describe('token refresh', () => {
 
     await expect(request('/dashboard')).rejects.toBeInstanceOf(ApiError);
     expect(onFailed).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A struggling server is not a revoked session. If any non-2xx from
+   * /auth/refresh signed users out, a backend restart would log out everyone
+   * whose access token happened to expire during it.
+   */
+  it.each([429, 500, 502, 503])(
+    'does not sign the user out when the refresh endpoint returns %i',
+    async (status) => {
+      const onFailed = jest.fn(async () => {});
+
+      server.use(
+        http.get('*/dashboard', () =>
+          HttpResponse.json(
+            { error: { code: 'token_invalid', message: 'x' } },
+            { status: 401 },
+          ),
+        ),
+        http.post('*/auth/refresh', () =>
+          HttpResponse.json(
+            { error: { code: 'server_error', message: 'down' } },
+            { status },
+          ),
+        ),
+      );
+
+      installTokens({ access: 'stale', refresh: 'valid-refresh', onFailed });
+
+      await expect(request('/dashboard')).rejects.toBeInstanceOf(ApiError);
+      expect(onFailed).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([400, 401, 403])(
+    'signs the user out when the refresh endpoint returns %i',
+    async (status) => {
+      const onFailed = jest.fn(async () => {});
+
+      server.use(
+        http.get('*/dashboard', () =>
+          HttpResponse.json(
+            { error: { code: 'token_invalid', message: 'x' } },
+            { status: 401 },
+          ),
+        ),
+        http.post('*/auth/refresh', () =>
+          HttpResponse.json(
+            { error: { code: 'token_invalid', message: 'revoked' } },
+            { status },
+          ),
+        ),
+      );
+
+      installTokens({ access: 'stale', refresh: 'revoked-refresh', onFailed });
+
+      await expect(request('/dashboard')).rejects.toBeInstanceOf(ApiError);
+      expect(onFailed).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  /**
+   * The sign-out race. A refresh is in flight when the user taps Sign out; the
+   * refresh then resolves with a brand-new token pair. Persisting it would put
+   * a live refresh token back in the keychain of a signed-out app, and the next
+   * cold start would quietly restore the session the user ended.
+   */
+  it('discards a refresh that resolves after the session was invalidated', async () => {
+    let releaseRefresh!: () => void;
+    const refreshGate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    let refreshStarted!: () => void;
+    const refreshHasStarted = new Promise<void>((resolve) => {
+      refreshStarted = resolve;
+    });
+
+    server.use(
+      http.get('*/dashboard', () =>
+        HttpResponse.json(
+          { error: { code: 'token_invalid', message: 'expired' } },
+          { status: 401 },
+        ),
+      ),
+      http.post('*/auth/refresh', async () => {
+        refreshStarted();
+        await refreshGate;
+        return HttpResponse.json({ access: 'late-access', refresh: 'late-refresh' });
+      }),
+    );
+
+    const onRefreshed = jest.fn(async () => {});
+    const onFailed = jest.fn(async () => {});
+    installTokens({ access: 'stale', refresh: 'valid-refresh', onRefreshed, onFailed });
+
+    const pending = request('/dashboard');
+
+    // Sign out while the refresh is on the wire, then let it come back.
+    await refreshHasStarted;
+    invalidateRefresh();
+    releaseRefresh();
+
+    const error = await expectApiError(pending);
+    expect(error.status).toBe(401);
+    expect(onRefreshed).not.toHaveBeenCalled();
+    // Nor does a stale result get to end whatever session replaced it.
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+
+  it('lets a new refresh start while an abandoned one is still in flight', async () => {
+    // After sign-out and a fresh sign-in, the new session must not be handed the
+    // old session's pending promise by the single-flight check.
+    let refreshCalls = 0;
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let firstStarted!: () => void;
+    const firstHasStarted = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+
+    let dashboardCalls = 0;
+    server.use(
+      http.get('*/dashboard', () => {
+        dashboardCalls += 1;
+        // The two first attempts (old session, new session) are both expired.
+        if (dashboardCalls <= 2) {
+          return HttpResponse.json(
+            { error: { code: 'token_invalid', message: 'expired' } },
+            { status: 401 },
+          );
+        }
+        return HttpResponse.json({ monthly_total: '220.44' });
+      }),
+      http.post('*/auth/refresh', async () => {
+        refreshCalls += 1;
+        if (refreshCalls === 1) {
+          firstStarted();
+          await firstGate;
+          return HttpResponse.json({ access: 'old-access', refresh: 'old-refresh' });
+        }
+        return HttpResponse.json({ access: 'new-access', refresh: 'new-refresh' });
+      }),
+    );
+
+    installTokens({ access: 'stale', refresh: 'old-session-refresh' });
+    const oldRequest = request('/dashboard');
+    await firstHasStarted;
+
+    invalidateRefresh();
+    installTokens({ access: 'also-stale', refresh: 'new-session-refresh' });
+
+    const result = await request<{ monthly_total: string }>('/dashboard');
+    expect(result.monthly_total).toBe('220.44');
+    expect(refreshCalls).toBe(2);
+
+    releaseFirst();
+    await expectApiError(oldRequest);
   });
 });
 
