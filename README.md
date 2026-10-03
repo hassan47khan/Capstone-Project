@@ -35,8 +35,8 @@ Capstone project, CSC 325.
 
 | Document | Location |
 | --- | --- |
-| System Design Specification | `docs/SubTrak — System Design Specification.md` — **pending**, Hassan to add |
-| Visual design prototype | `docs/design/SubTrak prototype.pdf` — **pending**, Hassan to add |
+| System Design Specification | `docs/SubTrak — System Design Specification.md` — **DONE**, Hassan to add |
+| Visual design prototype | `docs/design/SubTrak prototype.pdf` — **DONE**, Hassan to add |
 | Design notes, page map and state critique | [docs/design/README.md](docs/design/README.md) |
 | Mobile client conventions | [mobile/CLAUDE.md](mobile/CLAUDE.md) |
 
