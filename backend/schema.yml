@@ -1,0 +1,77 @@
+openapi: 3.0.3
+info:
+  title: SubTrak API
+  version: 1.0.0
+paths:
+  /api/v1/health/:
+    get:
+      operationId: health_retrieve
+      description: |-
+        Public liveness check. Reports MongoDB only for now; Redis and the LLM
+        circuit state join when those subsystems exist (spec section 5).
+      tags:
+      - health
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
+  /api/v1/me/:
+    get:
+      operationId: me_retrieve
+      description: The signed-in user's profile. Authentication comes from the defaults.
+      tags:
+      - me
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+          description: ''
+components:
+  schemas:
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+        database:
+          type: string
+      required:
+      - database
+      - status
+    UserProfile:
+      type: object
+      description: Matches `UserProfile` in mobile/src/api/types.ts.
+      properties:
+        id:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+          nullable: true
+        email_verified:
+          type: boolean
+          readOnly: true
+      required:
+      - email
+      - email_verified
+      - id
+      - name
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

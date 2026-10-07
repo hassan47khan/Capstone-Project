@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -21,17 +23,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
-# Quick-start development settings - unsuitable for production
+# Configuration comes only from the environment (spec section 13). Defaults are
+# the safe choice: no fallback secret, so a misconfigured deploy fails at
+# startup instead of signing tokens with a key that is in the repository; and
+# DEBUG stays off unless explicitly turned on.
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-#tp(^k^@%z@jyj##a7thecr6n89%vz+7dkz3x^a8su#4(c!!zh",
-)
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY is not set. Copy backend/.env.example to backend/.env."
+    )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "True") == "True"
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
 
@@ -39,13 +43,19 @@ ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(","
 # Application definition
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
+    # ObjectId-keyed versions of the contrib apps; see config/apps.py.
+    "config.apps.MongoAdminConfig",
+    "config.apps.MongoAuthConfig",
+    "config.apps.MongoContentTypesConfig",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_mongodb_backend",
+    "rest_framework",
+    "drf_spectacular",
     "core",
+    "accounts",
+    "subscriptions",
 ]
 
 MIDDLEWARE = [
@@ -79,14 +89,31 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
-# https://docs.djangoproject.com/en/6.1/ref/settings/#databases
+# MongoDB via django-mongodb-backend, following its project template
+# (https://github.com/mongodb-labs/django-mongodb-project). The database name is
+# read from the path of MONGODB_URI, e.g. mongodb://localhost:27017/subtrak.
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+        "ENGINE": "django_mongodb_backend",
+        "HOST": os.environ.get("MONGODB_URI", "mongodb://localhost:27017/subtrak"),
+        "NAME": "",
+    },
 }
+
+# Embedded models have no collection of their own; the router keeps them out
+# of migrate and dumpdata.
+DATABASE_ROUTERS = ["django_mongodb_backend.routers.MongoRouter"]
+
+DEFAULT_AUTO_FIELD = "django_mongodb_backend.fields.ObjectIdAutoField"
+
+MIGRATION_MODULES = {
+    "admin": "mongo_migrations.admin",
+    "auth": "mongo_migrations.auth",
+    "contenttypes": "mongo_migrations.contenttypes",
+}
+
+AUTH_USER_MODEL = "accounts.User"
 
 
 # Password validation
@@ -133,4 +160,29 @@ MAILERS = {
     "default": {
         "BACKEND": "django.core.mail.backends.console.EmailBackend",
     },
+}
+
+
+# REST API
+# Every endpoint requires a valid JWT unless it opts out (health does).
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# Lifetimes from spec section 6. The token_version ("tv") claim check is a
+# follow-up; this spike only proves the token round trip.
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "SubTrak API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }

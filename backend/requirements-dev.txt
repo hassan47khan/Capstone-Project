@@ -1,0 +1,8 @@
+# Test and lint tooling. Not installed in production.
+-r requirements.txt
+
+pip-audit==2.10.1
+pytest==9.1.1
+pytest-cov==7.1.0
+pytest-django==4.14.0
+ruff==0.16.10
