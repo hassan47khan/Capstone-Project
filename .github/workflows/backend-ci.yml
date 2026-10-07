@@ -1,0 +1,142 @@
+# Backend CI.
+#
+# What this is for
+#   Running the backend's checks against a real MongoDB on every push to main
+#   and every pull request, so "the tests pass" means the same thing for
+#   everyone and not just on whoever's laptop last touched the code. Spec
+#   section 13 asks for exactly this: tests against MongoDB, not a mock.
+#
+# Why it is a separate workflow from mobile-ci
+#   So the two fail independently and each can be a required status check.
+#   Job ids become check names and must be unique across workflows: the mobile
+#   job is `verify`, so these are `backend-verify` and `backend-audit`.
+#
+# Why no path filters
+#   A required check that is skipped by a path filter never reports, and the
+#   pull request waits on it forever. The jobs are fast enough to always run.
+#
+# Why MongoDB comes from docker-compose.yml and not a service container
+#   The compose file starts a single-node replica set and its healthcheck
+#   initiates it; a service container cannot run that setup step. Using the
+#   same file as local development also means CI tests the database a
+#   teammate actually gets.
+
+name: backend-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch cancels the previous run, so a series of quick
+# fixes does not queue five redundant jobs.
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only token: nothing here writes to the repository.
+permissions:
+  contents: read
+
+jobs:
+  backend-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Everything lives in backend/, so each step runs from there rather than
+    # repeating `cd backend &&`.
+    defaults:
+      run:
+        working-directory: backend
+
+    # No secrets: settings refuse to start without a secret key, and this
+    # dummy value exists only so they will. MONGODB_URI points at compose.
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-a-secret
+      DJANGO_DEBUG: 'False'
+      MONGODB_URI: mongodb://localhost:27017/subtrak
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          # A single version, the README's stated minimum. Testing only the
+          # oldest supported Python catches use of newer syntax; the spec's
+          # 3.12 + 3.13 matrix can come back once the suite is worth doubling.
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      # Started first so the replica set initiates while dependencies install.
+      # --wait returns only when the healthcheck reports a writable primary.
+      - name: Start MongoDB
+        working-directory: .
+        run: docker compose up -d --wait --wait-timeout 120
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
+      # Fails when a model changed but nobody ran makemigrations, which would
+      # otherwise surface as a broken deploy.
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      # The committed schema.yml is the contract the mobile client is built
+      # against (spec section 13). Regenerate it and fail if it moved.
+      - name: Check OpenAPI schema is current
+        run: |
+          python manage.py spectacular --file schema.yml --validate
+          git diff --exit-code -- schema.yml || {
+            echo "::error file=backend/schema.yml::schema.yml is stale. Run: python manage.py spectacular --file schema.yml --validate, then commit it."
+            exit 1
+          }
+
+      # Floor set a few points under the 93% measured in the Sprint 0 spike,
+      # not the spec's 75%: a floor far below reality lets coverage fall by a
+      # fifth before anyone notices. Raise it as the measured figure rises.
+      - name: Test
+        run: pytest --cov --cov-report=term-missing --cov-report=html --cov-fail-under=90
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage
+          path: backend/htmlcov/
+          retention-days: 14
+
+  # Advisories land in unrelated packages on their own schedule, so this job
+  # reports rather than blocks: continue-on-error keeps the workflow green.
+  # Do not make it a required check.
+  backend-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install pip-audit
+        run: pip install "$(grep '^pip-audit==' requirements-dev.txt)"
+
+      - name: Audit runtime dependencies
+        run: pip-audit -r requirements.txt
