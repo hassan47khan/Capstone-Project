@@ -34,6 +34,7 @@ class Subscription(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subscriptions"
     )
     name = models.CharField(max_length=100)
+    category = models.CharField(max_length=30, default="other")
     # Embedded: participants are always read with their plan and are bounded.
     sharing = EmbeddedModelField(Sharing, null=True, blank=True)
 
