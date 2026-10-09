@@ -22,10 +22,15 @@ Capstone project, CSC 325.
 .
 ├── backend/          # Django + DRF API (teammates own this)
 │   ├── config/       # Django project settings, root URLconf, WSGI/ASGI entry points
-│   ├── core/         # Primary Django app (views, templates, models)
+│   ├── core/         # Health check and shared utilities
+│   ├── accounts/     # Custom user model and /me
+│   ├── subscriptions/  # Subscription model (spike-sized for now)
+│   ├── mongo_migrations/  # Migrations for Django's contrib apps on MongoDB
+│   ├── schema.yml    # Generated OpenAPI schema; CI fails if it is stale
 │   ├── manage.py     # Django's command-line utility
-│   ├── requirements.txt
+│   ├── requirements.txt / requirements-dev.txt
 │   └── .env.example  # Template for local backend environment variables
+├── docker-compose.yml  # Local MongoDB (single-node replica set)
 ├── mobile/           # React Native (Expo) client
 ├── docs/             # Design PDF and system design specification
 └── .github/workflows # CI pipelines
@@ -42,11 +47,8 @@ Capstone project, CSC 325.
 
 ## Tech Stack
 
-**Backend** — Python 3.12+, Django 6.1, SQLite (development)
-
-> **Database migration pending.** The System Design Specification calls for MongoDB via
-> `django-mongodb-backend`. `backend/config/settings.py` still uses SQLite; the migration is Sprint 0
-> work and has not been done.
+**Backend** — Python 3.12+, Django 6.1, Django REST Framework, MongoDB 7.0+ via
+`django-mongodb-backend` 6.1, JWT auth with simplejwt, OpenAPI schema from drf-spectacular, pytest
 
 **Mobile** — React Native via Expo, TypeScript (strict), React Navigation, TanStack Query
 
@@ -56,6 +58,8 @@ Capstone project, CSC 325.
 
 - Python 3.12 or later (required by Django 6.1)
 - pip
+- Docker, for the local MongoDB. Without Docker, any MongoDB 7.0+ server works: install it
+  yourself and point `MONGODB_URI` at it. A replica set is recommended (see `docker-compose.yml`).
 
 ### Setup
 
@@ -79,38 +83,45 @@ Capstone project, CSC 325.
    source venv/bin/activate       # macOS / Linux
    ```
 
-3. Install dependencies:
+3. Start MongoDB from the repository root. `--wait` returns once the database accepts writes:
+
+   ```bash
+   docker compose up -d --wait
+   ```
+
+4. Install dependencies (`requirements-dev.txt` adds the test and lint tools):
 
    ```bash
    cd backend
-   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
    ```
 
-4. Create your local environment file:
+5. Create your local environment file. The app will not start without `DJANGO_SECRET_KEY`:
 
    ```bash
    cp .env.example .env
    ```
 
-5. Apply database migrations:
+6. Apply database migrations:
 
    ```bash
    python manage.py migrate
    ```
 
-6. Create an admin account (optional, for `/admin`):
+7. Create an admin account (optional, for `/admin`):
 
    ```bash
    python manage.py createsuperuser
    ```
 
-7. Run the development server:
+8. Run the development server:
 
    ```bash
    python manage.py runserver
    ```
 
-   Visit [http://127.0.0.1:8000/](http://127.0.0.1:8000/) to confirm it's running.
+   Visit [http://127.0.0.1:8000/api/v1/health/](http://127.0.0.1:8000/api/v1/health/) to confirm it's
+   running and connected to MongoDB.
 
 All backend commands run from the `backend/` directory.
 
@@ -118,11 +129,12 @@ All backend commands run from the `backend/` directory.
 
 Configured via `backend/.env` (see `backend/.env.example`):
 
-| Variable                 | Description                               | Default                     |
-|--------------------------|-------------------------------------------|-----------------------------|
-| `DJANGO_SECRET_KEY`      | Secret key used for cryptographic signing | insecure dev key (generated)|
-| `DJANGO_DEBUG`           | Enables Django debug mode                 | `True`                      |
-| `DJANGO_ALLOWED_HOSTS`   | Comma-separated list of allowed hosts     | empty                       |
+| Variable               | Description                                         | Default                              |
+|------------------------|-----------------------------------------------------|--------------------------------------|
+| `DJANGO_SECRET_KEY`    | Signs sessions and JWTs                             | none — **required**, startup fails without it |
+| `DJANGO_DEBUG`         | Enables Django debug mode; only the value `True` turns it on | `False`                     |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated list of allowed hosts               | empty                                |
+| `MONGODB_URI`          | MongoDB connection string; the path names the database | `mongodb://localhost:27017/subtrak` |
 
 Never commit a real `.env` file or production secret key.
 
@@ -136,7 +148,10 @@ All run from `backend/`.
 | `python manage.py migrate`                | Apply database migrations                |
 | `python manage.py makemigrations`         | Create new migrations from model changes |
 | `python manage.py createsuperuser`        | Create an admin user                     |
-| `python manage.py test`                   | Run the test suite                       |
+| `pytest`                                  | Run the test suite (needs MongoDB running) |
+| `pytest --cov --cov-report=term-missing`  | Tests with a coverage report             |
+| `ruff check .` / `ruff format .`          | Lint / format                            |
+| `python manage.py spectacular --file schema.yml --validate` | Regenerate the OpenAPI schema; commit it with any API change |
 
 > **Seed data — Pending.** The specification calls for a `manage.py seed_demo` command that builds a
 > synthetic demo dataset. It has not been written yet.

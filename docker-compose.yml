@@ -1,0 +1,45 @@
+# Local MongoDB for the backend, also used by backend-ci.
+#
+#   docker compose up -d --wait     # returns once MongoDB accepts writes
+#   docker compose down             # stop (add -v to delete the data)
+#
+# Why a single-node replica set and not a plain mongod
+#   MongoDB only allows transactions on a replica set. The Sprint 0 spike found
+#   that Django's test suite does not need them on django-mongodb-backend 6.1
+#   (TestCase flushes instead), but the backend's own transaction.atomic() does,
+#   and Atlas is always a replica set. Running one locally keeps "works on my
+#   machine" and "works in production" the same thing.
+#
+# Redis joins this file with the Celery work in Sprint 2.
+
+services:
+  mongo:
+    image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    # Initiates the replica set on first run, then reports healthy only once
+    # this node is a writable primary. That is what makes `--wait` mean
+    # "usable", not just "process started". The member is advertised as
+    # localhost:27017 so drivers on the host can reach it after discovery.
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - >-
+          try { rs.status() } catch (e) {
+            rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] })
+          }
+          quit(db.hello().isWritablePrimary ? 0 : 1)
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+      start_interval: 1s
+
+volumes:
+  mongo-data:

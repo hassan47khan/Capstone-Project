@@ -1,5 +1,26 @@
+# Runtime dependencies, pinned exactly. Direct dependencies first; the rest are
+# what they pull in, pinned so every machine and CI resolve the same tree.
+# django-mongodb-backend's minor version must match Django's (spec section 3).
+Django==6.1.2
+django-mongodb-backend==6.1.0
+djangorestframework==3.18.3
+djangorestframework-simplejwt==5.5.1
+drf-spectacular==0.30.0
+python-dotenv==1.2.4
+
+# Transitive
 asgiref==3.12.1
-Django==6.1.1
-python-dotenv==1.2.3
+attrs==26.1.0
+dnspython==2.8.0
+inflection==0.5.1
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+PyJWT==2.15.1
+pymongo==4.18.2
+PyYAML==6.0.3
+referencing==0.37.0
+rpds-py==2026.9.1
 sqlparse==0.6.0
-tzdata==2026.3
+typing_extensions==4.16.0
+tzdata==2026.5
+uritemplate==4.2.0

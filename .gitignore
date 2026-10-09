@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
+# Test coverage output (backend)
+.coverage
+coverage.xml
+htmlcov/
+
 # Virtual environment
 venv/
 .venv/
