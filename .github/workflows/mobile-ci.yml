@@ -12,11 +12,13 @@
 #   pipeline does not have, and a check that cannot really run is worse than no
 #   check — it reports green while proving nothing.
 #
-# Note for whoever adds the backend job
-#   The specification (section 13) describes a `backend-ci` workflow with real
-#   MongoDB and Redis service containers. It is NOT in this file: the backend is
-#   still a scaffold with no tests to run. Add it as a separate workflow so the
-#   two can fail independently, and make both required status checks on `main`.
+# Where the backend's checks are
+#   Not here. The backend has its own `backend-ci` workflow, kept separate so
+#   the two fail independently and each can be a required status check on
+#   `main`. Job ids become check names and must be unique across workflows:
+#   this job is `verify`, the backend's are `backend-verify` and
+#   `backend-audit`. Neither is a required check yet — the `main-protection`
+#   ruleset asks for review and squash merges but does not gate on CI.
 
 name: mobile-ci
 
