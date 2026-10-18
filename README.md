@@ -8,13 +8,15 @@ Capstone project, CSC 325.
 
 ## Group Members
 
-1. Hassan Khan
-2. Christian Pivaral
-3. Ankit Dhakal
-4. Ahmed Rafi
+| Member | Role |
+| --- | --- |
+| Hassan Khan | Project Manager; Scrum Master (Sprint 0) |
+| Christian Pivaral | Scrum Master (current); DevOps |
+| Ankit Dhakal | Product Owner |
+| Ahmed Rafi | DevOps |
 
-> **Team roles — Pending.** Scrum Master, Product Owner and per-sprint vertical slice owners are
-> not yet assigned. Record them here once the team agrees.
+> **Vertical slice owners — Pending.** Per-sprint vertical slice owners are not yet assigned.
+> Record them here once the team agrees.
 
 ## Project Status
 
@@ -328,3 +330,188 @@ an AI-use note (tool, task, what you changed or verified) wherever AI wrote non-
 
 Run the checks locally before pushing — `npm run verify` in `mobile/`, and `ruff check . && pytest`
 in `backend/` — rather than using CI as the first check.
+
+## Prototype
+
+**Figma (public link):** https://www.figma.com/design/pVxnsuxlBW2yPOxwysbn6q/SubTrak---Prototype--CSC-325-?node-id=0-1&t=9ZthyuNMbt0qsZIs-1
+
+The Figma file has four pages: `1 - Personas`, `2 - Context Diagram`, `3 - UI Screens` (clickable prototype, press Play starting at "1 - Connect Email"), and `4 - UX Flow`.
+
+### Product Goal
+
+> SubTrak helps people take control of recurring spending by automatically capturing subscriptions from confirmation emails (AI), warning them before free trials turn into paid charges, splitting shared costs, and surfacing renewal and contract dates in one simple mobile app.
+
+Every persona, diagram, screen, and flow below is designed to serve this goal. Connecting an inbox is optional: users can always add subscriptions by hand, and SubTrak never asks for bank or card credentials.
+
+### 1. Personas
+
+| | **Maya Rodriguez (Primary)** | **Daniel Chen (Secondary)** |
+|---|---|---|
+| **Who** | 21, junior Marketing major, part-time barista, first-generation college student, iPhone | 34, operations analyst, lives with 2 roommates, Android |
+| **Context** | About 9 subscriptions (Spotify, Netflix, Adobe CC, iCloud, Hulu trial...) on a tight budget | Organizes shared household plans (Netflix, YouTube TV, internet) and holds contracts (gym, software) |
+| **Goals** | See what she pays each month; never get charged after a free trial; cancel unused subscriptions | Split costs fairly and see who paid; get warned before contracts auto-renew; see spending trends |
+| **Frustrations** | Trial end dates buried in old emails; surprise charges; subscriptions scattered across email, app stores, and cards | Chasing roommates for money; silent auto-renewals; an out-of-date spreadsheet |
+| **SubTrak features they need** | AI email extraction, Trial Shield, Dashboard, Analytics | Cost Splitter, Contract Alerts, Analytics |
+| **How SubTrak's goal serves them** | Automatic capture and trial warnings stop the surprise charges she can't afford | Cost splitting and contract alerts replace his spreadsheet and keep shared plans in one place |
+
+### 2. Context Diagram
+
+The system sits in the center; arrows show data flow between SubTrak and its external actors.
+
+```mermaid
+flowchart LR
+    M["Subscriber (Maya, primary user)"]
+    D["Plan Owner (Daniel, secondary user)"]
+    R["Shared-plan Member (co-payer)"]
+    SYS["SubTrak System<br/>Mobile app + REST API + MongoDB"]
+    E["Email Provider<br/>Gmail / Outlook"]
+    L["LLM Service"]
+    P["Push Notification Service"]
+
+    M -- "Adds subscriptions, confirms details" --> SYS
+    SYS -- "Totals, trial warnings, insights" --> M
+    D -- "Creates shared plans, contracts" --> SYS
+    SYS -- "Split balances, contract alerts" --> D
+    R -- "Marks share as paid" --> SYS
+    SYS -- "Split request, amount owed" --> R
+    E -- "Confirmation emails (read-only)" --> SYS
+    SYS -- "Email text to extract" --> L
+    L -- "Structured subscription data (JSON)" --> SYS
+    SYS -- "Trial and renewal reminders" --> P
+```
+
+The Figma version is on page `2 - Context Diagram`.
+
+### 3. UI Screens (Figma page `3 - UI Screens`)
+
+| # | Screen | Purpose (ties to Product Goal) |
+|---|---|---|
+| 1 | Connect Email | Onboarding; grants read-only inbox access so subscriptions are captured automatically |
+| 2 | Dashboard | Monthly total, upcoming renewals, Trial Shield banner: all spending in one place |
+| 3 | AI Review | Shows the subscription the AI extracted from an email, with confidence scores, before saving |
+| 4 | Trial Shield | Lists free trials with days left and a cancel guide, so users avoid surprise charges |
+| 5 | Cost Splitter | Shared plan split with paid / pending status and reminders; includes a contract alert |
+| 6 | Insights | Spend by month and category plus an AI tip to cancel unused plans |
+
+### 4. UX Flow (Figma page `4 - UX Flow`)
+
+**Primary task (Maya):** track a free trial and cancel it before she is charged.
+
+1. **Connect inbox** (Screen 1): Maya links Gmail with read-only access.
+   - *Error path:* if the connection fails or she declines access, she skips this step and adds the trial manually.
+2. **Review detected trial** (Screen 3): the AI extracts Hulu, $17.99/month, trial ends Oct 19; she confirms and a 3-day reminder is set.
+   - *Error path:* if the AI can't read the email or returns low-confidence fields (highlighted on Screen 3), Maya corrects the service, price, or trial date by hand before saving. Nothing is saved until she confirms.
+3. **Check dashboard** (Screen 2): she sees her $87.46 monthly total and the Trial Shield banner.
+4. **Open Trial Shield** (Screen 4): Hulu has 2 days left.
+5. **Decision:** cancel before the charge (cancel guide, trial marked cancelled, $17.99 avoided) or keep it (tracked as a paid plan).
+6. **Review insights** (Screen 6): she checks spend by category and an AI tip.
+7. *Optional branch:* **Cost Splitter** (Screen 5) to remind a roommate to pay a Netflix share.
+
+**Secondary task (Daniel):** add a shared plan, invite roommates, auto-split the cost, track paid/pending, send reminders, and receive a contract alert 14 days before renewal.
+
+The Figma page also includes a five-stage journey map (Onboard, Capture, Monitor, Act, Review) covering what the user does, what SubTrak does, and how the user feels.
+
+---
+
+## Architecture
+
+SubTrak is a **client-server application** whose server follows a **layered architecture**. Client-server fits because the data (subscriptions, shared plans, reminders) must be shared between users and devices, and reminders and AI extraction have to run on a server even when the phone app is closed. Layering keeps business rules like trial dates and cost splits in one testable place, separate from HTTP and the database.
+
+```mermaid
+flowchart LR
+    subgraph Client["Client: React Native (Expo)"]
+        UI["Screens and components"]
+        API["API client and state"]
+    end
+    subgraph Server["Server: Django + Django REST Framework"]
+        V["Presentation layer<br/>Views, serializers, auth"]
+        S["Service layer<br/>Trial Shield, Cost Splitter,<br/>Analytics, AI extraction"]
+        DA["Data access layer<br/>Django models via django-mongodb-backend"]
+        J["Scheduled job (Celery + Redis)<br/>Reminder checks"]
+    end
+    DB[("MongoDB Atlas")]
+    LLM["LLM Service"]
+    EM["Gmail / Outlook"]
+    PUSH["Push Notification Service"]
+
+    UI --> API
+    API -- "HTTPS / JSON" --> V
+    V --> S
+    S --> DA
+    DA --> DB
+    S -- "Email text" --> LLM
+    S -- "Read-only OAuth" --> EM
+    J --> S
+    J --> PUSH
+```
+
+| Layer | Technology | Responsibility |
+|---|---|---|
+| **Client (presentation)** | React Native (Expo) | Renders the six screens, handles navigation and user input, calls the REST API over HTTPS |
+| **API / presentation layer** | Django REST Framework (views, serializers, authentication) | Validates requests, authenticates users, shapes JSON responses; contains no business rules |
+| **Service / business layer** | Plain Python modules | Business rules: trial-end and renewal calculation (Trial Shield), cost-split math (Cost Splitter), aggregation (Analytics), and the AI extraction pipeline (build prompt, call LLM, validate and normalize the result) |
+| **Data access layer** | Django models + `django-mongodb-backend` | Persists users, subscriptions, shared plans, and reminders in MongoDB Atlas |
+| **External services** | LLM API, Gmail/Outlook (OAuth), push notifications | Accessed only through the service layer so they can be mocked in tests and swapped later |
+
+**Key design decisions**
+
+- **Separation of concerns:** screens never talk to the database; views never contain business logic. This keeps services unit-testable without HTTP or a database.
+- **AI isolation:** the LLM is called from one service module that returns validated, structured data with confidence scores. The user always reviews the result (Screen 3) before it is saved, so a wrong extraction cannot silently corrupt data.
+- **Privacy:** email access is read-only and limited to receipts and confirmations; only the extracted fields are stored, not the full email.
+- **Reminders:** a scheduled job finds trials and renewals due within 3 days (14 days for contracts) and sends push notifications.
+- **Tooling:** GitHub Actions runs tests on every pull request (see Test Plan).
+
+---
+
+## Test Plan
+
+Tests are grouped into four categories. Features covered: AI extraction, Dashboard totals, Trial Shield, Cost Splitter, Analytics, Contract Alerts.
+
+### 1. Unit tests
+
+Test one function or component in isolation, with no network or real database.
+
+| ID | Target | Example test | Tool |
+|---|---|---|---|
+| U-1 | Trial Shield service | Trial ending Oct 19 returns "2 days left" on Oct 17 and is flagged at risk inside the 3-day window | pytest + pytest-django |
+| U-2 | Cost Splitter service | $22.99 split 3 ways returns $7.66, $7.66, $7.67 (the extra cent goes to the plan owner) and the parts sum to $22.99 | pytest |
+| U-3 | Monthly total | Annual and weekly plans are normalized to a monthly amount; cancelled plans are excluded | pytest |
+| U-4 | AI response validator | Malformed or incomplete LLM JSON is rejected; valid JSON is normalized (dates, currency) | pytest with a mocked LLM client |
+| U-5 | UI components | Trial card shows the correct chip color (red under 3 days, amber under 14, green otherwise) | Jest + React Native Testing Library |
+
+### 2. Integration tests
+
+Test that layers and components work together: API endpoints plus the real data layer (test MongoDB database), with external services mocked.
+
+Tool: pytest with pytest-django and DRF's `APIClient`, against the docker-compose MongoDB; LLM and push services mocked.
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| I-1 | `POST /api/v1/subscriptions/` then `GET /api/v1/dashboard/` | Created subscription appears in the list and the monthly total updates |
+| I-2 | `POST /api/v1/extract/` with a sample Hulu confirmation email (LLM mocked) | Returns structured fields; nothing is saved until the user confirms |
+| I-3 | `POST /api/v1/shared-plans/` with 3 members, then mark one paid | Plan shows "2 of 3 paid" and the outstanding amount is correct |
+| I-4 | Reminder job with trials ending in 2, 9, and 21 days | Only the 2-day trial triggers a push call (push service mocked) |
+| I-5 | Requests without or with another user's auth token | Return 401 / 403; users can only see their own data |
+
+### 3. System / end-to-end (UI) tests
+
+Run the real app against a running test backend and walk through the primary user journey from the UX flow.
+
+| ID | Journey | Expected result |
+|---|---|---|
+| E-1 | Connect email, confirm detected Hulu trial, return to Dashboard | Dashboard shows the new trial and the Trial Shield banner |
+| E-2 | Open Trial Shield, choose "Cancel guide" | Trial is marked cancelled and no longer counts as at risk |
+| E-3 | Create a shared plan, send a reminder to a pending member | Member status stays "Pending" and a reminder is recorded |
+
+Tool: Maestro (or Detox with an Expo development build); run manually at each sprint review until automated.
+
+### 4. AI feature evaluation and usability testing
+
+- **AI extraction accuracy:** run the extractor on a labeled set of about 30 real-style confirmation emails (trial, monthly, annual, receipt). Record field-level accuracy for service, price, billing period, and trial end date. **Target: at least 90% on price and dates;** failures are reviewed to improve the prompt.
+- **Usability:** ask 3 to 5 classmates matching the personas to complete the Maya task (track and cancel a trial) using the Figma prototype or the app. Measure task completion and note confusing steps.
+
+### Execution and exit criteria
+
+- Unit and integration tests run automatically in **GitHub Actions** on every pull request. Once `verify` and `backend-verify` are added as required checks (see [Continuous Integration](#continuous-integration)), a PR cannot merge if they fail.
+- Each user story's acceptance criteria are checked against the matching E2E or manual test before the story moves to Done on the Kanban board.
+- **Exit criteria per sprint:** all tests pass, no open high-severity bugs, and the sprint demo flow (Maya's journey) works end to end.
