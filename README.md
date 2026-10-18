@@ -8,13 +8,15 @@ Capstone project, CSC 325.
 
 ## Group Members
 
-1. Hassan Khan
-2. Christian Pivaral
-3. Ankit Dhakal
-4. Ahmed Rafi
+| Member | Role |
+| --- | --- |
+| Hassan Khan | Project Manager; Scrum Master (Sprint 0) |
+| Christian Pivaral | Scrum Master (current); DevOps |
+| Ankit Dhakal | Product Owner |
+| Ahmed Rafi | DevOps |
 
-> **Team roles — Pending.** Scrum Master, Product Owner and per-sprint vertical slice owners are
-> not yet assigned. Record them here once the team agrees.
+> **Vertical slice owners — Pending.** Per-sprint vertical slice owners are not yet assigned.
+> Record them here once the team agrees.
 
 ## Project Status
 
@@ -329,8 +331,7 @@ an AI-use note (tool, task, what you changed or verified) wherever AI wrote non-
 Run the checks locally before pushing — `npm run verify` in `mobile/`, and `ruff check . && pytest`
 in `backend/` — rather than using CI as the first check.
 
-
- ## Prototype
+## Prototype
 
 **Figma (public link):** https://www.figma.com/design/pVxnsuxlBW2yPOxwysbn6q/SubTrak---Prototype--CSC-325-?node-id=0-1&t=9ZthyuNMbt0qsZIs-1
 
@@ -340,7 +341,7 @@ The Figma file has four pages: `1 - Personas`, `2 - Context Diagram`, `3 - UI Sc
 
 > SubTrak helps people take control of recurring spending by automatically capturing subscriptions from confirmation emails (AI), warning them before free trials turn into paid charges, splitting shared costs, and surfacing renewal and contract dates in one simple mobile app.
 
-Every persona, diagram, screen, and flow below is designed to serve this goal.
+Every persona, diagram, screen, and flow below is designed to serve this goal. Connecting an inbox is optional: users can always add subscriptions by hand, and SubTrak never asks for bank or card credentials.
 
 ### 1. Personas
 
@@ -351,6 +352,7 @@ Every persona, diagram, screen, and flow below is designed to serve this goal.
 | **Goals** | See what she pays each month; never get charged after a free trial; cancel unused subscriptions | Split costs fairly and see who paid; get warned before contracts auto-renew; see spending trends |
 | **Frustrations** | Trial end dates buried in old emails; surprise charges; subscriptions scattered across email, app stores, and cards | Chasing roommates for money; silent auto-renewals; an out-of-date spreadsheet |
 | **SubTrak features they need** | AI email extraction, Trial Shield, Dashboard, Analytics | Cost Splitter, Contract Alerts, Analytics |
+| **How SubTrak's goal serves them** | Automatic capture and trial warnings stop the surprise charges she can't afford | Cost splitting and contract alerts replace his spreadsheet and keep shared plans in one place |
 
 ### 2. Context Diagram
 
@@ -396,7 +398,9 @@ The Figma version is on page `2 - Context Diagram`.
 **Primary task (Maya):** track a free trial and cancel it before she is charged.
 
 1. **Connect inbox** (Screen 1): Maya links Gmail with read-only access.
+   - *Error path:* if the connection fails or she declines access, she skips this step and adds the trial manually.
 2. **Review detected trial** (Screen 3): the AI extracts Hulu, $17.99/month, trial ends Oct 19; she confirms and a 3-day reminder is set.
+   - *Error path:* if the AI can't read the email or returns low-confidence fields (highlighted on Screen 3), Maya corrects the service, price, or trial date by hand before saving. Nothing is saved until she confirms.
 3. **Check dashboard** (Screen 2): she sees her $87.46 monthly total and the Trial Shield banner.
 4. **Open Trial Shield** (Screen 4): Hulu has 2 days left.
 5. **Decision:** cancel before the charge (cancel guide, trial marked cancelled, $17.99 avoided) or keep it (tracked as a paid plan).
@@ -411,7 +415,7 @@ The Figma page also includes a five-stage journey map (Onboard, Capture, Monitor
 
 ## Architecture
 
-SubTrak is a **client-server application** whose server follows a **layered architecture**.
+SubTrak is a **client-server application** whose server follows a **layered architecture**. Client-server fits because the data (subscriptions, shared plans, reminders) must be shared between users and devices, and reminders and AI extraction have to run on a server even when the phone app is closed. Layering keeps business rules like trial dates and cost splits in one testable place, separate from HTTP and the database.
 
 ```mermaid
 flowchart LR
@@ -423,7 +427,7 @@ flowchart LR
         V["Presentation layer<br/>Views, serializers, auth"]
         S["Service layer<br/>Trial Shield, Cost Splitter,<br/>Analytics, AI extraction"]
         DA["Data access layer<br/>Django models via django-mongodb-backend"]
-        J["Scheduled job<br/>Reminder checks"]
+        J["Scheduled job (Celery + Redis)<br/>Reminder checks"]
     end
     DB[("MongoDB Atlas")]
     LLM["LLM Service"]
@@ -469,21 +473,23 @@ Test one function or component in isolation, with no network or real database.
 
 | ID | Target | Example test | Tool |
 |---|---|---|---|
-| U-1 | Trial Shield service | Trial ending Oct 19 returns "2 days left" on Oct 17 and is flagged at risk inside the 3-day window | Django `TestCase` (`python manage.py test`) |
-| U-2 | Cost Splitter service | $22.99 split 3 ways returns $7.66, $7.66, $7.67 (the extra cent goes to the plan owner) and the parts sum to $22.99 | Django `TestCase` |
-| U-3 | Monthly total | Annual and weekly plans are normalized to a monthly amount; cancelled plans are excluded | Django `TestCase` |
-| U-4 | AI response validator | Malformed or incomplete LLM JSON is rejected; valid JSON is normalized (dates, currency) | Django `TestCase` with a mocked LLM client |
+| U-1 | Trial Shield service | Trial ending Oct 19 returns "2 days left" on Oct 17 and is flagged at risk inside the 3-day window | pytest + pytest-django |
+| U-2 | Cost Splitter service | $22.99 split 3 ways returns $7.66, $7.66, $7.67 (the extra cent goes to the plan owner) and the parts sum to $22.99 | pytest |
+| U-3 | Monthly total | Annual and weekly plans are normalized to a monthly amount; cancelled plans are excluded | pytest |
+| U-4 | AI response validator | Malformed or incomplete LLM JSON is rejected; valid JSON is normalized (dates, currency) | pytest with a mocked LLM client |
 | U-5 | UI components | Trial card shows the correct chip color (red under 3 days, amber under 14, green otherwise) | Jest + React Native Testing Library |
 
 ### 2. Integration tests
 
 Test that layers and components work together: API endpoints plus the real data layer (test MongoDB database), with external services mocked.
 
+Tool: pytest with pytest-django and DRF's `APIClient`, against the docker-compose MongoDB; LLM and push services mocked.
+
 | ID | Scenario | Expected result |
 |---|---|---|
-| I-1 | `POST /api/subscriptions/` then `GET /api/dashboard/` | Created subscription appears in the list and the monthly total updates |
-| I-2 | `POST /api/extract/` with a sample Hulu confirmation email (LLM mocked) | Returns structured fields; nothing is saved until the user confirms |
-| I-3 | `POST /api/shared-plans/` with 3 members, then mark one paid | Plan shows "2 of 3 paid" and the outstanding amount is correct |
+| I-1 | `POST /api/v1/subscriptions/` then `GET /api/v1/dashboard/` | Created subscription appears in the list and the monthly total updates |
+| I-2 | `POST /api/v1/extract/` with a sample Hulu confirmation email (LLM mocked) | Returns structured fields; nothing is saved until the user confirms |
+| I-3 | `POST /api/v1/shared-plans/` with 3 members, then mark one paid | Plan shows "2 of 3 paid" and the outstanding amount is correct |
 | I-4 | Reminder job with trials ending in 2, 9, and 21 days | Only the 2-day trial triggers a push call (push service mocked) |
 | I-5 | Requests without or with another user's auth token | Return 401 / 403; users can only see their own data |
 
@@ -497,7 +503,7 @@ Run the real app against a running test backend and walk through the primary use
 | E-2 | Open Trial Shield, choose "Cancel guide" | Trial is marked cancelled and no longer counts as at risk |
 | E-3 | Create a shared plan, send a reminder to a pending member | Member status stays "Pending" and a reminder is recorded |
 
-Tool: Detox (or Maestro) on the Expo build; run manually at each sprint review until automated.
+Tool: Maestro (or Detox with an Expo development build); run manually at each sprint review until automated.
 
 ### 4. AI feature evaluation and usability testing
 
@@ -506,6 +512,6 @@ Tool: Detox (or Maestro) on the Expo build; run manually at each sprint review u
 
 ### Execution and exit criteria
 
-- Unit and integration tests run automatically in **GitHub Actions** on every pull request; a PR cannot merge if they fail.
+- Unit and integration tests run automatically in **GitHub Actions** on every pull request. Once `verify` and `backend-verify` are added as required checks (see [Continuous Integration](#continuous-integration)), a PR cannot merge if they fail.
 - Each user story's acceptance criteria are checked against the matching E2E or manual test before the story moves to Done on the Kanban board.
 - **Exit criteria per sprint:** all tests pass, no open high-severity bugs, and the sprint demo flow (Maya's journey) works end to end.
