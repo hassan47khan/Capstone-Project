@@ -52,20 +52,32 @@ export interface ColorTokens {
 
   /** Primary buttons, active tab, links, prices. */
   accent: string;
-  /** Text and icons drawn on an `accent` fill. */
+  /** Text and icons drawn on an `accent` fill. Also the toggle thumb (02 §7). */
   onAccent: string;
+  /** A pressed primary button: `accent` darkened 8% (02 §1). */
+  accentPressed: string;
   /** Selected rows, the "Active" badge, avatar backgrounds. */
   accentSurface: string;
 
   /** Positive figures, confirmation totals. */
   success: string;
-  /** Pale green "Monthly Total" card fill. */
+  /** Pale green "Monthly Total" card fill, and the toast fill. */
   successSurface: string;
+  /** The toast's 1px outline (Figma node 3:955). Decorative. */
+  successBorder: string;
 
   /** Destructive actions and validation errors ONLY. Never data. */
   danger: string;
+  /** A pressed destructive button: `danger` darkened 8% (02 §1). */
+  dangerPressed: string;
   /** Errored-field background. */
   dangerSurface: string;
+
+  /**
+   * The backdrop behind a bottom sheet: black at 40% (02 §12). A colour string,
+   * not a hex — the one translucent token — so components never spell `rgba(`.
+   */
+  scrim: string;
 
   /** Notice banner: background, border, text. Used for price changes. */
   noticeSurface: string;
@@ -94,14 +106,19 @@ export const lightColors: ColorTokens = {
 
   accent: '#105b5d',
   onAccent: '#ffffff',
+  accentPressed: '#0f5456',
   accentSurface: '#dbe8e5',
 
   success: '#267465',
   // Hardcoded in Figma; promoted per 01 §1.
   successSurface: '#e7f0e9',
+  successBorder: '#bed6c9',
 
   danger: '#b44735',
+  dangerPressed: '#a64131',
   dangerSurface: '#f9ece8',
+
+  scrim: 'rgba(0, 0, 0, 0.4)',
 
   noticeSurface: '#f8ebcb',
   noticeBorder: '#e6cf98',
@@ -130,13 +147,18 @@ export const darkColors: ColorTokens = {
 
   accent: '#62b5ae',
   onAccent: '#0f1a1b',
+  accentPressed: '#5aa7a0',
   accentSurface: '#1d3a3a',
 
   success: '#6bbfa6',
   successSurface: '#1b3530',
+  successBorder: '#2f5446',
 
   danger: '#e58a77',
+  dangerPressed: '#d37f6d',
   dangerSurface: '#3b2420',
+
+  scrim: 'rgba(0, 0, 0, 0.4)',
 
   noticeSurface: '#3a3020',
   noticeBorder: '#6b5a33',
@@ -326,6 +348,8 @@ export const radius = {
   avatar: 20,
   /** 48px centre add button. */
   fab: 24,
+  /** Top corners of a bottom sheet (02 §12). */
+  sheet: 16,
 } as const;
 
 /** The floor for anything tappable. Graded, and enforced by component tests. */
@@ -339,24 +363,37 @@ export const device = {
 } as const;
 
 /**
- * Fixed component sizes carried over from Phase 0. Handoff 02 re-measures
- * every component against Figma and replaces these.
+ * Fixed component sizes, measured in Figma by handoff 02 and 03. The section
+ * of the handoff each value comes from is noted beside it.
  */
 export const sizes = {
-  /** Minimum touch target — kept as an alias of `touchTarget.min`. */
+  /** Minimum touch target — an alias of `touchTarget.min`. */
   minTouch: touchTarget.min,
-  /** Buttons and text inputs. */
-  control: 52,
-  /** Segmented control, inside a 4px-padded `surface2` track. */
-  segmented: 48,
+  /** Button height (02 §1). */
+  button: 48,
+  /** Text input, Select and DateField height (02 §2). */
+  field: 52,
+  /** Segmented control: one segment, and the padded track around it (02 §4). */
+  segment: 40,
+  segmentTrack: 44,
   /** Chips. */
   chip: 44,
-  /** Subscription list rows (Figma sub-card: 72). */
+  /** Subscription list row — Figma sub-card, node 3:1686 (02 §9). */
   rowSubscription: 72,
-  /** Settings list rows. */
-  rowSettings: 56,
+  /** Settings rows — Figma node 3:1819 (02 §11). */
+  rowSettings: 46,
+  rowSettingsToggle: 52,
+  /** Settings-row stepper buttons (02 §11). */
+  stepper: 28,
+  /** Toggle track and thumb (02 §7). */
+  toggleWidth: 40,
+  toggleHeight: 24,
+  toggleThumb: 20,
+  toggleInset: 2,
   /** Hairline divider. Pixel-snapping is left to React Native. */
   hairline: 1,
+  /** Focused or errored field border (02 §2). */
+  borderFocus: 2,
   /** Service logo circle in a list row, and the larger one on a detail screen. */
   tile: 40,
   tileLarge: 72,
@@ -365,12 +402,70 @@ export const sizes = {
   barRow: 12,
   /** Gap between stacked-bar segments. */
   barGap: 2,
+  /** Category dot (02 §10). */
+  dot: 8,
+  /** Icon sizes: tab and FAB icons, field chevrons, the select check, toasts. */
+  icon: 20,
+  iconSmall: 16,
+  iconCheck: 18,
+  /** EmptyState illustration icon (02 §14). */
+  iconLarge: 48,
+  /** Bottom tab bar, one tab, and the centre FAB (03 §2). */
+  tabBar: 72,
+  tabWidth: 72,
+  fab: 48,
+  fabFrame: 56,
+  /** Screen header and its 32px back/action buttons (03 §4). */
+  header: 56,
+  headerButton: 32,
+  /** Bottom-sheet grabber (02 §12). */
+  grabberWidth: 40,
+  grabberHeight: 4,
+  /** Toast minimum height (02 §13). */
+  toast: 44,
+  /** Readable measure for centred prose (EmptyState). */
+  proseWidth: 280,
 } as const;
 
-/** Opacity applied to a pressable while the finger is down, and when disabled. */
+/** Opacities. */
 export const opacity = {
+  /** A pressable that has no fill change of its own while the finger is down. */
   pressed: 0.7,
+  /** Legacy dim for disabled controls that have no designed disabled state. */
   disabled: 0.45,
+  /** A cancelled subscription's title and price (02 §9). */
+  cancelled: 0.6,
+  /** Skeleton pulse range, and its static value under reduced motion (02 §14). */
+  pulseLow: 0.4,
+  pulseHigh: 1,
+  skeletonStatic: 0.6,
+} as const;
+
+/**
+ * Motion durations in milliseconds (02 §15). Every animation reads its timing
+ * from here through `useMotion()`, which also applies the reduced-motion rule.
+ */
+export const motion = {
+  /** Button scale and ListRow fill on press. */
+  press: 100,
+  /** Button pressed scale. */
+  pressScale: 0.98,
+  /** Bottom sheet in and out. */
+  sheetIn: 300,
+  sheetOut: 250,
+  /** Toast enter, and how far it rises. */
+  toast: 200,
+  toastRise: 8,
+  /** How long a toast stays up. */
+  toastHold: 3000,
+  /** Modal screen presentation. */
+  modal: 350,
+  /** Skeleton pulse, one full cycle. */
+  pulse: 1500,
+  /** Toggle thumb travel. */
+  toggle: 150,
+  /** The cross-fade that replaces movement under reduced motion. */
+  crossFade: 150,
 } as const;
 
 export const tokens = {
@@ -384,6 +479,7 @@ export const tokens = {
   device,
   sizes,
   opacity,
+  motion,
 } as const;
 
 export type Tokens = typeof tokens;

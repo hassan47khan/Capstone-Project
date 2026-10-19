@@ -19,6 +19,9 @@ import { render as rntlRender } from '@testing-library/react-native';
 import type { ReactElement, ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ToastProvider } from '@/components/Toast';
+import { ThemeProvider, type ColorScheme } from '@/theme';
+
 /**
  * A query client with retries off.
  *
@@ -51,13 +54,19 @@ const SAFE_AREA_METRICS = {
 interface WrapperProps {
   children: ReactNode;
   queryClient: QueryClient;
+  scheme: ColorScheme;
+  reduceMotion: boolean;
 }
 
-function Providers({ children, queryClient }: WrapperProps) {
+function Providers({ children, queryClient, scheme, reduceMotion }: WrapperProps) {
   return (
-    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </SafeAreaProvider>
+    <ThemeProvider initialPreference={scheme} reduceMotionOverride={reduceMotion}>
+      <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>{children}</ToastProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 
@@ -71,13 +80,21 @@ function Providers({ children, queryClient }: WrapperProps) {
  */
 export async function renderWithProviders(
   ui: ReactElement,
-  options: { queryClient?: QueryClient } = {},
+  options: {
+    queryClient?: QueryClient;
+    scheme?: ColorScheme;
+    reduceMotion?: boolean;
+  } = {},
 ) {
   const queryClient = options.queryClient ?? createTestQueryClient();
+  const scheme = options.scheme ?? 'light';
+  const reduceMotion = options.reduceMotion ?? false;
 
   const result = await rntlRender(ui, {
     wrapper: ({ children }) => (
-      <Providers queryClient={queryClient}>{children}</Providers>
+      <Providers queryClient={queryClient} scheme={scheme} reduceMotion={reduceMotion}>
+        {children}
+      </Providers>
     ),
   });
 

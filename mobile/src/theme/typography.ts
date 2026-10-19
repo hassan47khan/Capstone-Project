@@ -127,6 +127,30 @@ export function createTypography(colors: ColorTokens) {
       color: colors.textMuted,
     },
 
+    /** The value half of a two-tone row subtitle: "Oct 12, 2026" (02 §9). */
+    captionStrong: {
+      fontFamily: fontFamily.bodyMedium,
+      fontSize: 12,
+      color: colors.text,
+    },
+    /**
+     * Section headers (02 §14). 02 asks for 11px; it is 12 because 01 §4 allows
+     * no new text below the 12pt floor.
+     */
+    sectionLabel: {
+      fontFamily: fontFamily.bodySemiBold,
+      fontSize: 12,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: colors.textMuted,
+    },
+    /** Toast message — Figma node 3:955, DM Sans SemiBold 15 in `success`. */
+    toast: {
+      fontFamily: fontFamily.bodySemiBold,
+      fontSize: 15,
+      color: colors.success,
+    },
+
     // --- Below the 12pt floor: deliberate, and never the sole carrier --------
 
     /** Tab bar labels. Allowed at 11 only because a 20px icon carries the meaning. */

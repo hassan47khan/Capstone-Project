@@ -14,6 +14,8 @@ export {
 } from './contrast';
 export { fontAssets, useAppFonts } from './fonts';
 export { makeStyles } from './makeStyles';
+export { motionFor, useMotion } from './motion';
+export type { Motion } from './motion';
 export { schemeThemes, ThemeProvider, useTheme } from './ThemeProvider';
 export type {
   ColorScheme,
@@ -35,6 +37,7 @@ export {
   lightCategoryColors,
   lightColors,
   lightServicePalette,
+  motion,
   opacity,
   radius,
   serviceTint,

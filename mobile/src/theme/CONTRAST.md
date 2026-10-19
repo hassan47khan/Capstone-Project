@@ -70,18 +70,31 @@ There are seven muted tint/ink pairs per theme for services with no catalog bran
 colour (`serviceTint(name)`). Ink on its own tint is at least **5.91:1** in light and
 **6.85:1** in dark.
 
+## Component pairs added by the component library (handoff 02)
+
+| Pair                                        | Light | Dark | Needs |
+| ------------------------------------------- | ----- | ---- | ----- |
+| onAccent on accentPressed (pressed primary) | 8.67  | 6.31 | 4.5   |
+| onAccent on danger (destructive button)     | 5.39  | 6.95 | 4.5   |
+| onAccent on dangerPressed                   | 6.14  | 5.93 | 4.5   |
+| Toggle thumb (onAccent) on the "on" track   | 7.85  | 7.38 | 3.0   |
+| Toggle thumb (onAccent) on the "off" track  | 3.58  | ≈4.2 | 3.0   |
+
+The pressed fills are their base colour darkened by 8%, per 02 §1. The thumb uses
+`onAccent`, as 02 §7 says, and needs no token of its own: it passes on both tracks in
+both themes. `successBorder` (the toast outline) and `scrim` (the sheet backdrop) are
+decorative and are not held to a ratio.
+
 ## Disabled states (exempt, but measured)
 
-Disabled is drawn as the whole control at `opacity.disabled` (0.45) over `bg`.
+From 02, a disabled Button or field is a `surface2` fill with a `textMuted` label, at full
+opacity. That pair is **4.28:1** in light and **6.10:1** in dark. Primitives with no designed
+disabled state still dim to `opacity.disabled` (0.45). For those, the dimmed primary label
+on its dimmed fill is 2.24 in light and 2.52 in dark.
 
-| Pair, as rendered                         | Light | Dark |
-| ----------------------------------------- | ----- | ---- |
-| Disabled primary button label on its fill | 2.24  | 2.52 |
-| Disabled input text on its field          | 2.79  | 3.70 |
-
-WCAG 1.4.3 and 1.4.11 exempt inactive components. The test holds these to a 2:1 floor so a
-disabled label stays legible as a label. Raising them further would make disabled look
-enabled.
+WCAG 1.4.3 and 1.4.11 exempt inactive components. The test holds every disabled pair to a
+2:1 floor so a disabled label stays legible as a label. Raising them further would make
+disabled look enabled.
 
 ## The one pair that is below AA, and the rule that handles it
 

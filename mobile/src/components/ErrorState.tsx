@@ -26,7 +26,7 @@
 import { Text, View } from 'react-native';
 
 import { ApiError } from '@/api/errors';
-import { makeStyles, spacing } from '@/theme';
+import { makeStyles, sizes, spacing } from '@/theme';
 
 import { Button } from './Button';
 
@@ -83,17 +83,21 @@ export function ErrorState({ error, variant, onRetry, testID }: ErrorStateProps)
   const copy = COPY[resolved];
 
   return (
-    <View
-      style={styles.container}
-      accessible
-      // "alert" so the failure is announced on arrival rather than waiting to be
-      // found — a user who cannot see the screen otherwise just gets silence.
-      accessibilityRole="alert"
-      accessibilityLabel={`${copy.title}. ${copy.message}`}
-      testID={testID}
-    >
-      <Text style={styles.title}>{copy.title}</Text>
-      <Text style={styles.message}>{copy.message}</Text>
+    <View style={styles.container}>
+      <View
+        style={styles.text}
+        accessible
+        // "alert" so the failure is announced on arrival rather than waiting to
+        // be found — a user who cannot see the screen otherwise gets silence.
+        // Only the text is grouped: a Retry button inside the grouped element
+        // would be unreachable for a screen-reader user.
+        accessibilityRole="alert"
+        accessibilityLabel={`${copy.title}. ${copy.message}`}
+        testID={testID}
+      >
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.message}>{copy.message}</Text>
+      </View>
 
       {onRetry ? (
         <Button
@@ -107,22 +111,27 @@ export function ErrorState({ error, variant, onRetry, testID }: ErrorStateProps)
   );
 }
 
-const useStyles = makeStyles(({ typography }) => ({
+// Matches EmptyState (02 §14) so the two states read as one family.
+const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.md,
+    maxWidth: sizes.proseWidth,
+    gap: spacing.lg,
     paddingVertical: spacing.xxl * 2,
-    paddingHorizontal: spacing.xl,
+  },
+  text: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   title: {
-    ...typography.labelSemibold,
+    ...typography.displayMd,
     textAlign: 'center',
   },
   message: {
     ...typography.bodyMd,
+    color: colors.textMuted,
     textAlign: 'center',
-    maxWidth: 280,
-    marginBottom: spacing.sm,
   },
 }));

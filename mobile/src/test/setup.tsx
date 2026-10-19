@@ -74,6 +74,20 @@ jest.mock('expo-secure-store', () => {
  * surrounding UI get buried. This stand-in keeps the one thing tests care about
  * — that an icon-only button carries an accessible label.
  */
+/**
+ * The native date picker has no JS implementation. The stub renders a View that
+ * keeps its props, so a test can find it and call `onChange` the way the OS
+ * would: `picker.props.onChange({ type: 'set' }, new Date(2026, 9, 12))`.
+ */
+jest.mock('@react-native-community/datetimepicker', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require('react');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  const Picker = (props: Record<string, unknown>) => React.createElement(View, props);
+  return { __esModule: true, default: Picker };
+});
+
 jest.mock('lucide-react-native', () => {
   // `require` rather than an import: a jest.mock factory is hoisted above every
   // import in the file, so anything it references must be loaded inside it.

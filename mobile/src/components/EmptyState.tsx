@@ -1,31 +1,30 @@
 /**
- * EmptyState — what a screen shows when there is nothing to show.
+ * EmptyState — what a screen shows when there is nothing to show (handoff 02 §14).
  *
  * What it is for
- *   The first-run Home and Subscriptions screens, an Insights screen with no
- *   data, a search that matched nothing.
- *
- * Why it is a component and not a line of text per screen
- *   Empty states are the single most common omission in a wireframe — the
- *   prototype does not draw one — and they are the first thing a new user sees.
- *   A shared component means a new screen gets a decent one by default, and the
- *   review checklist has something concrete to check against.
+ *   The first-run Home, an Analytics screen with no data, a search that matched
+ *   nothing. "No screen renders a blank frame" is a non-negotiable rule (00).
  *
  * Why the action is optional
  *   "No subscriptions yet" with an Add button is an invitation. "No results for
  *   'xyz'" with a button would be nonsense — the user should change their search,
  *   not create something. So the call to action is offered, never assumed.
  *
- * Design tokens
- *   title    typography.labelSemibold
- *   body     typography.bodyMd, centred
- *   spacing  spacing.xl between elements
+ * Accessibility
+ *   The title and message are announced together as one stop, so the
+ *   explanation arrives with the heading. The button stays a separate stop — if
+ *   it were inside the grouped element a screen reader could never reach it.
  *
- * Used by: Home, Subscriptions, Insights, Currency search.
+ * Design tokens
+ *   icon     sizes.iconLarge (48), colors.textMuted
+ *   title    typography.displayMd
+ *   body     typography.bodyMd in colors.textMuted
+ *   width    sizes.proseWidth (280) max, centred
  */
+import type { LucideIcon } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import { makeStyles, spacing } from '@/theme';
+import { makeStyles, sizes, spacing, useTheme } from '@/theme';
 
 import { Button } from './Button';
 
@@ -35,6 +34,9 @@ export interface EmptyStateProps {
 
   /** One sentence saying what to do about it. */
   message: string;
+
+  /** A lucide icon drawn above the title. Decorative. */
+  icon?: LucideIcon;
 
   /** Label for the call to action. Omit for a state with nothing to offer. */
   actionLabel?: string;
@@ -46,22 +48,31 @@ export interface EmptyStateProps {
 export function EmptyState({
   title,
   message,
+  icon: Icon,
   actionLabel,
   onAction,
   testID,
 }: EmptyStateProps) {
   const styles = useStyles();
+  const { colors } = useTheme();
   return (
-    <View
-      style={styles.container}
-      // Announced as a group, so the explanation arrives with the heading rather
-      // than as a second, disconnected stop.
-      accessible
-      accessibilityLabel={`${title}. ${message}`}
-      testID={testID}
-    >
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.message}>{message}</Text>
+    <View style={styles.container} testID={testID}>
+      {Icon ? (
+        <Icon
+          size={sizes.iconLarge}
+          color={colors.textMuted}
+          strokeWidth={1.5}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      ) : null}
+
+      <View style={styles.text} accessible accessibilityLabel={`${title}. ${message}`}>
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
+        <Text style={styles.message}>{message}</Text>
+      </View>
 
       {actionLabel && onAction ? (
         <Button
@@ -75,24 +86,26 @@ export function EmptyState({
   );
 }
 
-const useStyles = makeStyles(({ typography }) => ({
+const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.md,
+    maxWidth: sizes.proseWidth,
+    gap: spacing.lg,
     paddingVertical: spacing.xxl * 2,
-    paddingHorizontal: spacing.xl,
+  },
+  text: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   title: {
-    ...typography.labelSemibold,
+    ...typography.displayMd,
     textAlign: 'center',
   },
   message: {
     ...typography.bodyMd,
+    color: colors.textMuted,
     textAlign: 'center',
-    // Keeps a line of prose at a readable measure instead of stretching it the
-    // full width of a tablet.
-    maxWidth: 280,
-    marginBottom: spacing.sm,
   },
 }));
