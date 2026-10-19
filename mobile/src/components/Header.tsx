@@ -5,7 +5,7 @@
  *   Two shapes the design uses:
  *     tab   — a large serif title with a small eyebrow above it and an optional
  *             action at the right (Home's date + "Overview" + avatar)
- *     back  — a petrol back link naming where it returns to, with the title
+ *     back  — an accent back link naming where it returns to, with the title
  *             below (Subscription detail's "< Subscriptions")
  *
  * Why the back link names its destination
@@ -18,17 +18,17 @@
  *   with a rotor gesture instead of swiping through every element.
  *
  * Design tokens
- *   tab title   typography.screenTitle (32/38, Newsreader)
- *   eyebrow     typography.eyebrow (13, ink3)
- *   back link   typography.button in colors.accent
+ *   tab title   typography.displayMd (24, DM Serif Display)
+ *   eyebrow     typography.caption (12, textMuted)
+ *   back link   typography.labelSemibold in colors.accent
  *
  * Used by: every screen.
  */
 import { ChevronLeft } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, opacity, sizes, spacing, typography } from '@/theme';
+import { makeStyles, opacity, sizes, spacing, useTheme } from '@/theme';
 
 export interface HeaderProps {
   title: string;
@@ -57,6 +57,8 @@ export function Header({
   action,
   testID,
 }: HeaderProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const isBackVariant = Boolean(backLabel && onBack);
 
   return (
@@ -102,7 +104,7 @@ export function Header({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
     gap: spacing.md,
     paddingTop: spacing.md,
@@ -120,7 +122,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   backLabel: {
-    ...typography.button,
+    ...typography.labelSemibold,
     color: colors.accent,
   },
   pressed: {
@@ -137,12 +139,12 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   eyebrow: {
-    ...typography.eyebrow,
+    ...typography.caption,
   },
   title: {
-    ...typography.screenTitle,
+    ...typography.displayMd,
   },
   action: {
     justifyContent: 'center',
   },
-});
+}));

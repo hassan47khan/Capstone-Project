@@ -18,18 +18,18 @@
  *   the meaning, and the amber tint is reinforcement.
  *
  * Design tokens
- *   background  colors.noticeBg
- *   border      colors.noticeLine
- *   text        colors.noticeInk
- *   radius      radius.card (16)
+ *   background  colors.noticeSurface
+ *   border      colors.noticeBorder
+ *   text        colors.noticeText
+ *   radius      radius.card (6)
  *
  * Used by: Home (notice slot), Subscription detail (price-increase), Settings
  *          (rate unavailable).
  */
 import { AlertCircle, ChevronRight } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { makeStyles, radius, spacing, useTheme } from '@/theme';
 
 export interface NoticeBannerProps {
   /** The message. Written as a full sentence — it is the entire content. */
@@ -54,11 +54,13 @@ export function NoticeBanner({
   accessibilityHint,
   testID,
 }: NoticeBannerProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const body = (
     <View style={styles.banner}>
       <AlertCircle
         size={20}
-        color={colors.noticeInk}
+        color={colors.noticeText}
         strokeWidth={1.7}
         // Decorative: the text says everything the icon implies.
         accessibilityElementsHidden
@@ -73,7 +75,7 @@ export function NoticeBanner({
       {onPress ? (
         <ChevronRight
           size={20}
-          color={colors.noticeInk}
+          color={colors.noticeText}
           strokeWidth={1.7}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
@@ -111,14 +113,14 @@ export function NoticeBanner({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.noticeBg,
+    backgroundColor: colors.noticeSurface,
     borderWidth: 1,
-    borderColor: colors.noticeLine,
+    borderColor: colors.noticeBorder,
     borderRadius: radius.card,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
@@ -128,11 +130,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   title: {
-    ...typography.rowTitle,
-    color: colors.noticeInk,
+    ...typography.labelSemibold,
+    color: colors.noticeText,
   },
   message: {
-    ...typography.body,
-    color: colors.noticeInk,
+    ...typography.bodyMd,
+    color: colors.noticeText,
   },
-});
+}));

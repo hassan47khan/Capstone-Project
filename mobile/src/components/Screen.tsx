@@ -13,7 +13,7 @@
  *   is correct by default, and changing the gutter is one edit.
  *
  * Design tokens
- *   background  colors.paper      the warm ground the whole app sits on
+ *   background  colors.bg      the warm ground the whole app sits on
  *   gutter      spacing.xl (20)   standard; spacing.xxl (24) on Welcome
  *
  * Used by: every screen.
@@ -31,7 +31,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
-import { colors, spacing } from '@/theme';
+import { makeStyles, spacing, useTheme } from '@/theme';
 
 export interface ScreenProps {
   children: ReactNode;
@@ -81,6 +81,8 @@ export function Screen({
   contentStyle,
   testID,
 }: ScreenProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const gutterStyle =
     gutter === 'none'
       ? undefined
@@ -102,7 +104,7 @@ export function Screen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.ink3}
+            tintColor={colors.textMuted}
             colors={[colors.accent]}
           />
         ) : undefined
@@ -135,10 +137,10 @@ export function Screen({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   safe: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   flex: {
     flex: 1,
@@ -159,9 +161,9 @@ const styles = StyleSheet.create({
     // A hairline rather than a shadow: the design system has no shadows except
     // the segmented-control thumb.
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
-    backgroundColor: colors.tabBg,
+    borderTopColor: colors.border,
+    backgroundColor: colors.tabBar,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
   },
-});
+}));

@@ -23,15 +23,15 @@
  *   `SkeletonGroup` to wrap a set.
  *
  * Design tokens
- *   fill     colors.sunken
- *   radius   radius.control for blocks, radius.tile for squares
+ *   fill     colors.surface2
+ *   radius   radius.card for blocks, radius.avatar for squares
  *
  * Used by: Home hero and renewals list, Subscriptions list, Insights.
  */
 import type { ReactNode } from 'react';
-import { StyleSheet, View, type DimensionValue } from 'react-native';
+import { View, type DimensionValue } from 'react-native';
 
-import { colors, radius, sizes, spacing } from '@/theme';
+import { makeStyles, radius, sizes, spacing } from '@/theme';
 
 export interface SkeletonProps {
   /** Pass a percentage string to vary line lengths so a block looks like text. */
@@ -48,6 +48,7 @@ export function Skeleton({
   shape = 'block',
   testID,
 }: SkeletonProps) {
+  const styles = useStyles();
   return (
     <View
       style={[
@@ -55,7 +56,7 @@ export function Skeleton({
         {
           width,
           height,
-          borderRadius: shape === 'tile' ? radius.tile : radius.control,
+          borderRadius: shape === 'tile' ? radius.avatar : radius.card,
         },
       ]}
       // Silent individually; the surrounding group does the announcing.
@@ -98,6 +99,7 @@ export function SkeletonGroup({
  * data arrives.
  */
 export function SkeletonRow({ testID }: { testID?: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.row} testID={testID}>
       <Skeleton width={sizes.tile} height={sizes.tile} shape="tile" />
@@ -110,9 +112,9 @@ export function SkeletonRow({ testID }: { testID?: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   skeleton: {
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.surface2,
   },
   row: {
     flexDirection: 'row',
@@ -126,4 +128,4 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.sm,
   },
-});
+}));

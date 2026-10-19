@@ -19,19 +19,26 @@
  */
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useMemo } from 'react';
 
 import { useSession } from '@/session/SessionContext';
+import { useTheme } from '@/theme';
 
 import { AppNavigator } from './AppNavigator';
 import { AuthNavigator } from './AuthNavigator';
 import { linking } from './linking';
-import { navigationTheme } from './theme';
+import { getNavigationTheme } from './theme';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   const { status } = useSession();
+  const { colors, scheme } = useTheme();
+  const navigationTheme = useMemo(
+    () => getNavigationTheme(colors, scheme),
+    [colors, scheme],
+  );
 
   // Still reading secure storage. Rendering nothing keeps the splash up rather
   // than flashing the login screen at a user who is in fact signed in.

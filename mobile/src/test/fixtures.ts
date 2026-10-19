@@ -211,11 +211,11 @@ function sub(
  * the breakdown below reports.
  */
 export const mockSubscriptions: Subscription[] = [
-  // --- streaming: 15.49 + 11.99 + 13.99 = 41.47 ----------------------------
+  // --- entertainment: 15.49 + 11.99 + 13.99 = 41.47 ------------------------
   sub({
     id: 'sub_netflix',
     name: 'Streamly Plus',
-    category: 'streaming',
+    category: 'entertainment',
     price: '15.49',
     next_renewal_on: '2026-10-03',
     revisions: [
@@ -227,89 +227,89 @@ export const mockSubscriptions: Subscription[] = [
   sub({
     id: 'sub_music',
     name: 'Tempo Music Premium',
-    category: 'streaming',
+    category: 'entertainment',
     price: '11.99',
     next_renewal_on: '2026-10-07',
   }),
   sub({
     id: 'sub_video',
     name: 'ClipHouse Premium',
-    category: 'streaming',
+    category: 'entertainment',
     price: '13.99',
     next_renewal_on: '2026-10-18',
   }),
 
-  // --- fitness: 34.99 ------------------------------------------------------
+  // --- health-wellness: 34.99 ----------------------------------------------
   sub({
     id: 'sub_gym',
     name: 'Northside Gym',
-    category: 'fitness',
+    category: 'health-wellness',
     price: '34.99',
     next_renewal_on: '2026-10-09',
   }),
 
-  // --- cloud_storage: 2.99 -------------------------------------------------
+  // --- cloud-storage: 2.99 -------------------------------------------------
   sub({
     id: 'sub_storage',
     name: 'Nimbus Drive 200 GB',
-    category: 'cloud_storage',
+    category: 'cloud-storage',
     price: '2.99',
     next_renewal_on: '2026-10-12',
   }),
 
-  // --- software: 20.00 + 59.99 + 10.00 + 10.00 = 99.99 ---------------------
+  // --- ai-tools: 20.00 + 10.00 = 30.00; productivity: 59.99 + 10.00 = 69.99 -
   sub({
     id: 'sub_assistant',
     name: 'Lumen Assistant Pro',
-    category: 'software',
+    category: 'ai-tools',
     price: '20.00',
     next_renewal_on: '2026-10-15',
   }),
   sub({
     id: 'sub_creative',
     name: 'Palette Creative Suite',
-    category: 'software',
+    category: 'productivity',
     price: '59.99',
     next_renewal_on: '2026-10-22',
   }),
   sub({
     id: 'sub_notes',
     name: 'Draftboard',
-    category: 'software',
+    category: 'productivity',
     price: '10.00',
     next_renewal_on: '2026-11-01',
   }),
   sub({
     id: 'sub_codehelp',
     name: 'Copilot Dev Tools',
-    category: 'software',
+    category: 'ai-tools',
     price: '10.00',
     next_renewal_on: '2026-11-05',
   }),
 
-  // --- utilities: 25.00 ----------------------------------------------------
+  // --- other: 25.00 --------------------------------------------------------
   sub({
     id: 'sub_mobile',
     name: 'Ridge Mobile Data',
-    category: 'utilities',
+    category: 'other',
     price: '25.00',
     next_renewal_on: '2026-10-20',
   }),
 
-  // --- uncategorized: 4.00 -------------------------------------------------
+  // --- news-media: 4.00 ----------------------------------------------------
   sub({
     id: 'sub_news',
     name: 'The Daily Ledger',
-    category: null,
+    category: 'news-media',
     price: '4.00',
     next_renewal_on: '2026-10-28',
   }),
 
-  // --- insurance: 144.00 a year, which normalises to 12.00 a month ---------
+  // --- uncategorized: 144.00 a year, which normalises to 12.00 a month -----
   sub({
     id: 'sub_insurance',
     name: 'Harbour Renters Insurance',
-    category: 'insurance',
+    category: null,
     price: '144.00',
     cycle: { unit: 'year', count: 1 },
     next_renewal_on: '2027-03-01',
@@ -322,7 +322,7 @@ export const mockSubscriptions: Subscription[] = [
   sub({
     id: 'sub_trial',
     name: 'Audioshelf Unlimited',
-    category: 'streaming',
+    category: 'entertainment',
     price: '9.99',
     status: 'trial',
     trial: { ends_on: '2026-10-20' },
@@ -334,7 +334,7 @@ export const mockSubscriptions: Subscription[] = [
   sub({
     id: 'sub_cancelled',
     name: 'Old Backup Service',
-    category: 'cloud_storage',
+    category: 'cloud-storage',
     price: '5.00',
     status: 'cancelled',
     next_renewal_on: '2026-08-01',
@@ -345,24 +345,26 @@ export const mockSubscriptions: Subscription[] = [
 /**
  * Category breakdown for Alex.
  *
- * Amounts: 99.99 + 41.47 + 34.99 + 25.00 + 12.00 + 4.00 + 2.99 = 220.44, which
- * is exactly `monthly_total` below.
+ * Amounts: 69.99 + 41.47 + 34.99 + 30.00 + 25.00 + 12.00 + 4.00 + 2.99 = 220.44,
+ * which is exactly `monthly_total` below.
  *
- * Percentages: the exact shares are 45.3593, 18.8122, 15.8728, 11.3410, 5.4437,
- * 1.8146 and 1.3564. Flooring those gives 96, so the largest-remainder method
- * hands the four spare points to the four largest fractions — fitness (.8728),
- * uncategorized (.8146), streaming (.8122) and insurance (.4437). The result
+ * Percentages: the exact shares are 31.7501, 18.8122, 15.8728, 13.6092, 11.3410,
+ * 5.4437, 1.8146 and 1.3564. Flooring those gives 95, so the largest-remainder
+ * method hands the five spare points to the five largest fractions —
+ * health-wellness (.8728), news-media (.8146), entertainment (.8122),
+ * productivity (.7501) and ai-tools (.6092). The result
  * sums to exactly 100, which is what the server guarantees and what the UI
  * renders without recomputation.
  */
 export const mockCategoryBreakdown: CategoryBreakdownRow[] = [
-  { category: 'software', amount: '99.99', percent: 45 },
-  { category: 'streaming', amount: '41.47', percent: 19 },
-  { category: 'fitness', amount: '34.99', percent: 16 },
-  { category: 'utilities', amount: '25.00', percent: 11 },
-  { category: 'insurance', amount: '12.00', percent: 6 },
-  { category: null, amount: '4.00', percent: 2 },
-  { category: 'cloud_storage', amount: '2.99', percent: 1 },
+  { category: 'productivity', amount: '69.99', percent: 32 },
+  { category: 'entertainment', amount: '41.47', percent: 19 },
+  { category: 'health-wellness', amount: '34.99', percent: 16 },
+  { category: 'ai-tools', amount: '30.00', percent: 14 },
+  { category: 'other', amount: '25.00', percent: 11 },
+  { category: null, amount: '12.00', percent: 5 },
+  { category: 'news-media', amount: '4.00', percent: 2 },
+  { category: 'cloud-storage', amount: '2.99', percent: 1 },
 ];
 
 /** Active subscriptions, soonest renewal first — the order the API promises. */
@@ -396,21 +398,21 @@ export const mockAnalytics: Analytics = {
     {
       id: 'sub_creative',
       name: 'Palette Creative Suite',
-      category: 'software',
+      category: 'productivity',
       amount: '59.99',
       percent: 27,
     },
     {
       id: 'sub_gym',
       name: 'Northside Gym',
-      category: 'fitness',
+      category: 'health-wellness',
       amount: '34.99',
       percent: 16,
     },
     {
       id: 'sub_mobile',
       name: 'Ridge Mobile Data',
-      category: 'utilities',
+      category: 'other',
       amount: '25.00',
       percent: 11,
     },
@@ -458,7 +460,7 @@ export const mockEmptyAnalytics: Analytics = {
 export const mockUnconvertedSubscription: Subscription = sub({
   id: 'sub_unconverted',
   name: 'Fútbol Pass',
-  category: 'streaming',
+  category: 'entertainment',
   price: '4500.00',
   currency: 'ARS',
   next_renewal_on: '2026-10-11',

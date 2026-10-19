@@ -226,7 +226,7 @@ export interface Revision {
 export interface Subscription {
   id: string;
   name: string;
-  /** Null renders as "Uncategorized" and uses the `other` colour triplet (US-8). */
+  /** Null renders as "Uncategorized" and uses the `other` category colour (US-8). */
   category: Category | null;
   /** The price as billed, in the currency it is billed in. Never converted here. */
   price: MoneyString;

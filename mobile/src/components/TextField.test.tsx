@@ -9,7 +9,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { declaredTouchHeight } from '@/test/render';
-import { colors, sizes } from '@/theme';
+import { lightColors, sizes } from '@/theme';
 
 import { TextField } from './TextField';
 
@@ -224,6 +224,6 @@ describe('TextField', () => {
       : [helper.props.style];
     const merged = Object.assign({}, ...style.filter(Boolean));
 
-    expect(merged.color).not.toBe(colors.danger);
+    expect(merged.color).not.toBe(lightColors.danger);
   });
 });

@@ -3,7 +3,7 @@
  *
  * What it is for
  *   Three shapes of row that share one implementation:
- *     - a subscription: tile, name, "Streaming · Renews Oct 3", price
+ *     - a subscription: tile, name, "Entertainment · Renews Oct 3", price
  *     - a settings row: label on the left, current value and a chevron
  *     - a plain key-value row: label and value, not tappable
  *
@@ -15,28 +15,28 @@
  * Why the whole row is one accessible element
  *   Left to itself a screen reader reads the name, the subtitle and the price as
  *   three separate stops, so the user has to assemble them. Grouping them into
- *   one element with a composed label ("Streamly Plus, Streaming, renews Oct 3,
+ *   one element with a composed label ("Streamly Plus, Entertainment, renews Oct 3,
  *   $15.49") makes a list usable by swipe.
  *
  * Design tokens
- *   height      sizes.rowSubscription (64) or sizes.rowSettings (56)
+ *   height      sizes.rowSubscription (72) or sizes.rowSettings (56)
  *   padding     spacing.lg horizontal
- *   title       typography.rowTitle
+ *   title       typography.labelSemibold
  *   subtitle    typography.caption
  *
  * Used by: Subscriptions, Home upcoming renewals, Settings, Currency picker,
  *          Subscription detail key-value card.
  */
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, opacity, sizes, spacing, typography } from '@/theme';
+import { makeStyles, opacity, sizes, spacing } from '@/theme';
 
 export interface ListRowProps {
   /** The main line. */
   title: string;
 
-  /** The quieter second line, such as "Streaming · Renews Oct 3". */
+  /** The quieter second line, such as "Entertainment · Renews Oct 3". */
   subtitle?: string;
 
   /** Rendered at the start of the row — usually a `Tile`. */
@@ -75,6 +75,7 @@ export function ListRow({
   selected = false,
   testID,
 }: ListRowProps) {
+  const styles = useStyles();
   const height = variant === 'subscription' ? sizes.rowSubscription : sizes.rowSettings;
 
   // Falls back to the two visible lines. A caller with a trailing value should
@@ -126,7 +127,7 @@ export function ListRow({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -136,7 +137,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   selected: {
-    backgroundColor: colors.accentTint,
+    backgroundColor: colors.accentSurface,
   },
   leading: {
     // Fixed, so names line up down the list even when a tile is missing.
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    ...typography.rowTitle,
+    ...typography.labelSemibold,
   },
   subtitle: {
     ...typography.caption,
@@ -160,4 +161,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: opacity.pressed,
   },
-});
+}));

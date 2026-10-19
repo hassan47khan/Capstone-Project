@@ -32,19 +32,17 @@ jest.mock('expo-font', () => ({
   isLoaded: () => true,
 }));
 
-jest.mock('@expo-google-fonts/newsreader', () => ({
+jest.mock('@expo-google-fonts/dm-serif-display', () => ({
   useFonts: () => [true, null],
-  Newsreader_400Regular: 'Newsreader_400Regular',
-  Newsreader_500Medium: 'Newsreader_500Medium',
-  Newsreader_600SemiBold: 'Newsreader_600SemiBold',
+  DMSerifDisplay_400Regular: 'DMSerifDisplay_400Regular',
 }));
 
-jest.mock('@expo-google-fonts/hanken-grotesk', () => ({
+jest.mock('@expo-google-fonts/dm-sans', () => ({
   useFonts: () => [true, null],
-  HankenGrotesk_400Regular: 'HankenGrotesk_400Regular',
-  HankenGrotesk_500Medium: 'HankenGrotesk_500Medium',
-  HankenGrotesk_600SemiBold: 'HankenGrotesk_600SemiBold',
-  HankenGrotesk_700Bold: 'HankenGrotesk_700Bold',
+  DMSans_400Regular: 'DMSans_400Regular',
+  DMSans_500Medium: 'DMSans_500Medium',
+  DMSans_600SemiBold: 'DMSans_600SemiBold',
+  DMSans_700Bold: 'DMSans_700Bold',
 }));
 
 /**

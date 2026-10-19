@@ -19,13 +19,13 @@
  *
  * Why the icon has `strokeWidth` 2 when active
  *   The design distinguishes the active tab by weight as well as colour, so the
- *   current tab is identifiable without relying on the petrol tint alone.
+ *   current tab is identifiable without relying on the accent tint alone.
  *
  * Design tokens
- *   background  colors.tabBg with a colors.line hairline on top
+ *   background  colors.tabBar with a colors.border hairline on top
  *   active      colors.accent
- *   inactive    colors.ink3
- *   label       typography.tabLabel (12)
+ *   inactive    colors.textMuted
+ *   label       typography.tab (11)
  *
  * Used by: the authenticated tab navigator.
  */
@@ -35,7 +35,7 @@ import type { ComponentType } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, sizes, spacing, typography } from '@/theme';
+import { makeStyles, sizes, spacing, useTheme } from '@/theme';
 
 interface IconProps {
   size: number;
@@ -55,6 +55,8 @@ const ICONS: Record<string, ComponentType<IconProps>> = {
 };
 
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   // The home indicator sits below the bar on modern phones; padding by the
   // inset keeps the labels clear of it without a hard-coded magic number.
   const insets = useSafeAreaInsets();
@@ -97,7 +99,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           >
             <Icon
               size={22}
-              color={isFocused ? colors.accent : colors.ink3}
+              color={isFocused ? colors.accent : colors.textMuted}
               // Weight as a second signal, so colour is not carrying it alone.
               strokeWidth={isFocused ? 2 : 1.7}
             />
@@ -118,12 +120,12 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   bar: {
     flexDirection: 'row',
-    backgroundColor: colors.tabBg,
+    backgroundColor: colors.tabBar,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
+    borderTopColor: colors.border,
     paddingTop: spacing.sm,
   },
   tab: {
@@ -135,8 +137,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   label: {
-    ...typography.tabLabel,
+    ...typography.tab,
   },
   labelActive: { color: colors.accent },
-  labelInactive: { color: colors.ink3 },
-});
+  labelInactive: { color: colors.textMuted },
+}));

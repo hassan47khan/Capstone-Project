@@ -3,9 +3,9 @@
  *
  * What it is for
  *   The four button treatments the design uses, behind one component:
- *     primary      filled petrol    the single main action on a screen
+ *     primary      filled accent    the single main action on a screen
  *     secondary    outlined         an alternative action ("Log in" on Welcome)
- *     text         petrol label     an inline link ("Forgot password?")
+ *     text         accent label     an inline link ("Forgot password?")
  *     dangerText   red label        a destructive action ("Remove subscription")
  *
  * Why one component instead of four
@@ -20,9 +20,10 @@
  *
  * Design tokens
  *   height         sizes.control (52), floor sizes.minTouch (44)
- *   radius         radius.control (12)
- *   primary        colors.accent background, colors.surface label
- *   secondary      colors.control border, colors.ink label
+ *   radius         radius.button (6)
+ *   label          typography.labelSemibold (Figma "Add Subscription", node 3:1481)
+ *   primary        colors.accent background, colors.onAccent label
+ *   secondary      colors.borderControl border, colors.text label
  *   text           colors.accent label
  *   dangerText     colors.danger label
  *
@@ -31,14 +32,13 @@
 import {
   ActivityIndicator,
   Pressable,
-  StyleSheet,
   Text,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
-import { colors, opacity, radius, sizes, spacing, typography } from '@/theme';
+import { makeStyles, opacity, radius, sizes, spacing, useTheme } from '@/theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'dangerText';
 
@@ -85,6 +85,8 @@ export function Button({
   style,
   testID,
 }: ButtonProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   // One flag for both reasons a button cannot be pressed, so the visual state
   // and the accessibility state can never disagree with the press handler.
   const isInactive = disabled || loading;
@@ -95,9 +97,9 @@ export function Button({
 
   const labelColor =
     variant === 'primary'
-      ? colors.surface
+      ? colors.onAccent
       : variant === 'secondary'
-        ? colors.ink
+        ? colors.text
         : variant === 'dangerText'
           ? colors.danger
           : colors.accent;
@@ -149,11 +151,11 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   base: {
     minHeight: sizes.minTouch,
     height: sizes.control,
-    borderRadius: radius.control,
+    borderRadius: radius.button,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
   },
   outlined: {
     borderWidth: 1,
-    borderColor: colors.control,
+    borderColor: colors.borderControl,
     backgroundColor: 'transparent',
   },
   textOnly: {
@@ -187,7 +189,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   label: {
-    ...typography.button,
+    ...typography.labelSemibold,
     textAlign: 'center',
   },
-});
+}));

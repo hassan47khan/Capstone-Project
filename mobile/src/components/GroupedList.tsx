@@ -20,15 +20,15 @@
  *
  * Design tokens
  *   background  colors.surface
- *   radius      radius.card (16)
- *   border      colors.line, hairline
+ *   radius      radius.card (6)
+ *   border      colors.border, hairline
  *
  * Used by: Settings, Subscription detail, Subscriptions list, Currency picker.
  */
 import { Children, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { makeStyles, radius, spacing } from '@/theme';
 
 export interface GroupedListProps {
   /** Rows, usually `ListRow` elements. */
@@ -51,6 +51,7 @@ export function GroupedList({
   style,
   testID,
 }: GroupedListProps) {
+  const styles = useStyles();
   // `Children.toArray` discards null and false, so a conditionally rendered row
   // does not leave a divider with nothing beneath it.
   const rows = Children.toArray(children);
@@ -76,12 +77,12 @@ export function GroupedList({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
     gap: spacing.sm,
   },
   title: {
-    ...typography.eyebrow,
+    ...typography.caption,
     // Settings section headers read as labels, not sentences.
     textTransform: 'none',
     paddingHorizontal: spacing.xs,
@@ -90,17 +91,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.border,
     // Clips each row's background to the rounded corners, so a pressed first or
     // last row does not paint a square highlight outside the card.
     overflow: 'hidden',
   },
   divided: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
+    borderTopColor: colors.border,
   },
   footnote: {
     ...typography.caption,
     paddingHorizontal: spacing.xs,
   },
-});
+}));

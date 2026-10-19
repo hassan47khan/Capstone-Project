@@ -22,16 +22,23 @@
  *   nothing a non-sighted user needs.
  *
  * Design tokens
- *   height   sizes.barStacked (10)
- *   track    colors.sunken
+ *   height   sizes.barStacked (12)
+ *   track    colors.surface2
  *   radius   radius.pill
- *   colours  categoryColors[category].bar
+ *   colours  categoryColors[categorySlugToKey[category]]
  *
  * Used by: Home hero card.
  */
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { categoryColors, colors, radius, sizes, type Category } from '@/theme';
+import {
+  categorySlugToKey,
+  makeStyles,
+  radius,
+  sizes,
+  useTheme,
+  type Category,
+} from '@/theme';
 
 export interface StackedBarSegment {
   category: Category | null;
@@ -45,6 +52,8 @@ export interface StackedBarProps {
 }
 
 export function StackedBar({ segments, testID }: StackedBarProps) {
+  const styles = useStyles();
+  const { categoryColors } = useTheme();
   // A segment rounded to 0% would vanish entirely, so a category the user has
   // spending in silently disappears from the chart while staying in the legend.
   // Clamping to a hairline keeps the bar honest about what exists.
@@ -67,7 +76,8 @@ export function StackedBar({ segments, testID }: StackedBarProps) {
               // flexGrow proportional to the share. Not a width percentage,
               // because the gaps between segments would then overflow the row.
               flexGrow: segment.percent,
-              backgroundColor: categoryColors[segment.category ?? 'other'].bar,
+              backgroundColor:
+                categoryColors[categorySlugToKey[segment.category ?? 'other']],
             },
           ]}
         />
@@ -76,14 +86,14 @@ export function StackedBar({ segments, testID }: StackedBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   track: {
     flexDirection: 'row',
     height: sizes.barStacked,
     borderRadius: radius.pill,
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.surface2,
     overflow: 'hidden',
-    gap: 2,
+    gap: sizes.barGap,
   },
   segment: {
     flexBasis: 0,
@@ -91,4 +101,4 @@ const styles = StyleSheet.create({
     minWidth: 3,
     borderRadius: radius.pill,
   },
-});
+}));

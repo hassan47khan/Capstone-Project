@@ -15,10 +15,10 @@
  * Every one of these is deleted as its real screen lands. If any survive past
  * Phase 3, that is a bug.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { Header, Screen } from '@/components';
-import { colors, radius, spacing, typography } from '@/theme';
+import { makeStyles, radius, spacing } from '@/theme';
 
 export interface PlaceholderProps {
   /** The screen's eventual title, so navigation reads correctly while testing. */
@@ -42,6 +42,7 @@ export function Placeholder({
   backLabel,
   onBack,
 }: PlaceholderProps) {
+  const styles = useStyles();
   return (
     <Screen edges={backLabel ? ['top', 'bottom'] : ['top']}>
       <Header title={title} backLabel={backLabel} onBack={onBack} />
@@ -59,19 +60,19 @@ export function Placeholder({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.border,
     borderRadius: radius.card,
     padding: spacing.xl,
     gap: spacing.sm,
   },
   label: {
-    ...typography.rowTitle,
+    ...typography.labelSemibold,
   },
   detail: {
     ...typography.caption,
   },
-});
+}));

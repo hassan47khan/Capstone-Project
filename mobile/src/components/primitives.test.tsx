@@ -16,7 +16,14 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ApiError } from '@/api/errors';
 import { declaredTouchHeight, flattenStyle } from '@/test/render';
-import { categoryColors, sizes } from '@/theme';
+import {
+  darkCategoryColors,
+  darkServicePalette,
+  lightCategoryColors,
+  serviceTint,
+  sizes,
+  ThemeProvider,
+} from '@/theme';
 
 import { Amount } from './Amount';
 import { Badge } from './Badge';
@@ -121,29 +128,55 @@ describe('Chip', () => {
 
 describe('Tile', () => {
   it('shows the first letter of the name, uppercased', async () => {
-    await render(<Tile name="streamly plus" category="streaming" />);
+    await render(<Tile name="streamly plus" />);
 
     expect(screen.getByText('S', HIDDEN)).toBeOnTheScreen();
   });
 
   it('does not split a multi-byte character in half', async () => {
     // `name[0]` on an emoji yields half a surrogate pair and a broken glyph.
-    await render(<Tile name="🎬 Movie Club" category="streaming" />);
+    await render(<Tile name="🎬 Movie Club" />);
 
     expect(screen.getByText('🎬', HIDDEN)).toBeOnTheScreen();
   });
 
   it('falls back to a question mark for a blank name', async () => {
-    await render(<Tile name="   " category={null} />);
+    await render(<Tile name="   " />);
 
     expect(screen.getByText('?', HIDDEN)).toBeOnTheScreen();
   });
 
-  it('uses the uncategorized palette for a null category', async () => {
-    await render(<Tile name="Thing" category={null} testID="tile" />);
+  it('uses the catalog brand colours when given them', async () => {
+    // 01 §3: service logos use brand colour, observed on Netflix.
+    await render(
+      <Tile name="Netflix" brand={{ tint: '#ffecee', ink: '#e50914' }} testID="tile" />,
+    );
 
     const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
-    expect(style.backgroundColor).toBe(categoryColors.other.tint);
+    expect(style.backgroundColor).toBe('#ffecee');
+  });
+
+  it('derives the same tint from the same name every time', async () => {
+    // A user-entered service has no brand entry. Random would make the row
+    // change colour between launches.
+    await render(<Tile name="Northside Gym" testID="tile" />);
+
+    const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
+    expect(style.backgroundColor).toBe(serviceTint('Northside Gym').tint);
+    expect(serviceTint(' northside gym ')).toEqual(serviceTint('Northside Gym'));
+  });
+
+  it('switches to the dark service palette in the dark theme', async () => {
+    await render(
+      <ThemeProvider initialPreference="dark">
+        <Tile name="Northside Gym" testID="tile" />
+      </ThemeProvider>,
+    );
+
+    const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
+    expect(style.backgroundColor).toBe(
+      serviceTint('Northside Gym', darkServicePalette).tint,
+    );
   });
 });
 
@@ -303,8 +336,8 @@ describe('StackedBar', () => {
     await render(
       <StackedBar
         segments={[
-          { category: 'software', percent: 45 },
-          { category: 'streaming', percent: 55 },
+          { category: 'productivity', percent: 45 },
+          { category: 'entertainment', percent: 55 },
         ]}
         testID="bar"
       />,
@@ -317,12 +350,32 @@ describe('StackedBar', () => {
     expect(flattenStyle(second.props.style).flexGrow).toBe(55);
   });
 
+  it('colours each segment by its category token, per theme', async () => {
+    const segments = [{ category: 'ai-tools', percent: 100 }] as const;
+
+    await render(<StackedBar segments={segments} testID="bar" />);
+    const [light] = screen.getByTestId('bar', HIDDEN).props.children;
+    expect(flattenStyle(light.props.style).backgroundColor).toBe(
+      lightCategoryColors.aiTools,
+    );
+
+    await render(
+      <ThemeProvider initialPreference="dark">
+        <StackedBar segments={segments} testID="bar" />
+      </ThemeProvider>,
+    );
+    const [dark] = screen.getByTestId('bar', HIDDEN).props.children;
+    expect(flattenStyle(dark.props.style).backgroundColor).toBe(
+      darkCategoryColors.aiTools,
+    );
+  });
+
   it('omits zero-width segments', async () => {
     await render(
       <StackedBar
         segments={[
-          { category: 'software', percent: 100 },
-          { category: 'fitness', percent: 0 },
+          { category: 'productivity', percent: 100 },
+          { category: 'health-wellness', percent: 0 },
         ]}
         testID="bar"
       />,
@@ -333,7 +386,7 @@ describe('StackedBar', () => {
 
   it('is hidden from screen readers, because the legend says it in words', async () => {
     await render(
-      <StackedBar segments={[{ category: 'software', percent: 100 }]} testID="bar" />,
+      <StackedBar segments={[{ category: 'productivity', percent: 100 }]} testID="bar" />,
     );
 
     expect(screen.getByTestId('bar', HIDDEN).props.accessibilityElementsHidden).toBe(
@@ -346,11 +399,11 @@ describe('BarRow', () => {
   it('shows the category, amount and percentage as text beside the bar', async () => {
     // Prompt section 10: every chart has the same figures in words.
     await render(
-      <BarRow category="software" amount="99.99" currency="USD" percent={45} />,
+      <BarRow category="productivity" amount="69.99" currency="USD" percent={32} />,
     );
 
-    expect(screen.getByText('Software')).toBeOnTheScreen();
-    expect(screen.getByText('$99.99 · 45%')).toBeOnTheScreen();
+    expect(screen.getByText('Productivity')).toBeOnTheScreen();
+    expect(screen.getByText('$69.99 · 32%')).toBeOnTheScreen();
   });
 
   it('labels a null category as Uncategorized', async () => {
@@ -361,10 +414,12 @@ describe('BarRow', () => {
 
   it('announces the row as one readable sentence', async () => {
     await render(
-      <BarRow category="fitness" amount="34.99" currency="USD" percent={16} />,
+      <BarRow category="health-wellness" amount="34.99" currency="USD" percent={16} />,
     );
 
-    expect(screen.getByLabelText('Fitness, $34.99, 16 percent')).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('Health & Wellness, $34.99, 16 percent'),
+    ).toBeOnTheScreen();
   });
 });
 

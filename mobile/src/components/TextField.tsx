@@ -20,10 +20,10 @@
  *
  * Design tokens
  *   height         sizes.control (52)
- *   radius         radius.control (12)
- *   border         colors.control, colors.danger when errored
- *   background     colors.surface, colors.dangerBg when errored
- *   label          typography.fieldLabel
+ *   radius         radius.card (6)
+ *   border         colors.borderControl, colors.danger when errored
+ *   background     colors.surface, colors.dangerSurface when errored
+ *   label          typography.labelSemibold
  *   helper/error   typography.caption; error in colors.danger
  *
  * Used by: Sign up, Log in, Forgot/Reset password, Add/Edit subscription,
@@ -32,7 +32,6 @@
 import { useState } from 'react';
 import {
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -42,7 +41,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { colors, radius, sizes, spacing, typography } from '@/theme';
+import { makeStyles, radius, sizes, spacing, useTheme } from '@/theme';
 
 export interface TextFieldProps {
   /** The visible label above the field. Also the accessible name. */
@@ -106,6 +105,8 @@ export function TextField({
   style,
   testID,
 }: TextFieldProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   // Local, because whether the password is visible is this field's business and
   // nothing above it needs to know.
   const [revealed, setRevealed] = useState(false);
@@ -133,7 +134,7 @@ export function TextField({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={colors.ink3}
+          placeholderTextColor={colors.textMuted}
           secureTextEntry={isMasked}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
@@ -188,12 +189,12 @@ export function TextField({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
     gap: spacing.sm,
   },
   label: {
-    ...typography.fieldLabel,
+    ...typography.labelSemibold,
   },
   field: {
     flexDirection: 'row',
@@ -201,18 +202,18 @@ const styles = StyleSheet.create({
     minHeight: sizes.minTouch,
     height: sizes.control,
     borderWidth: 1,
-    borderColor: colors.control,
-    borderRadius: radius.control,
+    borderColor: colors.borderControl,
+    borderRadius: radius.card,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
   },
   fieldError: {
     borderColor: colors.danger,
-    backgroundColor: colors.dangerBg,
+    backgroundColor: colors.dangerSurface,
   },
   fieldDisabled: {
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.surface2,
   },
   fieldMultiline: {
     height: undefined,
@@ -221,13 +222,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   prefix: {
-    ...typography.body,
-    color: colors.ink2,
+    ...typography.bodyMd,
+    color: colors.textMuted,
   },
   input: {
     flex: 1,
-    ...typography.body,
-    color: colors.ink,
+    ...typography.bodyMd,
+    color: colors.text,
     // Removes Android's default internal padding, which otherwise pushes text
     // off-centre inside a fixed-height field.
     paddingVertical: 0,
@@ -249,4 +250,4 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.danger,
   },
-});
+}));

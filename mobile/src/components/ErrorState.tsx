@@ -18,15 +18,15 @@
  *   say "you do not have permission" — that would confirm the record exists.
  *
  * Design tokens
- *   title    typography.rowTitle
- *   body     typography.body, centred
+ *   title    typography.labelSemibold
+ *   body     typography.bodyMd, centred
  *
  * Used by: every screen that loads data.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { ApiError } from '@/api/errors';
-import { spacing, typography } from '@/theme';
+import { makeStyles, spacing } from '@/theme';
 
 import { Button } from './Button';
 
@@ -78,6 +78,7 @@ function variantFor(error: unknown): ErrorVariant {
 }
 
 export function ErrorState({ error, variant, onRetry, testID }: ErrorStateProps) {
+  const styles = useStyles();
   const resolved = variant ?? variantFor(error);
   const copy = COPY[resolved];
 
@@ -106,7 +107,7 @@ export function ErrorState({ error, variant, onRetry, testID }: ErrorStateProps)
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ typography }) => ({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -115,13 +116,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   title: {
-    ...typography.rowTitle,
+    ...typography.labelSemibold,
     textAlign: 'center',
   },
   message: {
-    ...typography.body,
+    ...typography.bodyMd,
     textAlign: 'center',
     maxWidth: 280,
     marginBottom: spacing.sm,
   },
-});
+}));

@@ -16,16 +16,16 @@
  *   entirely.
  *
  * Design tokens
- *   track      colors.sunken, radius.control, 4pt padding
- *   thumb      colors.surface, radius.control - 4
+ *   track      colors.surface2, radius.card, 4pt padding
+ *   thumb      colors.surface, radius.card - 4
  *   height     sizes.segmented (48) inside the padded track
- *   text       typography.button; selected colors.ink, unselected colors.ink2
+ *   text       typography.labelSemibold; selected colors.text, unselected colors.textMuted
  *
  * Used by: Add/Edit subscription (billing cycle).
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, radius, sizes, spacing, typography } from '@/theme';
+import { makeStyles, radius, sizes, spacing } from '@/theme';
 
 export interface SegmentedOption<T extends string> {
   value: T;
@@ -50,6 +50,7 @@ export function Segmented<T extends string>({
   onChange,
   testID,
 }: SegmentedProps<T>) {
+  const styles = useStyles();
   return (
     <View
       style={styles.track}
@@ -89,11 +90,11 @@ export function Segmented<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   track: {
     flexDirection: 'row',
-    backgroundColor: colors.sunken,
-    borderRadius: radius.control,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.card,
     padding: spacing.xs,
     gap: spacing.xs,
   },
@@ -103,20 +104,20 @@ const styles = StyleSheet.create({
     minHeight: sizes.minTouch,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.control - spacing.xs,
+    borderRadius: radius.card - spacing.xs,
   },
   segmentSelected: {
     backgroundColor: colors.surface,
     // The one permitted shadow in the design system. See the header comment.
-    shadowColor: colors.ink,
+    shadowColor: colors.text,
     shadowOpacity: 0.08,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
   label: {
-    ...typography.button,
+    ...typography.labelSemibold,
   },
-  labelSelected: { color: colors.ink },
-  labelUnselected: { color: colors.ink2 },
-});
+  labelSelected: { color: colors.text },
+  labelUnselected: { color: colors.textMuted },
+}));

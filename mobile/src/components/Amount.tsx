@@ -2,8 +2,9 @@
  * Amount — a money figure with the cents set smaller.
  *
  * What it is for
- *   The editorial treatment the design uses for every price: dollars large in
- *   Newsreader, cents smaller and in `ink2`, as in the prototype's "$144.45".
+ *   The editorial treatment the design uses for every price: the figure in DM
+ *   Serif Display, as in the Figma summary card's "$129.20". Dollars and cents
+ *   are separate nodes so a future design can size them independently.
  *
  * Why it formats rather than calculates
  *   It receives a decimal STRING and a currency code, and hands both straight to
@@ -21,17 +22,17 @@
  *   renders no decimal point at all rather than a bare trailing dot.
  *
  * Design tokens
- *   hero       typography.amountHero (52) + amountHeroCents (32)
- *   large      typography.amountLarge (32) + amountLargeCents (20)
- *   row        typography.rowTitle — a single size, no split
+ *   hero       typography.displayLg (28)
+ *   large      typography.displayMd (24)
+ *   row        typography.price (DM Sans Bold 16, accent) — no split
  *
  * Used by: Home hero, Insights totals, Subscription detail price, list rows.
  */
-import { StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
+import { Text, View, type StyleProp, type TextStyle } from 'react-native';
 
 import { formatMoney } from '@/api/format';
 import type { CurrencyCode, MoneyString } from '@/api/types';
-import { colors, maxFontSizeMultiplier, numericVariant, typography } from '@/theme';
+import { makeStyles, maxFontSizeMultiplier, numericVariant } from '@/theme';
 
 export interface AmountProps {
   /** Decimal string from the API, e.g. "144.45". Never a number. */
@@ -66,6 +67,7 @@ export function Amount({
   style,
   testID,
 }: AmountProps) {
+  const styles = useStyles();
   const { symbol, whole, fraction, display } = formatMoney(value, currency);
 
   // The row size is ordinary interface text — no split, no serif display face.
@@ -85,8 +87,8 @@ export function Amount({
   }
 
   const isHero = size === 'hero';
-  const wholeStyle = isHero ? typography.amountHero : typography.amountLarge;
-  const centsStyle = isHero ? typography.amountHeroCents : typography.amountLargeCents;
+  const wholeStyle = isHero ? styles.hero : styles.large;
+  const centsStyle = isHero ? styles.hero : styles.large;
 
   return (
     <View
@@ -127,7 +129,7 @@ function labelFor(display: string, unconverted: boolean): string {
   return unconverted ? `${display}, not converted — no exchange rate available` : display;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   group: {
     flexDirection: 'row',
     // Cents sit on the baseline of the dollars, not centred against them.
@@ -137,12 +139,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  rowAmount: {
-    ...typography.rowTitle,
+  hero: {
+    ...typography.displayLg,
+  },
+  large: {
+    ...typography.displayMd,
     ...numericVariant,
+  },
+  rowAmount: {
+    ...typography.price,
   },
   marker: {
     ...typography.caption,
-    color: colors.ink3,
+    color: colors.textMuted,
   },
-});
+}));

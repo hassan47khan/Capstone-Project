@@ -125,7 +125,7 @@ function splitAmount(
 
 /**
  * The pieces of a formatted amount, kept separate so the `Amount` component can
- * render the cents smaller and in `ink2` the way the design does:
+ * render the cents separately from the dollars the way the design does:
  *
  *     $144.45   ->   symbol "$", whole "144", fraction "45"
  *

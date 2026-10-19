@@ -17,15 +17,15 @@
  *   not create something. So the call to action is offered, never assumed.
  *
  * Design tokens
- *   title    typography.rowTitle
- *   body     typography.body, centred
+ *   title    typography.labelSemibold
+ *   body     typography.bodyMd, centred
  *   spacing  spacing.xl between elements
  *
  * Used by: Home, Subscriptions, Insights, Currency search.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { spacing, typography } from '@/theme';
+import { makeStyles, spacing } from '@/theme';
 
 import { Button } from './Button';
 
@@ -50,6 +50,7 @@ export function EmptyState({
   onAction,
   testID,
 }: EmptyStateProps) {
+  const styles = useStyles();
   return (
     <View
       style={styles.container}
@@ -74,7 +75,7 @@ export function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ typography }) => ({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -83,15 +84,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   title: {
-    ...typography.rowTitle,
+    ...typography.labelSemibold,
     textAlign: 'center',
   },
   message: {
-    ...typography.body,
+    ...typography.bodyMd,
     textAlign: 'center',
     // Keeps a line of prose at a readable measure instead of stretching it the
     // full width of a tablet.
     maxWidth: 280,
     marginBottom: spacing.sm,
   },
-});
+}));

@@ -16,17 +16,17 @@
  *   it with its current value, which a plain button would not.
  *
  * Design tokens
- *   trigger   same as TextField: sizes.control, radius.control, colors.control
- *   label     typography.fieldLabel
- *   value     typography.body in colors.ink; placeholder in colors.ink3
+ *   trigger   same as TextField: sizes.control, radius.card, colors.borderControl
+ *   label     typography.labelSemibold
+ *   value     typography.bodyMd in colors.text; placeholder in colors.textMuted
  *
  * Used by: Add/Edit subscription (category), and any future single-choice field.
  */
 import { Check, ChevronDown } from 'lucide-react-native';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { colors, radius, sizes, spacing, typography } from '@/theme';
+import { makeStyles, radius, sizes, spacing, useTheme } from '@/theme';
 
 import { Button } from './Button';
 import { GroupedList } from './GroupedList';
@@ -63,6 +63,8 @@ export function Select<T extends string>({
   disabled = false,
   testID,
 }: SelectProps<T>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [open, setOpen] = useState(false);
 
   const selected = options.find((option) => option.value === value);
@@ -92,7 +94,7 @@ export function Select<T extends string>({
         </Text>
         <ChevronDown
           size={20}
-          color={colors.ink2}
+          color={colors.textMuted}
           strokeWidth={1.7}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
@@ -148,12 +150,12 @@ export function Select<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
     gap: spacing.sm,
   },
   label: {
-    ...typography.fieldLabel,
+    ...typography.labelSemibold,
   },
   trigger: {
     flexDirection: 'row',
@@ -162,26 +164,26 @@ const styles = StyleSheet.create({
     minHeight: sizes.minTouch,
     height: sizes.control,
     borderWidth: 1,
-    borderColor: colors.control,
-    borderRadius: radius.control,
+    borderColor: colors.borderControl,
+    borderRadius: radius.card,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
   },
   triggerError: {
     borderColor: colors.danger,
-    backgroundColor: colors.dangerBg,
+    backgroundColor: colors.dangerSurface,
   },
   triggerDisabled: {
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.surface2,
   },
   value: {
-    ...typography.body,
-    color: colors.ink,
+    ...typography.bodyMd,
+    color: colors.text,
     flex: 1,
   },
   placeholder: {
-    color: colors.ink3,
+    color: colors.textMuted,
   },
   error: {
     ...typography.caption,
@@ -189,7 +191,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -199,10 +201,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   sheetTitle: {
-    ...typography.authTitle,
+    ...typography.displayMd,
   },
   sheetBody: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xxl,
   },
-});
+}));

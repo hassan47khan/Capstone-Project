@@ -8,27 +8,23 @@
  * Why render is blocked until they load
  *   React Native silently falls back to the system font for a family it does not
  *   have. If the app rendered before the fonts arrived, every screen would flash
- *   from system-sans to Newsreader a moment later — and worse, the fallback
- *   metrics differ enough that the layout visibly reflows. One short splash is
- *   better than a visible lurch on every cold start.
+ *   from system-sans to DM Sans a moment later — and the fallback metrics differ
+ *   enough that the layout visibly reflows. One short splash is better than a
+ *   visible lurch on every cold start.
  *
  * Which weights, and why only these
  *   Each weight is a separate font file, and every one adds to the bundle. These
- *   seven are exactly the faces src/theme/typography.ts names — nothing is
- *   loaded "just in case". If you add a weight to the type scale, add it here
- *   too, or text using it will silently render in the system font.
+ *   five are exactly the faces src/theme/typography.ts names — nothing is loaded
+ *   "just in case". If you add a weight to the type scale, add it here too, or
+ *   text using it will silently render in the system font.
  */
 import {
-  HankenGrotesk_400Regular,
-  HankenGrotesk_500Medium,
-  HankenGrotesk_600SemiBold,
-  HankenGrotesk_700Bold,
-} from '@expo-google-fonts/hanken-grotesk';
-import {
-  Newsreader_400Regular,
-  Newsreader_500Medium,
-  Newsreader_600SemiBold,
-} from '@expo-google-fonts/newsreader';
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
+} from '@expo-google-fonts/dm-sans';
+import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import { useFonts } from 'expo-font';
 
 /**
@@ -37,16 +33,14 @@ import { useFonts } from 'expo-font';
  * error, just the wrong typeface.
  */
 export const fontAssets = {
-  // Newsreader — amounts, screen titles, monogram letters.
-  Newsreader_400Regular,
-  Newsreader_500Medium,
-  Newsreader_600SemiBold,
+  // DM Serif Display — totals and titles.
+  DMSerifDisplay_400Regular,
 
-  // Hanken Grotesk — all interface text.
-  HankenGrotesk_400Regular,
-  HankenGrotesk_500Medium,
-  HankenGrotesk_600SemiBold,
-  HankenGrotesk_700Bold,
+  // DM Sans (opsz 14 static instances) — all interface text.
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
 };
 
 /**

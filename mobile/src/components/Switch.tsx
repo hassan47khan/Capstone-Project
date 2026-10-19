@@ -20,21 +20,14 @@
  *   on          colors.accent track
  *   off         colors.toggleOff track (3:1 on white, so "off" is visible)
  *   thumb       colors.surface
- *   title       typography.rowTitle
+ *   title       typography.labelSemibold
  *   description typography.caption
  *
  * Used by: Settings notification preferences, Add/Edit subscription.
  */
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch as RNSwitch,
-  Text,
-  View,
-} from 'react-native';
+import { Platform, Pressable, Switch as RNSwitch, Text, View } from 'react-native';
 
-import { colors, sizes, spacing, typography } from '@/theme';
+import { makeStyles, sizes, spacing, useTheme } from '@/theme';
 
 export interface SwitchProps {
   label: string;
@@ -57,6 +50,8 @@ export function Switch({
   disabled = false,
   testID,
 }: SwitchProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <Pressable
       // The whole row toggles, not just the 51pt control at its end.
@@ -96,7 +91,7 @@ export function Switch({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ typography }) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -112,7 +107,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   label: {
-    ...typography.rowTitle,
+    ...typography.labelSemibold,
   },
   description: {
     ...typography.caption,
@@ -122,4 +117,4 @@ const styles = StyleSheet.create({
     // two platforms to roughly the same visual weight.
     transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }],
   },
-});
+}));
