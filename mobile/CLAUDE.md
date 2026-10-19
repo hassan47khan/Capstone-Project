@@ -45,15 +45,34 @@ src/
   components/   the handoff-02 library + Phase-0 primitives — no API, no navigation,
                 no copy. Every state is drawn in the dev gallery (features/dev)
   config/       env.ts, features.ts
-  features/     auth, dashboard, subscriptions, settings, insights
-                extraction, sharing, notifications, analytics  (typed seams, no UI)
-  navigation/   root / auth / app / tabs, linking, types
-  session/      SessionContext, tokenStore
+  features/     auth, home, calendar, analytics, subscriptions, settings, dev (gallery)
+                extraction, sharing, notifications  (typed seams, no UI)
+  navigation/   root / auth / app / tabs, linking + pendingLink, useDiscardGuard, types
+  session/      SessionContext, tokenStore, useAuthGate
   test/         fixtures, routes (shared mock table), MSW handlers, render helpers
   theme/        tokens.ts (light + dark), typography.ts (DM Serif Display, DM Sans),
                 ThemeProvider/useTheme, makeStyles, motion.ts (useMotion: every
                 animation honours Reduce Motion), fonts.ts, contrast.ts, CONTRAST.md
 ```
+
+## Navigation (handoff 03)
+
+- **Tree.** Auth stack (Login first) | App stack = MainTabs (Home, Calendar,
+  Analytics, Settings) plus a modal group over them. Route names and params are
+  in `src/navigation/types.ts`; the route map is in `docs/design/README.md`.
+- **Gate.** `useAuthGate` decides the stack:
+  - a splash while the session or `GET /me` resolves;
+  - `Login` when signed out;
+  - `VerifyEmailSent` when signed in but unverified;
+  - otherwise Home.
+  - Never render an Auth screen on the way to Home — a test counts Login renders.
+- **Adding.** The tab-bar FAB is the only add affordance. Never put an Add
+  button in a header.
+- **Modals.** They close with `Header onClose` (an X). Forms that can be dirty
+  call `useDiscardGuard(isDirty)` and render its `sheet`.
+- **Deep links.** `verify-email`, `reset-password` and `subscription/:id`. An
+  App link that arrives while signed out is parked in `pendingLink.ts` and
+  opened after sign-in.
 
 ## Mocks
 
