@@ -122,15 +122,22 @@ export interface ThemeProviderProps {
    * TODO(09): seed from UserSettings.theme and persist changes to the server.
    */
   initialPreference?: ThemePreference;
+  /**
+   * Overrides the OS Reduce Motion setting. For tests and the dev gallery only,
+   * so the reduced path can be exercised without changing device settings.
+   */
+  reduceMotionOverride?: boolean;
 }
 
 export function ThemeProvider({
   children,
   initialPreference = 'system',
+  reduceMotionOverride,
 }: ThemeProviderProps) {
   const [preference, setPreference] = useState<ThemePreference>(initialPreference);
   const osScheme = useColorScheme();
-  const reduceMotion = useReduceMotion();
+  const osReduceMotion = useReduceMotion();
+  const reduceMotion = reduceMotionOverride ?? osReduceMotion;
 
   const scheme: ColorScheme =
     preference === 'system' ? (osScheme === 'dark' ? 'dark' : 'light') : preference;

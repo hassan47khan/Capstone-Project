@@ -2,9 +2,9 @@
  * GroupedList — one white card containing rows separated by hairlines.
  *
  * What it is for
- *   The list pattern used throughout the design: the Settings groups, the
- *   key-value card on the subscription detail screen, and the subscription list
- *   itself.
+ *   The SettingsRow group (02 §11): Settings, Notification Rules, Profile, and
+ *   the key-value card on the subscription detail screen. Subscription rows are
+ *   separate bordered cards (ListRow) and do not go in here.
  *
  * Why one card rather than a card per row
  *   The prototype draws a single rounded surface with 1px dividers between rows,
@@ -23,15 +23,17 @@
  *   radius      radius.card (6)
  *   border      colors.border, hairline
  *
- * Used by: Settings, Subscription detail, Subscriptions list, Currency picker.
+ * Used by: Settings, Notification Rules, Profile, Subscription detail.
  */
 import { Children, type ReactNode } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { makeStyles, radius, spacing } from '@/theme';
+import { makeStyles, radius, sizes, spacing } from '@/theme';
+
+import { SectionHeader } from './SectionHeader';
 
 export interface GroupedListProps {
-  /** Rows, usually `ListRow` elements. */
+  /** Rows, usually `SettingsRow` elements. */
   children: ReactNode;
 
   /** Small heading above the card, such as "Display" or "Notifications". */
@@ -58,7 +60,7 @@ export function GroupedList({
 
   return (
     <View style={[styles.container, style]}>
-      {title ? <Text style={styles.title}>{title}</Text> : null}
+      {title ? <SectionHeader title={title} /> : null}
 
       <View style={styles.card} testID={testID}>
         {rows.map((row, index) => (
@@ -81,23 +83,17 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
     gap: spacing.sm,
   },
-  title: {
-    ...typography.caption,
-    // Settings section headers read as labels, not sentences.
-    textTransform: 'none',
-    paddingHorizontal: spacing.xs,
-  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.card,
-    borderWidth: 1,
+    borderWidth: sizes.hairline,
     borderColor: colors.border,
     // Clips each row's background to the rounded corners, so a pressed first or
     // last row does not paint a square highlight outside the card.
     overflow: 'hidden',
   },
   divided: {
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: sizes.hairline,
     borderTopColor: colors.border,
   },
   footnote: {

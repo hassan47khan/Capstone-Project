@@ -1,46 +1,61 @@
 /**
- * Button — every tappable action in the app.
+ * Button — every tappable action in the app (handoff 02 §1).
  *
  * What it is for
- *   The four button treatments the design uses, behind one component:
- *     primary      filled accent    the single main action on a screen
- *     secondary    outlined         an alternative action ("Log in" on Welcome)
- *     text         accent label     an inline link ("Forgot password?")
- *     dangerText   red label        a destructive action ("Remove subscription")
+ *   The four treatments the design uses, behind one component:
+ *     primary      accent fill        the single main action on a screen
+ *     secondary    outlined surface   an alternative action ("Cancel")
+ *     destructive  danger fill        "Delete subscription", confirmed in a sheet
+ *     ghost        accent label only  an inline action ("Forgot password?")
  *
- * Why one component instead of four
- *   The variants differ only in colour. Everything else — the 52pt height, the
- *   44pt minimum target, the disabled and loading behaviour, the accessibility
- *   props — is identical and must stay identical. Four components would drift.
+ * Why secondary and disabled look nothing alike
+ *   In the prototype the Edit screen's "Cancel" read as disabled because both
+ *   were flat grey. Here secondary keeps a visible `borderControl` outline and
+ *   full-strength text; disabled loses the border, fills `surface2` and mutes
+ *   the label. A test asserts the two never share a fill, border or label colour.
+ *
+ *   Disabled `textMuted` on `surface2` is 4.28:1 — below AA, and allowed only
+ *   because WCAG exempts inactive controls (CONTRAST.md).
  *
  * Why `loading` disables the button
  *   A form that stays tappable while submitting gets double-submitted, which on
  *   a create endpoint means two subscriptions. The Idempotency-Key in client.ts
  *   is the second line of defence; this is the first.
  *
+ * Motion (02 §15)
+ *   Press: scale 0.98 and the fill darkens, 100ms ease-out. Under reduced motion
+ *   the fill still changes but nothing scales (`useMotion`).
+ *
  * Design tokens
- *   height         sizes.control (52), floor sizes.minTouch (44)
+ *   height         sizes.button (48), floor sizes.minTouch (44)
  *   radius         radius.button (6)
- *   label          typography.labelSemibold (Figma "Add Subscription", node 3:1481)
- *   primary        colors.accent background, colors.onAccent label
- *   secondary      colors.borderControl border, colors.text label
- *   text           colors.accent label
- *   dangerText     colors.danger label
+ *   padding        spacing.lg (16)
+ *   label          typography.bodyLg — Bold on filled variants, SemiBold otherwise
+ *   secondary edge colors.borderControl, not `border` (1.51:1 fails 1.4.11)
  *
  * Used by: every screen with an action.
  */
+import { useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Pressable,
   Text,
-  View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
-import { makeStyles, opacity, radius, sizes, spacing, useTheme } from '@/theme';
+import {
+  fontFamily,
+  makeStyles,
+  radius,
+  sizes,
+  spacing,
+  useMotion,
+  useTheme,
+} from '@/theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'dangerText';
+export type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'ghost';
 
 export interface ButtonProps {
   /** The visible label. Also the accessible name unless `accessibilityLabel` is set. */
@@ -50,18 +65,24 @@ export interface ButtonProps {
 
   variant?: ButtonVariant;
 
-  /** Greys the button out and blocks presses. */
+  /** Mutes the button and blocks presses. */
   disabled?: boolean;
 
   /** Shows a spinner in place of the label and blocks presses. */
   loading?: boolean;
+
+  /**
+   * What a screen reader hears while `loading` — the action in progress, such
+   * as "Saving". Defaults to the label, never just "Loading".
+   */
+  loadingLabel?: string;
 
   /** Stretches to fill its container. Filled buttons usually want this. */
   fullWidth?: boolean;
 
   /**
    * Overrides the accessible name. Use when the visible label is too terse to
-   * stand alone out of context — "Remove" becoming "Remove Netflix subscription".
+   * stand alone out of context — "Delete" becoming "Delete Netflix subscription".
    */
   accessibilityLabel?: string;
 
@@ -79,6 +100,7 @@ export function Button({
   variant = 'primary',
   disabled = false,
   loading = false,
+  loadingLabel,
   fullWidth = false,
   accessibilityLabel,
   accessibilityHint,
@@ -87,26 +109,36 @@ export function Button({
 }: ButtonProps) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const m = useMotion();
+  const scale = useState(() => new Animated.Value(1))[0];
+
   // One flag for both reasons a button cannot be pressed, so the visual state
   // and the accessibility state can never disagree with the press handler.
   const isInactive = disabled || loading;
 
-  const isFilled = variant === 'primary';
-  const isOutlined = variant === 'secondary';
-  const isTextOnly = variant === 'text' || variant === 'dangerText';
+  const animateTo = (toValue: number) => {
+    if (!m.moves) return;
+    Animated.timing(scale, {
+      toValue,
+      duration: m.press,
+      easing: m.easeOut,
+      useNativeDriver: true,
+    }).start();
+  };
 
-  const labelColor =
-    variant === 'primary'
+  const labelColor = disabled
+    ? colors.textMuted
+    : variant === 'primary' || variant === 'destructive'
       ? colors.onAccent
-      : variant === 'secondary'
-        ? colors.text
-        : variant === 'dangerText'
-          ? colors.danger
-          : colors.accent;
+      : variant === 'ghost'
+        ? colors.accent
+        : colors.text;
 
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={() => animateTo(m.pressScale)}
+      onPressOut={() => animateTo(1)}
       disabled={isInactive}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
@@ -114,82 +146,82 @@ export function Button({
       // Screen readers announce "dimmed"/"disabled" from this, which is why it
       // tracks `isInactive` rather than only `disabled`.
       accessibilityState={{ disabled: isInactive, busy: loading }}
-      style={({ pressed }) => [
-        styles.base,
-        isFilled && styles.filled,
-        isOutlined && styles.outlined,
-        isTextOnly && styles.textOnly,
-        fullWidth && styles.fullWidth,
-        pressed && !isInactive && styles.pressed,
-        disabled && styles.disabled,
-        style,
-      ]}
+      style={[styles.hitArea, fullWidth && styles.fullWidth, style]}
       testID={testID}
     >
-      {loading ? (
-        // The spinner replaces the label rather than sitting beside it, so the
-        // button does not change width mid-submission.
-        <ActivityIndicator
-          color={labelColor}
-          accessibilityLabel="Loading"
-          testID={testID ? `${testID}-spinner` : undefined}
-        />
-      ) : (
-        <View style={styles.labelRow}>
-          <Text
-            style={[styles.label, { color: labelColor }]}
-            numberOfLines={1}
-            // Lets the label grow with the OS font setting, capped so a very
-            // large setting does not burst a fixed-height button.
-            maxFontSizeMultiplier={1.3}
-          >
-            {label}
-          </Text>
-        </View>
+      {({ pressed }) => (
+        <Animated.View
+          testID={testID ? `${testID}-surface` : undefined}
+          style={[
+            styles.surface,
+            disabled ? styles.disabled : styles[variant],
+            pressed && !isInactive && styles[`${variant}Pressed`],
+            { transform: [{ scale }] },
+          ]}
+        >
+          {loading ? (
+            // The spinner replaces the label rather than sitting beside it, so
+            // the button does not change width mid-submission.
+            <ActivityIndicator
+              color={labelColor}
+              accessibilityLabel={loadingLabel ?? label}
+              testID={testID ? `${testID}-spinner` : undefined}
+            />
+          ) : (
+            <Text
+              style={[
+                styles.label,
+                variant === 'primary' || variant === 'destructive'
+                  ? styles.labelBold
+                  : styles.labelSemiBold,
+                { color: labelColor },
+              ]}
+              numberOfLines={1}
+              // Grows with the OS font setting, capped so a very large setting
+              // does not burst a fixed-height button.
+              maxFontSizeMultiplier={1.3}
+            >
+              {label}
+            </Text>
+          )}
+        </Animated.View>
       )}
     </Pressable>
   );
 }
 
 const useStyles = makeStyles(({ colors, typography }) => ({
-  base: {
+  hitArea: {
     minHeight: sizes.minTouch,
-    height: sizes.control,
-    borderRadius: radius.button,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  filled: {
-    backgroundColor: colors.accent,
-  },
-  outlined: {
-    borderWidth: 1,
-    borderColor: colors.borderControl,
-    backgroundColor: 'transparent',
-  },
-  textOnly: {
-    // A text button is a link: no background, no border, and no fixed height
-    // padding that would make it look like a box.
-    height: sizes.minTouch,
-    paddingHorizontal: spacing.sm,
+    height: sizes.button,
   },
   fullWidth: {
     alignSelf: 'stretch',
   },
-  pressed: {
-    opacity: opacity.pressed,
-  },
-  disabled: {
-    opacity: opacity.disabled,
-  },
-  labelRow: {
-    flexDirection: 'row',
+  surface: {
+    flex: 1,
+    borderRadius: radius.button,
     alignItems: 'center',
-    gap: spacing.sm,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
   },
+  primary: { backgroundColor: colors.accent },
+  primaryPressed: { backgroundColor: colors.accentPressed },
+  destructive: { backgroundColor: colors.danger },
+  destructivePressed: { backgroundColor: colors.dangerPressed },
+  secondary: {
+    backgroundColor: colors.surface,
+    borderWidth: sizes.hairline,
+    borderColor: colors.borderControl,
+  },
+  secondaryPressed: { backgroundColor: colors.surface2 },
+  ghost: { backgroundColor: 'transparent' },
+  ghostPressed: { backgroundColor: colors.surface2 },
+  disabled: { backgroundColor: colors.surface2 },
   label: {
-    ...typography.labelSemibold,
+    ...typography.bodyLg,
     textAlign: 'center',
   },
+  labelBold: { fontFamily: fontFamily.bodyBold },
+  labelSemiBold: { fontFamily: fontFamily.bodySemiBold },
 }));

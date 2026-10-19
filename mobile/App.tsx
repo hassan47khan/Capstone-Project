@@ -11,6 +11,7 @@
  *   QueryClientProvider owns the server cache; the session's restore call uses it
  *   SessionProvider     installs the HTTP client's token hooks and decides
  *                       authenticated vs not
+ *   ToastProvider       floats toasts above everything, inside the safe area
  *   RootNavigator       reads that status to choose which stack to mount
  *
  * Why render is blocked on fonts
@@ -27,6 +28,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { queryClient } from '@/api/queryClient';
+import { ToastProvider } from '@/components';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { SessionProvider } from '@/session/SessionContext';
 import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
@@ -51,8 +53,10 @@ export default function App() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
-            <ThemedStatusBar />
-            <RootNavigator />
+            <ToastProvider>
+              <ThemedStatusBar />
+              <RootNavigator />
+            </ToastProvider>
           </SessionProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

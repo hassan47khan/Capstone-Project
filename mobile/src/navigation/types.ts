@@ -57,6 +57,8 @@ export type AppStackParamList = {
   TimeZonePicker: undefined;
   NotificationPreferences: undefined;
   Profile: undefined;
+  /** Dev-only component gallery. Registered only when `__DEV__` is true. */
+  DevGallery: undefined;
 };
 
 /** The root: either the auth stack or the app stack, never both. */

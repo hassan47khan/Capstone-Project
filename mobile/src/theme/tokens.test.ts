@@ -158,6 +158,14 @@ describe.each(THEMES)('$name theme', ({ name, colors, categories, services }) =>
       ['accent on accentSurface', 'accent', 'accentSurface'],
       ['accent on tabBar', 'accent', 'tabBar'],
       ['onAccent on accent', 'onAccent', 'accent'],
+      // Pressed fills (02 §1) must keep the label readable mid-press.
+      ['onAccent on accentPressed', 'onAccent', 'accentPressed'],
+      // The destructive button: onAccent on a danger fill, and pressed.
+      ['onAccent on danger', 'onAccent', 'danger'],
+      ['onAccent on dangerPressed', 'onAccent', 'dangerPressed'],
+      // Secondary/ghost buttons and pressed rows fill surface2.
+      ['text on surface2', 'text', 'surface2'],
+      ['accent on surface2', 'accent', 'surface2'],
       ['danger on surface', 'danger', 'surface'],
       ['danger on bg', 'danger', 'bg'],
       ['danger on dangerSurface', 'danger', 'dangerSurface'],
@@ -176,6 +184,9 @@ describe.each(THEMES)('$name theme', ({ name, colors, categories, services }) =>
       ['borderControl on surface', 'borderControl', 'surface'],
       ['borderControl on bg', 'borderControl', 'bg'],
       ['toggleOff on surface', 'toggleOff', 'surface'],
+      // The toggle thumb (onAccent, 02 §7) against both of its tracks.
+      ['thumb on toggle on', 'onAccent', 'accent'],
+      ['thumb on toggle off', 'onAccent', 'toggleOff'],
     ] as const)('%s meets 3:1', (label, fg, bg) => {
       expectContrast(
         `${name}: ${label}`,
@@ -192,16 +203,32 @@ describe.each(THEMES)('$name theme', ({ name, colors, categories, services }) =>
     // as a label — and the real figures are recorded in CONTRAST.md.
     const DISABLED_FLOOR = 2;
 
-    it('disabled primary button label stays legible on its fill', () => {
-      const fill = composite(colors.accent, colors.bg, opacity.disabled);
-      const label = composite(colors.onAccent, colors.bg, opacity.disabled);
-      expectContrast(`${name}: disabled button label`, label, fill, DISABLED_FLOOR);
+    it('disabled button label stays legible on its fill', () => {
+      // 02 §1: a disabled button is surface2 with a textMuted label, at full
+      // opacity — no translucency to composite.
+      expectContrast(
+        `${name}: disabled button label`,
+        colors.textMuted,
+        colors.surface2,
+        DISABLED_FLOOR,
+      );
     });
 
     it('disabled input text stays legible on its field', () => {
-      const field = composite(colors.surface, colors.bg, opacity.disabled);
-      const text = composite(colors.text, colors.bg, opacity.disabled);
-      expectContrast(`${name}: disabled input text`, text, field, DISABLED_FLOOR);
+      // 02 §2: disabled fields are surface2 with textMuted text.
+      expectContrast(
+        `${name}: disabled input text`,
+        colors.textMuted,
+        colors.surface2,
+        DISABLED_FLOOR,
+      );
+    });
+
+    it('the old translucent disabled style still clears the floor', () => {
+      // Kept for primitives with no designed disabled state (opacity.disabled).
+      const fill = composite(colors.accent, colors.bg, opacity.disabled);
+      const label = composite(colors.onAccent, colors.bg, opacity.disabled);
+      expectContrast(`${name}: dimmed button label`, label, fill, DISABLED_FLOOR);
     });
   });
 

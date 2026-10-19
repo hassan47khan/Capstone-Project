@@ -19,8 +19,9 @@
  *   the fix is almost always a missing `await`.
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Animated } from 'react-native';
 
-import { sizes } from '@/theme';
+import { lightColors, motion, sizes, ThemeProvider } from '@/theme';
 
 import { Button } from './Button';
 
@@ -46,7 +47,7 @@ describe('Button', () => {
       <Button
         label="Remove"
         accessibilityLabel="Remove Streamly Plus subscription"
-        variant="dangerText"
+        variant="destructive"
         onPress={jest.fn()}
       />,
     );
@@ -103,10 +104,77 @@ describe('Button', () => {
       expect(screen.queryByText('Save')).toBeNull();
       expect(screen.getByTestId('save-spinner')).toBeOnTheScreen();
     });
+
+    it('announces the action in progress, not just "loading"', async () => {
+      // 02 §1: the loading state says "Saving" or the action verb.
+      await render(
+        <Button
+          label="Save"
+          loadingLabel="Saving"
+          onPress={jest.fn()}
+          loading
+          testID="save"
+        />,
+      );
+
+      expect(screen.getByTestId('save-spinner').props.accessibilityLabel).toBe('Saving');
+    });
+  });
+
+  describe('secondary vs disabled (02 §1, critical)', () => {
+    it('never share a fill, a border or a label colour', async () => {
+      // The prototype's "Cancel" read as disabled because both were flat grey.
+      await render(
+        <>
+          <Button label="Cancel" variant="secondary" onPress={jest.fn()} testID="sec" />
+          <Button label="Save" disabled onPress={jest.fn()} testID="dis" />
+        </>,
+      );
+
+      const secondary = StyleSheetFlatten(screen.getByTestId('sec-surface').props.style);
+      const disabled = StyleSheetFlatten(screen.getByTestId('dis-surface').props.style);
+      const label = (text: string) =>
+        StyleSheetFlatten(screen.getByText(text).props.style).color;
+
+      expect(secondary.backgroundColor).not.toBe(disabled.backgroundColor);
+      expect(secondary.borderWidth).toBe(1);
+      expect(disabled.borderWidth).toBeUndefined();
+      expect(label('Cancel')).toBe(lightColors.text);
+      expect(label('Save')).toBe(lightColors.textMuted);
+    });
+  });
+
+  describe('motion', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('scales on press', async () => {
+      const timing = jest.spyOn(Animated, 'timing');
+      await render(<Button label="Save" onPress={jest.fn()} />);
+
+      await fireEvent(screen.getByRole('button'), 'pressIn');
+
+      expect(timing).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ toValue: motion.pressScale, duration: motion.press }),
+      );
+    });
+
+    it('does not scale under reduced motion', async () => {
+      const timing = jest.spyOn(Animated, 'timing');
+      await render(
+        <ThemeProvider initialPreference="light" reduceMotionOverride>
+          <Button label="Save" onPress={jest.fn()} />
+        </ThemeProvider>,
+      );
+
+      await fireEvent(screen.getByRole('button'), 'pressIn');
+
+      expect(timing).not.toHaveBeenCalled();
+    });
   });
 
   describe('accessibility floor', () => {
-    it.each(['primary', 'secondary', 'text', 'dangerText'] as const)(
+    it.each(['primary', 'secondary', 'destructive', 'ghost'] as const)(
       '%s meets the 44pt minimum touch target',
       async (variant) => {
         await render(

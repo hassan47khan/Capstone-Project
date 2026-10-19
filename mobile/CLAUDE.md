@@ -42,7 +42,8 @@ from Figma and why.
 ```
 src/
   api/          client (refresh, mock transport), endpoints, types, errors, format
-  components/   the 20 primitives — no API, no navigation, no copy
+  components/   the handoff-02 library + Phase-0 primitives — no API, no navigation,
+                no copy. Every state is drawn in the dev gallery (features/dev)
   config/       env.ts, features.ts
   features/     auth, dashboard, subscriptions, settings, insights
                 extraction, sharing, notifications, analytics  (typed seams, no UI)
@@ -50,7 +51,8 @@ src/
   session/      SessionContext, tokenStore
   test/         fixtures, routes (shared mock table), MSW handlers, render helpers
   theme/        tokens.ts (light + dark), typography.ts (DM Serif Display, DM Sans),
-                ThemeProvider/useTheme, makeStyles, fonts.ts, contrast.ts, CONTRAST.md
+                ThemeProvider/useTheme, makeStyles, motion.ts (useMotion: every
+                animation honours Reduce Motion), fonts.ts, contrast.ts, CONTRAST.md
 ```
 
 ## Mocks

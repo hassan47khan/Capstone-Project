@@ -1,128 +1,132 @@
 /**
- * ListRow — one row inside a GroupedList.
+ * ListRow — one subscription in a list (handoff 02 §9, Figma `sub-card` 3:1686).
  *
  * What it is for
- *   Three shapes of row that share one implementation:
- *     - a subscription: tile, name, "Entertainment · Renews Oct 3", price
- *     - a settings row: label on the left, current value and a chevron
- *     - a plain key-value row: label and value, not tappable
+ *   The most-repeated component in the app: Home, Calendar and Analytics lists.
+ *   In the prototype it was copy-pasted raw on ~40 frames; here it is one
+ *   component. Settings rows are a different component (`SettingsRow`).
  *
- * Why one component for all three
- *   They differ in what they put in the leading and trailing slots, not in
- *   behaviour. The parts that must not vary — row height, padding, press
- *   feedback, how the whole row is announced — are the parts worth sharing.
+ * Anatomy
+ *   [logo]  Netflix                          $15.49
+ *           Next bill: Oct 12, 2026             /mo
+ *   - the subtitle is two-tone: "Next bill: " muted, the date in Medium `text`
+ *     — two Text nodes, not one flat string;
+ *   - long names truncate on one line; the price column is fixed and never
+ *     truncates;
+ *   - a cancelled subscription dims its title and price to 60% and gains a
+ *     "Cancelled" badge (history is kept — 07).
  *
- * Why the whole row is one accessible element
- *   Left to itself a screen reader reads the name, the subtitle and the price as
- *   three separate stops, so the user has to assemble them. Grouping them into
- *   one element with a composed label ("Streamly Plus, Entertainment, renews Oct 3,
- *   $15.49") makes a list usable by swipe.
+ * Accessibility
+ *   The whole row is one touchable with one composed label —
+ *   "Netflix, $15.49 per month, next bill October 12, 2026" — so a screen reader
+ *   does not stop on three loose text nodes.
+ *
+ * Money
+ *   Price is a decimal string formatted by `Amount`; nothing here calculates.
  *
  * Design tokens
- *   height      sizes.rowSubscription (72) or sizes.rowSettings (56)
- *   padding     spacing.lg horizontal
- *   title       typography.labelSemibold
- *   subtitle    typography.caption
- *
- * Used by: Subscriptions, Home upcoming renewals, Settings, Currency picker,
- *          Subscription detail key-value card.
+ *   container  colors.surface, 1px colors.border, radius.card, spacing.lg padding,
+ *              spacing.md gap, sizes.rowSubscription (72); pressed colors.surface2
+ *   logo       Tile (40, brand tint or serviceTint)
+ *   title      typography.labelSemibold at 15 (02 §9)
+ *   subtitle   typography.caption + typography.captionStrong
+ *   price      typography.price via Amount; suffix typography.micro
  */
-import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { makeStyles, opacity, sizes, spacing } from '@/theme';
+import {
+  formatCycle,
+  formatCycleSuffix,
+  formatDateLong,
+  formatDateSpoken,
+  formatMoney,
+} from '@/api/format';
+import type { BillingCycle, CurrencyCode, MoneyString } from '@/api/types';
+import {
+  fontFamily,
+  makeStyles,
+  opacity,
+  radius,
+  sizes,
+  spacing,
+  type ServiceColors,
+} from '@/theme';
+
+import { Amount } from './Amount';
+import { Badge } from './Badge';
+import { Tile } from './Tile';
 
 export interface ListRowProps {
-  /** The main line. */
-  title: string;
-
-  /** The quieter second line, such as "Entertainment · Renews Oct 3". */
-  subtitle?: string;
-
-  /** Rendered at the start of the row — usually a `Tile`. */
-  leading?: ReactNode;
-
-  /** Rendered at the end — a price, a current value, a chevron, a check. */
-  trailing?: ReactNode;
-
-  /** Omit to render a non-interactive row, such as a key-value pair. */
+  name: string;
+  /** Decimal string from the API. */
+  price: MoneyString;
+  currency: CurrencyCode;
+  cycle: BillingCycle;
+  /** "YYYY-MM-DD". */
+  nextBillOn: string;
+  /** Catalog brand colours for the logo. */
+  brand?: ServiceColors;
+  cancelled?: boolean;
   onPress?: () => void;
-
-  /** `subscription` is the taller 64pt row; `settings` is 56pt. */
-  variant?: 'subscription' | 'settings';
-
-  /**
-   * Overrides the composed accessible name. Pass one whenever the trailing slot
-   * holds information a screen reader would otherwise miss — a price lives in a
-   * child component, so it is not part of the title or subtitle.
-   */
-  accessibilityLabel?: string;
-
-  /** Marks this row as the chosen one, e.g. the selected currency. */
-  selected?: boolean;
-
   testID?: string;
 }
 
 export function ListRow({
-  title,
-  subtitle,
-  leading,
-  trailing,
+  name,
+  price,
+  currency,
+  cycle,
+  nextBillOn,
+  brand,
+  cancelled = false,
   onPress,
-  variant = 'settings',
-  accessibilityLabel,
-  selected = false,
   testID,
 }: ListRowProps) {
   const styles = useStyles();
-  const height = variant === 'subscription' ? sizes.rowSubscription : sizes.rowSettings;
+  const { display } = formatMoney(price, currency);
 
-  // Falls back to the two visible lines. A caller with a trailing value should
-  // pass an explicit label so the value is announced too.
-  const composedLabel =
-    accessibilityLabel ?? [title, subtitle].filter(Boolean).join(', ');
-
-  const content = (
-    <View style={[styles.row, { minHeight: height }, selected && styles.selected]}>
-      {leading ? <View style={styles.leading}>{leading}</View> : null}
-
-      <View style={styles.text}>
-        <Text style={styles.title} numberOfLines={2}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={2}>
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-
-      {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
-    </View>
-  );
-
-  // A row with no handler is content, not a control. Giving it a button role
-  // would have a screen reader offer an action that does nothing.
-  if (!onPress) {
-    return (
-      <View accessible accessibilityLabel={composedLabel} testID={testID}>
-        {content}
-      </View>
-    );
-  }
+  const label = [
+    name,
+    `${display} ${formatCycle(cycle.unit, cycle.count)}`,
+    `next bill ${formatDateSpoken(nextBillOn)}`,
+    cancelled ? 'cancelled' : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <Pressable
       onPress={onPress}
+      disabled={!onPress}
       accessible
-      accessibilityRole="button"
-      accessibilityLabel={composedLabel}
-      accessibilityState={{ selected }}
-      style={({ pressed }) => [pressed && styles.pressed]}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       testID={testID}
     >
-      {content}
+      <Tile name={name} brand={brand} />
+
+      <View style={styles.info}>
+        <View style={styles.titleLine}>
+          <Text
+            style={[styles.title, cancelled && styles.dimmed]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {name}
+          </Text>
+          {cancelled ? <Badge label="Cancelled" /> : null}
+        </View>
+        <Text style={styles.subtitle} numberOfLines={1}>
+          Next bill:{' '}
+          <Text style={styles.subtitleValue}>{formatDateLong(nextBillOn)}</Text>
+        </Text>
+      </View>
+
+      <View style={[styles.price, cancelled && styles.dimmed]}>
+        <Amount value={price} currency={currency} size="row" />
+        <Text style={styles.suffix}>{formatCycleSuffix(cycle.unit, cycle.count)}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -131,34 +135,48 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    minHeight: sizes.rowSubscription,
+    padding: spacing.lg,
     gap: spacing.md,
     backgroundColor: colors.surface,
+    borderWidth: sizes.hairline,
+    borderColor: colors.border,
+    borderRadius: radius.card,
   },
-  selected: {
-    backgroundColor: colors.accentSurface,
+  pressed: {
+    backgroundColor: colors.surface2,
   },
-  leading: {
-    // Fixed, so names line up down the list even when a tile is missing.
-    justifyContent: 'center',
-  },
-  text: {
-    // Takes the slack, so a long name wraps rather than squeezing the price.
+  info: {
     flex: 1,
-    gap: spacing.xs / 2,
+    gap: spacing.xs,
   },
-  trailing: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+  titleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
+  // 02 §9: the label.semibold weight at 15px, the body.lg size.
   title: {
-    ...typography.labelSemibold,
+    ...typography.bodyLg,
+    fontFamily: fontFamily.bodySemiBold,
+    flexShrink: 1,
   },
   subtitle: {
     ...typography.caption,
   },
-  pressed: {
-    opacity: opacity.pressed,
+  subtitleValue: {
+    ...typography.captionStrong,
+  },
+  price: {
+    // Fixed: the price never shrinks or truncates (02 §9).
+    flexShrink: 0,
+    alignItems: 'flex-end',
+    gap: spacing.xs / 2,
+  },
+  suffix: {
+    ...typography.micro,
+  },
+  dimmed: {
+    opacity: opacity.cancelled,
   },
 }));

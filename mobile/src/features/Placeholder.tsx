@@ -15,10 +15,11 @@
  * Every one of these is deleted as its real screen lands. If any survive past
  * Phase 3, that is a bug.
  */
+import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { Header, Screen } from '@/components';
-import { makeStyles, radius, spacing } from '@/theme';
+import { makeStyles, radius, sizes, spacing } from '@/theme';
 
 export interface PlaceholderProps {
   /** The screen's eventual title, so navigation reads correctly while testing. */
@@ -33,6 +34,9 @@ export interface PlaceholderProps {
   /** Shown when the screen is pushed rather than a tab. */
   backLabel?: string;
   onBack?: () => void;
+
+  /** Rendered under the card — dev-only links such as the component gallery. */
+  children?: ReactNode;
 }
 
 export function Placeholder({
@@ -41,6 +45,7 @@ export function Placeholder({
   stories,
   backLabel,
   onBack,
+  children,
 }: PlaceholderProps) {
   const styles = useStyles();
   return (
@@ -56,6 +61,7 @@ export function Placeholder({
         <Text style={styles.detail}>{phase}</Text>
         <Text style={styles.detail}>{stories}</Text>
       </View>
+      {children}
     </Screen>
   );
 }
@@ -63,7 +69,7 @@ export function Placeholder({
 const useStyles = makeStyles(({ colors, typography }) => ({
   card: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: sizes.hairline,
     borderColor: colors.border,
     borderRadius: radius.card,
     padding: spacing.xl,

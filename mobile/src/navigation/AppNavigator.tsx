@@ -18,6 +18,7 @@
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { GalleryScreen } from '@/features/dev/GalleryScreen';
 import { AddEntryScreen } from '@/features/subscriptions/AddEntryScreen';
 import { SubscriptionDetailScreen } from '@/features/subscriptions/SubscriptionDetailScreen';
 import { SubscriptionFormScreen } from '@/features/subscriptions/SubscriptionFormScreen';
@@ -56,6 +57,9 @@ export function AppNavigator() {
         component={NotificationPreferencesScreen}
       />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+
+      {/* Development only: absent from a release bundle, so unreachable there. */}
+      {__DEV__ ? <Stack.Screen name="DevGallery" component={GalleryScreen} /> : null}
     </Stack.Navigator>
   );
 }
