@@ -5,16 +5,20 @@ the specification, and what it does not cover.
 
 ## Sources of truth
 
-Two documents govern the client. **Neither is in the repository yet** — Hassan is
-adding them at these paths:
-
-| Document | Path | What it governs |
+| Document | Where | What it governs |
 | --- | --- | --- |
-| **SubTrak prototype** (PDF, 12 pages) | `docs/design/SubTrak prototype.pdf` | Layout, hierarchy, copy tone, spacing, colour, type |
-| **SubTrak — System Design Specification** | `docs/SubTrak — System Design Specification.md` | Architecture, data model, API contract, business rules |
+| **Figma prototype** | Figma `kyUS7F8bg4x7GpcPEF4UDN`, page "Full Integrated Prototype Epic A, B, C" | Layout, hierarchy, copy tone, spacing, colour, type |
+| **SubTrak — System Design Specification** | `docs/design/SubTrak — System Design Specification.md` | Architecture, data model, API contract, business rules |
 
-Where they disagree: the specification wins on **behaviour**, the prototype wins
-on **appearance**. The three cases where that mattered are listed below.
+Where they disagree: the specification wins on **behaviour**, Figma wins on
+**appearance**. The cases where that mattered are listed below.
+
+**Since 2026-10-19:** Figma replaced the PDF prototype (`SubTrak prototype.pdf`)
+as the appearance source, following developer handoff `01-design-tokens.md`. The
+app now uses DM Serif Display and DM Sans, the Figma colour variables, and
+radius 6, with a designed dark theme. The page map below still uses the PDF's
+page numbers for screen names. Every token that differs from Figma, and why, is
+in `mobile/src/theme/CONTRAST.md`.
 
 ## Page map
 
@@ -51,16 +55,23 @@ from the user's time zone instead. Weekly summary is not among the reminder kind
 in specification section 8. Data export is an *open decision* in section 15 —
 shipping a button for an undecided feature would be worse than not having it.
 
-### 2. The demo categories are replaced
+### 2. One category taxonomy (changed 2026-10-19)
 
-The prototype uses Entertainment, Productivity, AI Tools and Cloud. Those are
-illustrative. The specification's enum is fixed:
+The original specification enum (streaming, software, fitness, cloud storage,
+insurance, utilities, other) is **replaced** by the seven categories in handoff
+`04-data-and-money.md`, which match the categories the Figma prototype uses:
 
-> streaming, software, fitness, cloud storage, insurance, utilities, other
+> entertainment, productivity, ai-tools, cloud-storage, news-media,
+> health-wellness, other
 
-A missing category renders as **"Uncategorized"**. Each gets a colour triplet in
-`src/theme/tokens.ts` — a bar colour at 3:1 on white, a tile tint, and an ink
-that meets 4.5:1 on that tint. All verified by `src/theme/tokens.test.ts`.
+The prototype also had Gaming, Food & Delivery and a separate "Fitness &
+Wellness". Those existed only on abandoned frames and are dropped. A subscription
+with no category renders as **"Uncategorized"**, coloured like `other`.
+
+Each category has one muted fill per theme in `mobile/src/theme/tokens.ts`. Every
+fill reaches 3:1 on `surface`, `surface2` and `bg`, and none equals the danger
+red. Service tiles use the service's brand colour, not the category colour.
+`src/theme/tokens.test.ts` checks all of this.
 
 ### 3. The price-increase banner is Epic H
 
@@ -123,5 +134,8 @@ them is drawn.
   and its legend. Every chart in the app now carries the same numbers as text.
 - The prototype shows no **focus or pressed states**. Added via `opacity.pressed`.
 - Contrast was not stated. Every pair is now computed from the tokens and
-  asserted in `src/theme/tokens.test.ts` — 21 pairs, all passing, tightest being
-  the `fitness` bar at 3.53:1 (needs 3.0) and `ink3` on paper at 4.84:1 (needs 4.5).
+  asserted in `src/theme/tokens.test.ts` for **both** themes. The tightest are
+  the `entertainment` bar on its `surface2` track at 3.03:1 (needs 3.0) and
+  `textMuted` on `bg` at 4.76:1 (needs 4.5). Three Figma values failed and were
+  darkened (`textSubtle`, `productivity`, `healthWellness`). The full report and
+  designer flags are in `mobile/src/theme/CONTRAST.md`.

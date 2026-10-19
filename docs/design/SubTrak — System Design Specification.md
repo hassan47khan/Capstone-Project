@@ -120,7 +120,7 @@ The design uses nine collections. Data that is always read with its parent and s
 | `notifications` | In-app inbox and delivery log | `user_id`, `kind`, `title`, `body`, `created_at`, `read_at`, `push_status` |
 | `device_tokens` | Push registration | `user_id`, `expo_token`, `platform`, `active`, `last_seen_at` |
 | `exchange_rates` | Daily currency snapshot | `base`, `rates`, `as_of`, `fetched_at` |
-| `categories` | Not a collection: a fixed enum in code (streaming, software, fitness, cloud storage, insurance, utilities, other) | Missing category renders as "Uncategorized" (US-8) |
+| `categories` | Not a collection: a fixed enum in code (entertainment, productivity, ai-tools, cloud-storage, news-media, health-wellness, other). Amended 2026-10-19 to the one taxonomy in developer handoff 04; whether it becomes a seeded collection is decided with 04 | Missing category renders as "Uncategorized" (US-8) |
 
 **Example subscription document** (synthetic data)
 
@@ -129,7 +129,7 @@ The design uses nine collections. Data that is always read with its parent and s
   "_id": "ObjectId(...)",
   "owner_id": "ObjectId(...)",
   "name": "Streaming Plus",
-  "category": "streaming",
+  "category": "entertainment",
   "price": "15.49",
   "currency": "USD",
   "cycle": { "unit": "month", "count": 1 },
