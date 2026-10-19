@@ -1,62 +1,60 @@
 /**
- * Navigation route types.
+ * Navigation route types (handoff 03 §1).
  *
  * What this is for
  *   The param list for every route, so `navigation.navigate('SubscriptionDetail',
  *   { id })` is checked at compile time and a typo or a missing parameter is a
  *   build error rather than a blank screen.
  *
- * Why Family appears here while the tab is disabled
- *   `FEATURE_SHARING` gates whether the route is REGISTERED, not whether it is
- *   typed. Keeping the type means turning the flag on is a one-line change
- *   rather than a type refactor, and the navigator and this file cannot drift
- *   apart in the meantime. Nothing can navigate to an unregistered route, so
- *   there is no way to reach it while the flag is false.
+ * The tree
+ *   RootNavigator
+ *   ├── Auth   (unauthenticated, or signed in but email unverified)
+ *   └── App
+ *       ├── MainTabs: Home · Calendar · Analytics · Settings  (+ the FAB)
+ *       └── modal group, presented over the tabs
+ *
+ * Deliberately absent (03 §7): Welcome/landing, the feature tour, Admin Log In,
+ * the Paywall, and the Family tab (handoff 10, a stretch goal).
  */
 
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
-/** Screens shown when nobody is signed in (Epic A). */
+/** Screens shown when nobody is signed in (handoff 05). */
 export type AuthStackParamList = {
-  Welcome: undefined;
-  SignUp: undefined;
-  /** Carries the address so the screen can say which inbox to check. */
-  ConfirmEmail: { email: string };
-  LogIn: undefined;
+  Login: undefined;
+  Register: undefined;
+  /** Carries the address when known, so the screen can say which inbox to check. */
+  VerifyEmailSent: { email?: string } | undefined;
+  /** `token` arrives from the emailed link: subtrak://verify-email?token=… */
+  EmailConfirmed: { token: string };
   ForgotPassword: undefined;
-  /** `token` arrives from the emailed deep link. */
-  ResetPassword: { token: string };
+  ResetLinkSent: { email: string };
+  /** `token` arrives from the emailed link: subtrak://reset-password?token=… */
+  CreateNewPassword: { token: string };
+  PasswordResetSuccess: undefined;
 };
 
-/** The bottom tabs. `Family` is registered only when FEATURE_SHARING is true. */
-export type TabParamList = {
+/** The four bottom tabs. The FAB between Calendar and Analytics is not a tab. */
+export type MainTabParamList = {
   Home: undefined;
-  Subscriptions: undefined;
-  Insights: undefined;
-  /** Epic F. Not registered while FEATURE_SHARING is false. */
-  Family: undefined;
+  Calendar: undefined;
+  Analytics: undefined;
+  Settings: undefined;
 };
 
-/** Screens shown when signed in: the tabs, plus everything pushed over them. */
+/** Signed in: the tabs, plus the modal group presented over them. */
 export type AppStackParamList = {
-  Tabs: NavigatorScreenParams<TabParamList>;
+  MainTabs: NavigatorScreenParams<MainTabParamList>;
+  AddSubscription: undefined;
   SubscriptionDetail: { id: string };
-  /**
-   * The add/edit form. No `id` means create; an `id` means edit. One route for
-   * both, because they are the same form against the same validation.
-   */
-  SubscriptionForm: { id?: string };
-  /**
-   * Epic D will put the AI-or-manual choice behind this route. For now it
-   * forwards straight to the manual form, so swapping it in later touches one
-   * file instead of every Add button.
-   */
-  AddEntry: undefined;
-  Settings: undefined;
-  CurrencyPicker: undefined;
-  TimeZonePicker: undefined;
-  NotificationPreferences: undefined;
-  Profile: undefined;
+  EditSubscription: { id: string };
+  EditHistory: { id: string };
+  SelectCurrency: undefined;
+  /** A bottom sheet confirming the switch to `currency`. */
+  ConfirmCurrencyChange: { currency: string };
+  SelectTimeZone: undefined;
+  NotificationRules: undefined;
+  ProfileAccount: undefined;
   /** Dev-only component gallery. Registered only when `__DEV__` is true. */
   DevGallery: undefined;
 };

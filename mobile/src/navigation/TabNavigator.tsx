@@ -1,73 +1,64 @@
 /**
- * The bottom tab navigator.
+ * The bottom tab navigator (handoff 03 §1, §2).
  *
- * What this is for
- *   The three tabs a signed-in user sees: Home, Subscriptions, Insights.
+ * What it is for
+ *   The four tabs a signed-in user lives in: Home, Calendar, Analytics,
+ *   Settings — with the add button (FAB) drawn between Calendar and Analytics.
  *
- * How FEATURE_SHARING is applied, and why it matters
- *   The prototype includes a fourth "Family" tab for Epic F. It is registered
- *   ONLY when `FEATURE_SHARING` is true — not registered and hidden, not
- *   rendered with `tabBarButton: () => null`. The difference is real: a hidden
- *   tab is still a live route, so a deep link or a stray `navigate('Family')`
- *   would land a user on a half-built screen. An unregistered route does not
- *   exist, and Metro drops the branch from the bundle entirely.
+ * One tab bar
+ *   `TabBar` is supplied once through the `tabBar` prop and reused for every
+ *   tab, so it cannot drift between screens the way the prototype's eight
+ *   copy-pasted bars did. The FAB opens Add Subscription as a modal over the
+ *   tabs; it is the only add affordance in the app (00, rule 4).
  *
- *   `src/navigation/navigation.test.tsx` asserts the tab is absent while the
- *   flag is false, so the gate cannot be removed by accident.
- *
- * Why the tab bar is custom
- *   The design's bar does not match React Navigation's default, so `TabBar` is
- *   supplied through the `tabBar` prop. That decision is made here, in Phase 0,
- *   because retrofitting it later means rewriting the component and its tests.
+ * No Family tab
+ *   03's tree has none; family sharing is handoff 10, a stretch goal. Its screen
+ *   (`features/sharing/SharedPlanScreen`) is kept but not registered anywhere,
+ *   so it is unreachable by tap, deep link or `navigate()`.
  */
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
 
 import { TabBar } from '@/components';
-import { FEATURE_SHARING } from '@/config/features';
-import { DashboardScreen } from '@/features/dashboard/DashboardScreen';
-import { InsightsScreen } from '@/features/insights/InsightsScreen';
-import { SharedPlanScreen } from '@/features/sharing/SharedPlanScreen';
-import { SubscriptionsScreen } from '@/features/subscriptions/SubscriptionsScreen';
+import { AnalyticsScreen } from '@/features/analytics/AnalyticsScreen';
+import { CalendarScreen } from '@/features/calendar/CalendarScreen';
+import { HomeScreen } from '@/features/home/HomeScreen';
+import { SettingsScreen } from '@/features/settings/SettingsScreen';
 
-import type { TabParamList } from './types';
+import type { MainTabParamList } from './types';
 
-const Tab = createBottomTabNavigator<TabParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function TabNavigator() {
+  const navigation = useNavigation();
+
   return (
     <Tab.Navigator
-      // Our own bar, matching the prototype. See the header comment.
-      tabBar={(props) => <TabBar {...props} />}
-      screenOptions={{
-        // Every screen draws its own Header, so the navigator's one would be a
-        // second, differently styled title above it.
-        headerShown: false,
-      }}
-    >
-      <Tab.Screen name="Home" component={DashboardScreen} options={{ title: 'Home' }} />
-      <Tab.Screen
-        name="Subscriptions"
-        component={SubscriptionsScreen}
-        options={{ title: 'Subscriptions' }}
-      />
-      <Tab.Screen
-        name="Insights"
-        component={InsightsScreen}
-        options={{ title: 'Insights' }}
-      />
-
-      {/*
-        Epic F. While the flag is false this renders nothing and the route is
-        never registered, so "Family" is unreachable by tap, by deep link, and
-        by navigate().
-      */}
-      {FEATURE_SHARING ? (
-        <Tab.Screen
-          name="Family"
-          component={SharedPlanScreen}
-          options={{ title: 'Family' }}
+      tabBar={(props) => (
+        <TabBar
+          {...props}
+          onAdd={() => navigation.navigate('App', { screen: 'AddSubscription' })}
         />
-      ) : null}
+      )}
+      // Every screen draws its own Header.
+      screenOptions={{ headerShown: false }}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Home' }} />
+      <Tab.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{ title: 'Calendar' }}
+      />
+      <Tab.Screen
+        name="Analytics"
+        component={AnalyticsScreen}
+        options={{ title: 'Analytics' }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
+      />
     </Tab.Navigator>
   );
 }

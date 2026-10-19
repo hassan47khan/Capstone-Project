@@ -1,64 +1,105 @@
 /**
- * The root navigator.
+ * The root navigator (handoff 03 §5, §6).
  *
  * What this is for
- *   Choosing between the auth stack and the app stack based on session status,
- *   and holding the splash while that is still being determined.
+ *   Choosing between the Auth stack and the App stack from the auth gate's
+ *   decision, holding the splash until that decision is made, and replaying a
+ *   deep link that arrived while the user was signed out.
+ *
+ * The gate (see src/session/useAuthGate.ts for the five cases)
+ *   splash  → render nothing: Expo's splash stays up, so there is never a flash
+ *             of Log in on the way to Home
+ *   auth    → Auth stack at Login
+ *   verify  → Auth stack at VerifyEmailSent
+ *   app     → App stack, on the Home tab
  *
  * Why the two stacks are mutually exclusive
  *   Only one is mounted at a time. Signing out unmounts the entire app stack,
  *   which discards its navigation history — so the back gesture cannot return a
- *   signed-out user to a screen full of their data. Rendering both and
- *   navigating between them would leave that history intact.
+ *   signed-out user to a screen full of their data.
  *
  * Why there is no "redirect to login" anywhere in the app
- *   When a refresh token is rejected, the HTTP client calls `onRefreshFailed`,
- *   the session provider clears itself, `status` becomes 'unauthenticated', and
- *   this component swaps stacks. No screen contains logic for it, and there is
- *   no window in which a screen renders against a dead session.
+ *   When a refresh token is rejected, the session provider clears itself, the
+ *   gate says 'auth', and this component swaps stacks. No screen contains logic
+ *   for it.
  */
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
-import { useSession } from '@/session/SessionContext';
+import { useAuthGate } from '@/session/useAuthGate';
 import { useTheme } from '@/theme';
 
 import { AppNavigator } from './AppNavigator';
 import { AuthNavigator } from './AuthNavigator';
 import { linking } from './linking';
+import { setAppMounted, takePendingLink } from './pendingLink';
 import { getNavigationTheme } from './theme';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+function AuthAtLogin() {
+  return <AuthNavigator initialRouteName="Login" />;
+}
+
+function AuthAtVerify() {
+  return <AuthNavigator initialRouteName="VerifyEmailSent" />;
+}
+
 export function RootNavigator() {
-  const { status } = useSession();
+  const decision = useAuthGate();
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const { colors, scheme } = useTheme();
   const navigationTheme = useMemo(
     () => getNavigationTheme(colors, scheme),
     [colors, scheme],
   );
 
-  // Still reading secure storage. Rendering nothing keeps the splash up rather
-  // than flashing the login screen at a user who is in fact signed in.
-  if (status === 'loading') {
+  // Set during render, not in an effect, so the linking handlers see the right
+  // value even for a cold-start URL resolved on the very first pass.
+  setAppMounted(decision === 'app');
+
+  /** Opens a deep link parked while the user was signed out (03 §6). */
+  const replayPendingLink = useCallback(() => {
+    if (decision !== 'app' || !navigationRef.isReady()) return;
+    const url = takePendingLink();
+    const id = url?.match(/^subtrak:\/\/subscription\/([^/?#]+)/)?.[1];
+    if (id) {
+      navigationRef.navigate('App', {
+        screen: 'SubscriptionDetail',
+        params: { id: decodeURIComponent(id) },
+      });
+    }
+  }, [decision, navigationRef]);
+
+  useEffect(replayPendingLink, [replayPendingLink]);
+
+  if (decision === 'splash') {
     return null;
   }
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       theme={navigationTheme}
       linking={linking}
+      onReady={replayPendingLink}
       // Shown if the deep-link handler is resolving a cold-start URL. Null keeps
       // the splash rather than flashing an empty screen.
       fallback={null}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {status === 'authenticated' ? (
+        {decision === 'app' ? (
           <Stack.Screen name="App" component={AppNavigator} />
         ) : (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
+          <Stack.Screen
+            name="Auth"
+            // A different component per decision, keyed, so moving from
+            // 'auth' to 'verify' after sign-in remounts at the right screen.
+            navigationKey={decision}
+            component={decision === 'verify' ? AuthAtVerify : AuthAtLogin}
+          />
         )}
       </Stack.Navigator>
     </NavigationContainer>

@@ -1,20 +1,21 @@
 /**
- * Deep linking configuration.
+ * Deep linking configuration (handoff 03 §6).
  *
  * What this is for
- *   Mapping URLs to screens, so the links in SubTrak's emails open the right
- *   place in the app.
+ *   Mapping URLs to screens, so the links in SubTrak's emails and notifications
+ *   open the right place in the app.
  *
- * Why it exists in Phase 0, before the screens are built
- *   Email verification (US-1) and password reset (US-3) are useless without it:
- *   both send a link carrying a one-time token, and that token has to reach a
- *   screen. Defining the routes now means the Phase 1 screens are written
- *   against a URL shape that already exists rather than inventing one each.
+ * The three links
+ *   subtrak://verify-email?token=…      → EmailConfirmed      (Auth)
+ *   subtrak://reset-password?token=…    → CreateNewPassword   (Auth)
+ *   subtrak://subscription/:id          → SubscriptionDetail  (App)
+ *   The subscription path is singular, as 03 specifies; the Phase-0 plural
+ *   `subscriptions/:id` is gone.
  *
- * The scheme
- *   `subtrak://` is declared in app.config.ts. A production build would also
- *   claim https links to the backend's domain via universal links, which needs
- *   server-side association files — out of scope for the capstone.
+ * Cold start and background
+ *   Both arrive through `getInitialURL` (cold) and `subscribe` (backgrounded),
+ *   and both go through `routeIncomingUrl` first, which parks an App link that
+ *   arrives while signed out (see pendingLink.ts).
  *
  * Security note
  *   A deep link is untrusted input: anything can send the app a URL. The token
@@ -22,30 +23,38 @@
  *   never infers "this user is verified" from the mere presence of a link.
  */
 import type { LinkingOptions } from '@react-navigation/native';
+import { Linking } from 'react-native';
 
+import { routeIncomingUrl } from './pendingLink';
 import type { RootStackParamList } from './types';
 
 export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['subtrak://'],
 
+  async getInitialURL() {
+    return routeIncomingUrl(await Linking.getInitialURL());
+  },
+
+  subscribe(listener) {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      const routed = routeIncomingUrl(url);
+      if (routed) listener(routed);
+    });
+    return () => subscription.remove();
+  },
+
   config: {
     screens: {
       Auth: {
         screens: {
-          // subtrak://verify-email?token=abc — from the US-1 verification email.
-          ConfirmEmail: 'verify-email',
-          // subtrak://reset-password?token=abc — from the US-3 reset email.
-          ResetPassword: 'reset-password',
-          LogIn: 'login',
+          EmailConfirmed: 'verify-email',
+          CreateNewPassword: 'reset-password',
+          Login: 'login',
         },
       },
       App: {
         screens: {
-          // subtrak://subscriptions/sub_123 — where a renewal notification
-          // taps through to (Epic E). The route exists now so the notification
-          // payload shape can be agreed with the backend team early.
-          SubscriptionDetail: 'subscriptions/:id',
-          Settings: 'settings',
+          SubscriptionDetail: 'subscription/:id',
         },
       },
     },

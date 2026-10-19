@@ -1,150 +1,150 @@
 /**
- * Header — a screen's title area.
+ * Header — a screen's title bar (handoff 03 §4).
  *
  * What it is for
- *   Two shapes the design uses:
- *     tab   — a large serif title with a small eyebrow above it and an optional
- *             action at the right (Home's date + "Overview" + avatar)
- *     back  — an accent back link naming where it returns to, with the title
- *             below (Subscription detail's "< Subscriptions")
+ *   Every screen's top bar: an optional leading back or close control, the
+ *   title, and an optional trailing action.
  *
- * Why the back link names its destination
- *   "< Subscriptions" tells the user where they are going. A bare chevron, or
- *   the word "Back", does not — and for a screen-reader user a lone chevron is
- *   announced as nothing useful at all.
+ * Left-aligned, everywhere
+ *   The prototype mixed centred titles (Edit Subscription, Subscription Detail)
+ *   with left-aligned ones. Left wins — it matches Settings and the dashboard,
+ *   the most-visited screens — and there is no prop to centre it.
+ *
+ * Back vs close
+ *   A pushed screen gets a back chevron, announced as "Back to <where>" so the
+ *   destination is clear when heard. A modal (Add Subscription, 03 §3 rule 1)
+ *   gets a close (X) instead — the prototype had neither, leaving the user no
+ *   way out but the system gesture.
+ *
+ * Touch targets
+ *   The back/close button is 32 × 32 to the eye and 44 × 44 to the finger
+ *   (hitSlop), as 03 §4 requires.
  *
  * Why the title is marked as a heading
  *   `accessibilityRole="header"` lets screen-reader users jump between sections
  *   with a rotor gesture instead of swiping through every element.
  *
  * Design tokens
- *   tab title   typography.displayMd (24, DM Serif Display)
- *   eyebrow     typography.caption (12, textMuted)
- *   back link   typography.labelSemibold in colors.accent
- *
- * Used by: every screen.
+ *   height      sizes.header (56)
+ *   title       typography.displayMd (DM Serif Display 24), left-aligned
+ *   back/close  sizes.headerButton (32), sizes.iconSmall (16) icon, colors.text
+ *   trailing    sizes.headerButton (32) slot
  */
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, X } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { makeStyles, opacity, sizes, spacing, useTheme } from '@/theme';
+import { makeStyles, radius, sizes, spacing, useTheme } from '@/theme';
 
 export interface HeaderProps {
   title: string;
 
-  /** Small line above a tab title, such as today's date. */
-  eyebrow?: string;
-
   /**
-   * Where the back link goes, by name — "Subscriptions", "Settings". Supplying
-   * this switches the header to its back variant.
+   * Where the back button goes, by name — "Settings", "Home". Announced as
+   * "Back to Settings". Supplying it with `onBack` shows the back button.
    */
   backLabel?: string;
   onBack?: () => void;
 
-  /** Rendered at the right of a tab header, such as the avatar or an Add button. */
+  /** Shows a close (X) button instead of back — for modals. */
+  onClose?: () => void;
+  /** What the close button dismisses, for its accessible name. Default "Close". */
+  closeLabel?: string;
+
+  /** Rendered at the right, in a 32pt slot. Callers keep it 44pt to the finger. */
   action?: ReactNode;
 
   testID?: string;
 }
 
+const HIT_SLOP = (sizes.minTouch - sizes.headerButton) / 2;
+
 export function Header({
   title,
-  eyebrow,
   backLabel,
   onBack,
+  onClose,
+  closeLabel = 'Close',
   action,
   testID,
 }: HeaderProps) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const isBackVariant = Boolean(backLabel && onBack);
+  const showBack = Boolean(backLabel && onBack) && !onClose;
 
   return (
-    <View style={styles.container} testID={testID}>
-      {isBackVariant ? (
+    <View style={styles.bar} testID={testID}>
+      {onClose ? (
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={closeLabel}
+          hitSlop={HIT_SLOP}
+          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          testID={testID ? `${testID}-close` : 'header-close'}
+        >
+          <X size={sizes.iconSmall} color={colors.text} strokeWidth={2} />
+        </Pressable>
+      ) : null}
+
+      {showBack ? (
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
           // Names the destination, so the action is unambiguous when heard.
           accessibilityLabel={`Back to ${backLabel}`}
-          style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-          testID={testID ? `${testID}-back` : undefined}
+          hitSlop={HIT_SLOP}
+          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          testID={testID ? `${testID}-back` : 'header-back'}
         >
-          <ChevronLeft
-            size={24}
-            color={colors.accent}
-            strokeWidth={1.7}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
-          <Text style={styles.backLabel}>{backLabel}</Text>
+          <ChevronLeft size={sizes.iconSmall} color={colors.text} strokeWidth={2} />
         </Pressable>
       ) : null}
 
-      <View style={styles.titleRow}>
-        <View style={styles.titleText}>
-          {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-          <Text
-            style={styles.title}
-            // Lets a rotor gesture jump straight here.
-            accessibilityRole="header"
-            // Capped: a 32pt serif at an unbounded multiplier wraps to four
-            // lines and pushes the content off screen.
-            maxFontSizeMultiplier={1.4}
-          >
-            {title}
-          </Text>
-        </View>
+      <Text
+        style={styles.title}
+        numberOfLines={1}
+        // Lets a rotor gesture jump straight here.
+        accessibilityRole="header"
+        // Capped: the serif title at an unbounded multiplier would burst a
+        // fixed-height bar.
+        maxFontSizeMultiplier={1.4}
+        testID={testID ? `${testID}-title` : 'header-title'}
+      >
+        {title}
+      </Text>
 
-        {action ? <View style={styles.action}>{action}</View> : null}
-      </View>
+      {action ? <View style={styles.action}>{action}</View> : null}
     </View>
   );
 }
 
 const useStyles = makeStyles(({ colors, typography }) => ({
-  container: {
-    gap: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  back: {
+  bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    // Full-height target: a chevron alone is far below 44pt.
-    minHeight: sizes.minTouch,
-    // Pulls the chevron's optical edge back to the gutter line.
-    marginLeft: -spacing.sm,
-    paddingLeft: spacing.xs,
-    alignSelf: 'flex-start',
-    paddingRight: spacing.md,
+    minHeight: sizes.header,
+    gap: spacing.sm,
   },
-  backLabel: {
-    ...typography.labelSemibold,
-    color: colors.accent,
+  button: {
+    width: sizes.headerButton,
+    height: sizes.headerButton,
+    borderRadius: radius.card,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pressed: {
-    opacity: opacity.pressed,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.lg,
-  },
-  titleText: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  eyebrow: {
-    ...typography.caption,
+    backgroundColor: colors.surface2,
   },
   title: {
     ...typography.displayMd,
+    flex: 1,
+    textAlign: 'left',
   },
   action: {
+    minWidth: sizes.headerButton,
+    minHeight: sizes.headerButton,
+    alignItems: 'center',
     justifyContent: 'center',
   },
 }));

@@ -8,13 +8,13 @@
  *
  * Why it exists rather than each screen doing it itself
  *   Three things are easy to get subtly wrong and tedious to repeat: safe-area
- *   insets, the keyboard pushing inputs off-screen, and the 20pt gutter the
- *   design uses everywhere except Welcome. Centralising them means a new screen
+ *   insets, the keyboard pushing inputs off-screen, and the 24pt gutter the
+ *   Figma frames use on the 402-wide baseline (01 §5). Centralising them means a new screen
  *   is correct by default, and changing the gutter is one edit.
  *
  * Design tokens
  *   background  colors.bg      the warm ground the whole app sits on
- *   gutter      spacing.xl (20)   standard; spacing.xxl (24) on Welcome
+ *   gutter      spacing.xxl (24)  standard; spacing.lg (16) compact
  *
  * Used by: every screen.
  */
@@ -44,11 +44,11 @@ export interface ScreenProps {
   scroll?: boolean;
 
   /**
-   * Horizontal padding. `'standard'` is the 20pt tab-screen gutter;
-   * `'wide'` is the 24pt Welcome gutter; `'none'` lets a child run edge to edge
+   * Horizontal padding. `'standard'` is the 24pt screen gutter (01 §5);
+   * `'compact'` is 16pt, for dense lists such as Analytics; `'none'` lets a child run edge to edge
    * (a grouped list that bleeds to the screen edge, for example).
    */
-  gutter?: 'standard' | 'wide' | 'none';
+  gutter?: 'standard' | 'compact' | 'none';
 
   /**
    * Which edges get safe-area padding. Screens inside the bottom tabs pass
@@ -86,8 +86,8 @@ export function Screen({
   const gutterStyle =
     gutter === 'none'
       ? undefined
-      : gutter === 'wide'
-        ? styles.gutterWide
+      : gutter === 'compact'
+        ? styles.gutterCompact
         : styles.gutterStandard;
 
   const content = scroll ? (
@@ -152,14 +152,13 @@ const useStyles = makeStyles(({ colors }) => ({
     flexGrow: 1,
   },
   gutterStandard: {
-    paddingHorizontal: spacing.xl,
-  },
-  gutterWide: {
     paddingHorizontal: spacing.xxl,
   },
+  gutterCompact: {
+    paddingHorizontal: spacing.lg,
+  },
   footer: {
-    // A hairline rather than a shadow: the design system has no shadows except
-    // the segmented-control thumb.
+    // A hairline rather than a shadow: the design system has no shadows (02 §8).
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.tabBar,

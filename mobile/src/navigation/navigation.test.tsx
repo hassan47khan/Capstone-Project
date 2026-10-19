@@ -1,107 +1,529 @@
 /**
- * Navigation shell tests.
+ * Navigation tests (handoff 03 §8, definition of done).
  *
  * What these prove
- *   That the shell routes correctly on session status, and — the one that
- *   matters most — that the Family tab is not merely hidden but genuinely
- *   absent while FEATURE_SHARING is false.
+ *   - the whole tree in 03 §1 is navigable;
+ *   - there is one tab bar, with four tabs and the FAB, and the FAB is a button
+ *     that opens Add Subscription as a modal;
+ *   - no tab changes while a modal is up, and modals close with an X;
+ *   - a dirty form asks before it is discarded, a pristine one does not;
+ *   - headers are left-aligned and the tab bar respects the safe area;
+ *   - the auth gate's five launch cases, with no flash of the Auth stack;
+ *   - deep links, cold-started and backgrounded, including one that arrives
+ *     while signed out and opens after sign-in.
  *
- * Why the Family test is worth its weight
- *   The lazy way to disable a tab is `tabBarButton: () => null`, which hides the
- *   button while leaving the route registered and reachable by deep link or a
- *   stray `navigate('Family')`. That would expose a half-built Epic F screen.
- *   This test fails if anyone makes that substitution.
+ * `render` and `fireEvent` are ASYNC in RNTL v14 — always await them.
  */
-import { NavigationContainer } from '@react-navigation/native';
-import { render, screen, waitFor } from '@testing-library/react-native';
-
-import { FEATURE_SHARING } from '@/config/features';
-import { SessionProvider } from '@/session/SessionContext';
-import { createTestQueryClient } from '@/test/render';
+import {
+  NavigationContainer,
+  useNavigation,
+  useNavigationContainerRef,
+} from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { http, HttpResponse } from 'msw';
+import { useState, type ReactNode } from 'react';
+import { Linking, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AuthNavigator } from './AuthNavigator';
-import { TabNavigator } from './TabNavigator';
+import { Button, ToastProvider } from '@/components';
+import { SessionProvider, useSession } from '@/session/SessionContext';
+import { tokenStore } from '@/session/tokenStore';
+import { MOCK_EMAILS } from '@/test/fixtures';
+import { createTestQueryClient, flattenStyle } from '@/test/render';
+import { server } from '@/test/server';
+import { sizes, ThemeProvider } from '@/theme';
 
-/** Wraps a navigator in the providers it needs, with fixed safe-area metrics. */
-function wrap(children: React.ReactElement) {
+import { AppNavigator } from './AppNavigator';
+import { AuthNavigator } from './AuthNavigator';
+import { resetPendingLink } from './pendingLink';
+import { RootNavigator } from './RootNavigator';
+import type { AppStackParamList, AuthStackParamList } from './types';
+import { useDiscardGuard } from './useDiscardGuard';
+
+// Counts every render of the Log in screen, so "no flash of the Auth stack"
+// can be asserted rather than eyeballed.
+const mockLoginRenders = jest.fn();
+jest.mock('@/features/auth/LoginScreen', () => {
+  const actual = jest.requireActual('@/features/auth/LoginScreen');
+  return {
+    LoginScreen: () => {
+      mockLoginRenders();
+      return actual.LoginScreen();
+    },
+  };
+});
+
+const HIDDEN = { includeHiddenElements: true } as const;
+const SAFE_AREA = {
+  frame: { x: 0, y: 0, width: 402, height: 874 },
+  insets: { top: 47, left: 0, right: 0, bottom: 34 },
+};
+
+function Providers({ children }: { children: ReactNode }) {
   return (
-    <SafeAreaProvider
-      initialMetrics={{
-        frame: { x: 0, y: 0, width: 390, height: 844 },
-        insets: { top: 47, left: 0, right: 0, bottom: 34 },
-      }}
-    >
-      <QueryClientProvider client={createTestQueryClient()}>
-        <SessionProvider>
-          <NavigationContainer>{children}</NavigationContainer>
-        </SessionProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <ThemeProvider initialPreference="light">
+      <SafeAreaProvider initialMetrics={SAFE_AREA}>
+        <QueryClientProvider client={createTestQueryClient()}>
+          <SessionProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </SessionProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 
-describe('TabNavigator', () => {
-  it('shows the three in-scope tabs', async () => {
-    await render(wrap(<TabNavigator />));
+/** Signs in from outside the navigator, the way the Log in screen will. */
+function SignInForTest() {
+  const { signIn } = useSession();
+  return (
+    <Text
+      onPress={() =>
+        signIn({
+          access: `mock-access-${MOCK_EMAILS.full}`,
+          refresh: `mock-refresh-${MOCK_EMAILS.full}`,
+        })
+      }
+    >
+      test-sign-in
+    </Text>
+  );
+}
 
-    await waitFor(() => {
-      expect(screen.getByTestId('tab-Home')).toBeOnTheScreen();
-    });
+async function renderApp(extra?: ReactNode) {
+  await render(
+    <Providers>
+      <RootNavigator />
+      {extra}
+    </Providers>,
+  );
+}
 
-    expect(screen.getByTestId('tab-Subscriptions')).toBeOnTheScreen();
-    expect(screen.getByTestId('tab-Insights')).toBeOnTheScreen();
+const title = () => screen.getByTestId('header-title', HIDDEN).props.children;
+
+beforeEach(async () => {
+  mockLoginRenders.mockClear();
+  resetPendingLink();
+  await tokenStore.clear();
+  jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+describe('auth gate (03 §5)', () => {
+  it('case 2: no session opens the Auth stack at Log in', async () => {
+    await renderApp();
+
+    await waitFor(() => expect(title()).toBe('Log in'));
   });
 
-  /**
-   * The gate. See the header comment for why hiding is not good enough.
-   */
-  it('does not register the Family tab while FEATURE_SHARING is false', async () => {
-    // Guards the premise: if somebody flips the flag, this test would otherwise
-    // pass vacuously and stop protecting anything.
-    expect(FEATURE_SHARING).toBe(false);
+  it('case 3: a session with an unverified email opens Verify Email Sent', async () => {
+    server.use(
+      http.get('*/me', () =>
+        HttpResponse.json({
+          id: 'u1',
+          email: MOCK_EMAILS.full,
+          name: null,
+          email_verified: false,
+        }),
+      ),
+    );
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    await renderApp();
 
-    await render(wrap(<TabNavigator />));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('tab-Home')).toBeOnTheScreen();
-    });
-
-    // Not hidden — absent. `includeHiddenElements` would find a merely hidden one.
-    expect(
-      screen.queryByTestId('tab-Family', { includeHiddenElements: true }),
-    ).toBeNull();
-    expect(screen.queryByText('Family')).toBeNull();
+    await waitFor(() => expect(title()).toBe('Check your email'));
+    expect(mockLoginRenders).not.toHaveBeenCalled();
   });
 
-  it('marks the focused tab as selected for screen readers', async () => {
-    await render(wrap(<TabNavigator />));
+  it.each([
+    ['case 4: verified with zero subscriptions', MOCK_EMAILS.empty],
+    ['case 5: verified with subscriptions', MOCK_EMAILS.full],
+  ])('%s lands on Home without ever showing Log in', async (_label, email) => {
+    await tokenStore.setRefreshToken(`mock-refresh-${email}`);
+    await renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByTestId('tab-Home')).toBeOnTheScreen();
-    });
-
-    expect(screen.getByTestId('tab-Home')).toBeSelected();
-    expect(screen.getByTestId('tab-Insights')).not.toBeSelected();
+    await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeSelected());
+    expect(title()).toBe('Home');
+    expect(mockLoginRenders).not.toHaveBeenCalled();
   });
 
-  it('renders the first tab screen', async () => {
-    await render(wrap(<TabNavigator />));
+  it('opens the app, not a lockout, when /me cannot be reached', async () => {
+    server.use(http.get('*/me', () => HttpResponse.error()));
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    await renderApp();
 
-    // The Phase 0 placeholder. Replaced by the real dashboard in Phase 2.
-    await waitFor(() => {
-      expect(screen.getByText('Overview')).toBeOnTheScreen();
-    });
+    await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+    expect(mockLoginRenders).not.toHaveBeenCalled();
   });
 });
 
-describe('AuthNavigator', () => {
-  it('starts on the Welcome screen', async () => {
-    await render(wrap(<AuthNavigator />));
+describe('tab bar (03 §2)', () => {
+  beforeEach(async () => {
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+  });
 
-    await waitFor(() => {
-      expect(screen.getByText('Welcome')).toBeOnTheScreen();
+  it('is one bar: Home, Calendar, the FAB, Analytics, Settings', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+
+    expect(screen.getAllByTestId('tab-bar')).toHaveLength(1);
+    expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(
+      ['Home', 'Calendar', 'Analytics', 'Settings'],
+    );
+    // Order in the bar: the FAB sits between Calendar and Analytics.
+    const row = screen.getByTestId('tab-bar').props.children.props.children;
+    expect(row.map((child: { key: string }) => child.key)).toEqual([
+      expect.stringContaining('Home'),
+      expect.stringContaining('Calendar'),
+      'fab',
+      expect.stringContaining('Analytics'),
+      expect.stringContaining('Settings'),
+    ]);
+  });
+
+  it('announces the FAB as a button, never as a tab', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-fab')).toBeOnTheScreen());
+
+    expect(screen.getByRole('button', { name: 'Add subscription' })).toBeOnTheScreen();
+    expect(screen.queryByRole('tab', { name: 'Add subscription' })).toBeNull();
+  });
+
+  it('gives each tab the full bar height and clears the home indicator', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+
+    expect(flattenStyle(screen.getByTestId('tab-Home').props.style).height).toBe(
+      sizes.tabBar,
+    );
+    expect(sizes.tabBar).toBeGreaterThanOrEqual(sizes.minTouch);
+    const bar = flattenStyle(screen.getByTestId('tab-bar').props.style);
+    expect(bar.paddingBottom).toBe(SAFE_AREA.insets.bottom);
+    expect(bar.height).toBe(sizes.tabBar + SAFE_AREA.insets.bottom);
+  });
+
+  it('switches tabs', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Calendar')).toBeOnTheScreen());
+
+    await fireEvent.press(screen.getByTestId('tab-Calendar'));
+
+    expect(screen.getByTestId('tab-Calendar')).toBeSelected();
+    expect(screen.getByTestId('tab-Home')).not.toBeSelected();
+  });
+});
+
+describe('modals (03 §3)', () => {
+  beforeEach(async () => {
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+  });
+
+  it('the FAB opens Add Subscription with a close control, and no tab changes', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Calendar')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('tab-Calendar'));
+
+    await fireEvent.press(screen.getByTestId('tab-fab'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Add subscription' })).toBeOnTheScreen(),
+    );
+    expect(screen.getByRole('button', { name: 'Close' })).toBeOnTheScreen();
+    // Rule 2: the tab the user came from stays selected; nothing else lights up.
+    const selected = screen
+      .getAllByRole('tab', HIDDEN)
+      .filter((tab) => tab.props.accessibilityState?.selected);
+    expect(selected.map((tab) => tab.props.accessibilityLabel)).toEqual(['Calendar']);
+  });
+
+  it('closing the modal returns to the tab it came from', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-fab')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('tab-fab'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Close' })).toBeOnTheScreen(),
+    );
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('header', { name: 'Add subscription' })).toBeNull(),
+    );
+    expect(screen.getByTestId('tab-Home')).toBeSelected();
+  });
+
+  it('headers are left-aligned', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+
+    expect(flattenStyle(screen.getByTestId('header-title').props.style).textAlign).toBe(
+      'left',
+    );
+  });
+});
+
+describe('the full tree is navigable (03 §1)', () => {
+  const APP_ROUTES: [keyof AppStackParamList, object | undefined, string][] = [
+    ['AddSubscription', undefined, 'Add subscription'],
+    ['SubscriptionDetail', { id: 'sub_1' }, 'Subscription'],
+    ['EditSubscription', { id: 'sub_1' }, 'Edit subscription'],
+    ['EditHistory', { id: 'sub_1' }, 'Edit history'],
+    ['SelectCurrency', undefined, 'Currency'],
+    ['SelectTimeZone', undefined, 'Time zone'],
+    ['NotificationRules', undefined, 'Notification rules'],
+    ['ProfileAccount', undefined, 'Profile & account'],
+  ];
+
+  it.each(APP_ROUTES)('App: %s', async (route, params, expectedTitle) => {
+    function Harness() {
+      const ref = useNavigationContainerRef<AppStackParamList>();
+      return (
+        <NavigationContainer
+          ref={ref}
+          onReady={() => (ref.navigate as (r: string, p?: object) => void)(route, params)}
+        >
+          <AppNavigator />
+        </NavigationContainer>
+      );
+    }
+    await render(
+      <Providers>
+        <Harness />
+      </Providers>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: expectedTitle })).toBeOnTheScreen(),
+    );
+  });
+
+  it('App: ConfirmCurrencyChange is a confirm sheet', async () => {
+    function Harness() {
+      const ref = useNavigationContainerRef<AppStackParamList>();
+      return (
+        <NavigationContainer
+          ref={ref}
+          onReady={() => ref.navigate('ConfirmCurrencyChange', { currency: 'EUR' })}
+        >
+          <AppNavigator />
+        </NavigationContainer>
+      );
+    }
+    await render(
+      <Providers>
+        <Harness />
+      </Providers>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Switch to EUR?')).toBeOnTheScreen());
+  });
+
+  const AUTH_ROUTES: [keyof AuthStackParamList, object | undefined, string][] = [
+    ['Register', undefined, 'Create your account'],
+    ['VerifyEmailSent', undefined, 'Check your email'],
+    ['EmailConfirmed', { token: 't' }, 'Email confirmed'],
+    ['ForgotPassword', undefined, 'Reset your password'],
+    ['ResetLinkSent', { email: 'a@b.c' }, 'Check your email'],
+    ['CreateNewPassword', { token: 't' }, 'Create a new password'],
+    ['PasswordResetSuccess', undefined, 'Password updated'],
+  ];
+
+  it.each(AUTH_ROUTES)('Auth: %s', async (route, params, expectedTitle) => {
+    function Harness() {
+      const ref = useNavigationContainerRef<AuthStackParamList>();
+      return (
+        <NavigationContainer
+          ref={ref}
+          onReady={() => (ref.navigate as (r: string, p?: object) => void)(route, params)}
+        >
+          <AuthNavigator />
+        </NavigationContainer>
+      );
+    }
+    await render(
+      <Providers>
+        <Harness />
+      </Providers>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: expectedTitle })).toBeOnTheScreen(),
+    );
+    // Pushed over Log in, so there is somewhere to go back to.
+    expect(screen.getByRole('button', { name: 'Back to Log in' })).toBeOnTheScreen();
+  });
+
+  it('Settings rows lead to the Settings modals', async () => {
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Settings')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('tab-Settings'));
+
+    await fireEvent.press(screen.getByTestId('settings-timezone'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Time zone' })).toBeOnTheScreen(),
+    );
+  });
+});
+
+describe('discard guard (03 §3, rule 3)', () => {
+  const Stack = createNativeStackNavigator();
+
+  function Start() {
+    const navigation = useNavigation();
+    return (
+      <Button label="Open form" onPress={() => navigation.navigate('Form' as never)} />
+    );
+  }
+
+  function Form() {
+    const navigation = useNavigation();
+    const [dirty, setDirty] = useState(false);
+    const { sheet } = useDiscardGuard(dirty);
+    return (
+      <>
+        <Text>The form</Text>
+        <Button label="Type something" onPress={() => setDirty(true)} />
+        <Button label="Close form" onPress={() => navigation.goBack()} />
+        {sheet}
+      </>
+    );
+  }
+
+  async function renderHarness() {
+    await render(
+      <Providers>
+        <NavigationContainer>
+          <Stack.Navigator>
+            <Stack.Screen name="Start" component={Start} />
+            <Stack.Screen name="Form" component={Form} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </Providers>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Open form' }));
+    await waitFor(() => expect(screen.getByText('The form')).toBeOnTheScreen());
+  }
+
+  it('a pristine form closes immediately, with no prompt', async () => {
+    await renderHarness();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Close form' }));
+
+    await waitFor(() => expect(screen.queryByText('The form')).toBeNull());
+    expect(screen.queryByText('Discard changes?')).toBeNull();
+  });
+
+  it('a dirty form asks first, and stays if the user keeps editing', async () => {
+    await renderHarness();
+    await fireEvent.press(screen.getByRole('button', { name: 'Type something' }));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Close form' }));
+
+    expect(screen.getByText('Discard changes?', HIDDEN)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('discard-guard-cancel', HIDDEN));
+    expect(screen.getByText('The form')).toBeOnTheScreen();
+  });
+
+  it('a dirty form closes once the user chooses Discard', async () => {
+    await renderHarness();
+    await fireEvent.press(screen.getByRole('button', { name: 'Type something' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Close form' }));
+
+    await fireEvent.press(screen.getByTestId('discard-guard-confirm', HIDDEN));
+
+    await waitFor(() => expect(screen.queryByText('The form')).toBeNull());
+  });
+});
+
+describe('deep links (03 §6)', () => {
+  /** Captures the app's `url` listener so a test can deliver a link. */
+  function captureUrlListener() {
+    let deliver: (url: string) => void = () => {};
+    jest.spyOn(Linking, 'addEventListener').mockImplementation((_type, handler) => {
+      deliver = (url) => (handler as (event: { url: string }) => void)({ url });
+      return { remove: jest.fn() } as unknown as ReturnType<
+        typeof Linking.addEventListener
+      >;
     });
+    return (url: string) => act(async () => deliver(url));
+  }
+
+  it('cold start, signed out: reset-password opens Create New Password', async () => {
+    jest
+      .spyOn(Linking, 'getInitialURL')
+      .mockResolvedValue('subtrak://reset-password?token=abc');
+    await renderApp();
+
+    await waitFor(() => expect(title()).toBe('Create a new password'));
+  });
+
+  it('cold start, signed out: verify-email opens Email Confirmed', async () => {
+    jest
+      .spyOn(Linking, 'getInitialURL')
+      .mockResolvedValue('subtrak://verify-email?token=abc');
+    await renderApp();
+
+    await waitFor(() => expect(title()).toBe('Email confirmed'));
+  });
+
+  it('cold start, signed in: a subscription link opens its detail', async () => {
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    jest
+      .spyOn(Linking, 'getInitialURL')
+      .mockResolvedValue('subtrak://subscription/sub_1');
+    await renderApp();
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Subscription' })).toBeOnTheScreen(),
+    );
+  });
+
+  it('backgrounded, signed out: reset-password still opens', async () => {
+    const deliver = captureUrlListener();
+    await renderApp();
+    await waitFor(() => expect(title()).toBe('Log in'));
+
+    await deliver('subtrak://reset-password?token=abc');
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('header', { name: 'Create a new password' }),
+      ).toBeOnTheScreen(),
+    );
+  });
+
+  it('backgrounded, signed out: a subscription link waits for sign-in, then opens', async () => {
+    const deliver = captureUrlListener();
+    await renderApp(<SignInForTest />);
+    await waitFor(() => expect(title()).toBe('Log in'));
+
+    await deliver('subtrak://subscription/sub_1');
+    // Parked, not dropped and not opened: the user is still signed out.
+    expect(title()).toBe('Log in');
+
+    await fireEvent.press(screen.getByText('test-sign-in'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Subscription' })).toBeOnTheScreen(),
+    );
+  });
+
+  it('backgrounded, signed in: a subscription link opens its detail', async () => {
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    const deliver = captureUrlListener();
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+
+    await deliver('subtrak://subscription/sub_9');
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Subscription' })).toBeOnTheScreen(),
+    );
   });
 });
