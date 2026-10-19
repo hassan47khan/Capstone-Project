@@ -35,6 +35,9 @@ export interface PlaceholderProps {
   backLabel?: string;
   onBack?: () => void;
 
+  /** Shown when the screen is a modal: a close (X) instead of back (03 §3). */
+  onClose?: () => void;
+
   /** Rendered under the card — dev-only links such as the component gallery. */
   children?: ReactNode;
 }
@@ -45,12 +48,13 @@ export function Placeholder({
   stories,
   backLabel,
   onBack,
+  onClose,
   children,
 }: PlaceholderProps) {
   const styles = useStyles();
   return (
-    <Screen edges={backLabel ? ['top', 'bottom'] : ['top']}>
-      <Header title={title} backLabel={backLabel} onBack={onBack} />
+    <Screen edges={backLabel || onClose ? ['top', 'bottom'] : ['top']}>
+      <Header title={title} backLabel={backLabel} onBack={onBack} onClose={onClose} />
 
       <View
         style={styles.card}
