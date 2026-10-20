@@ -12,7 +12,7 @@ the same copy. Nothing here ships, and nothing here is authoritative. Start at
 Every AI session reads the vault first and updates it last; the rule is in the
 root `CLAUDE.md`. Per-user Obsidian files (`workspace.json`,
 `workspace-mobile.json`, `graph.json`, `appearance.json`) are gitignored
-because Obsidian rewrites it on every open.
+because Obsidian rewrites them as people use the vault.
 
 The authoritative artefacts are all in the repository:
 
