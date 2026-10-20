@@ -11,7 +11,7 @@ so a sprint review does not have to be reconstructed from git log. This note is
 rewritten rather than appended to, on `main` only, by whoever merged the last
 PR; history is in git log and PR descriptions.
 
-Test counts below are copied from commit messages and logs, not re-run on
+Test counts below are copied from commit messages and PR descriptions, not re-run on
 2026-10-20.
 
 ## One line per area

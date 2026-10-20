@@ -52,7 +52,7 @@ unmerged) renamed and split the Epic A routes. The work is now handoff file
 The forms can use the PR #74 components: TextField, CurrencyField, Button with
 its loading label, and Toast. The auth gate already routes an unverified session
 to `VerifyEmailSent`. The subtasks above still apply, under the new names. See
-[[2026-10-19]].
+[[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]].
 
 ## Links
 
