@@ -151,19 +151,21 @@ export function createTypography(colors: ColorTokens) {
       color: colors.success,
     },
 
-    // --- Below the 12pt floor: deliberate, and never the sole carrier --------
+    // --- Below the 12pt floor: one role, and never the sole carrier ----------
 
-    /** Tab bar labels. Allowed at 11 only because a 20px icon carries the meaning. */
+    /**
+     * Tab bar labels, and the only size under 12 in the app. Allowed at 11 only
+     * because a 20px icon directly above it carries the meaning.
+     *
+     * There is no `micro` role. 01 §4 retires it and forbids building a 9 or
+     * 10px style at all: both sub-12 sizes the prototype used carried
+     * information of their own (the billing cycle, the active count), so both
+     * were raised to `caption`.
+     */
     tab: {
       fontFamily: fontFamily.bodySemiBold,
       fontSize: 11,
       color: colors.textMuted,
-    },
-    /** The `/mo` suffix. Allowed at 10 only beside the 16px figure it qualifies. */
-    micro: {
-      fontFamily: fontFamily.bodyRegular,
-      fontSize: 10,
-      color: colors.textSubtle,
     },
   } satisfies Record<string, TextStyle>;
 }
