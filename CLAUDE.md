@@ -3,6 +3,11 @@
 **What:** mobile subscription tracker. Expo (React Native, TypeScript strict) + Django/DRF + MongoDB Atlas.
 **Specs:** the file(s) for your task live in `docs/handoff/` (numbered `01`–`12`; only the ones assigned to you are present). Read your file plus the prerequisites it lists. If a spec points at a file that is not in `docs/handoff/`, stop and say so instead of guessing. Spec > Figma > screenshots.
 
+## Team notes (Obsidian vault): read first, update last
+- **Before starting:** read `Capstone_CSC325/SubTrak.md`, then `Capstone_CSC325/00 - Project/Repo State.md` and the newest note in `Capstone_CSC325/04 - Logs/`.
+- **Before finishing:** add to or create today's `04 - Logs/YYYY-MM-DD.md` (template: `99 - Templates/Log Entry.md`). If what is merged on `main` changed, rewrite `Repo State.md`. Conventions: `Capstone_CSC325/CLAUDE.md`.
+- Specs, README and `mobile/CLAUDE.md` outrank the vault. If a note disagrees with them, fix the note.
+
 ## Stack (settled)
 React Navigation 7 · React Native StyleSheet with tokens from `src/theme` · TanStack Query over the generated TS client · TypeScript strict · simplejwt (rotating refresh in `expo-secure-store`).
 

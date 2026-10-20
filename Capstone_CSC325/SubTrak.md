@@ -3,9 +3,10 @@
 Vault home. SubTrak is a privacy-first subscription tracker: users log their own
 charges, the app never asks for bank or card credentials. Capstone, CSC 325.
 
-Repository: `C:\PROJECTS\Capstone Project`. This vault is gitignored — it is
-notes, not a deliverable. The README, the specification and `mobile/CLAUDE.md`
-are the shared artefacts; anything here that contradicts them is out of date.
+Repository: [hassan47khan/Capstone-Project](https://github.com/hassan47khan/Capstone-Project).
+This vault is committed and shared by the team. It is notes, not a deliverable.
+The README, the specification and `mobile/CLAUDE.md` are the authoritative
+artefacts; anything here that contradicts them is out of date.
 
 ## Start here
 

@@ -1,26 +1,31 @@
 ---
 status: current
 owner: Hassan
-updated: 2026-10-09
+updated: 2026-10-20
 ---
 
 # Repo State
 
-Snapshot of the repository as of 2026-10-09, `main` at `9e392be`. Written so a
-sprint review does not have to be reconstructed from git log. This note is
-rewritten rather than appended to — see [[2026-10-09]] for the history.
+Snapshot of the repository as of 2026-10-20, `main` at `4c1d8fb` (#85). Written
+so a sprint review does not have to be reconstructed from git log. This note is
+rewritten rather than appended to; history is in [[2026-10-09]],
+[[2026-10-19]] and [[2026-10-20]].
+
+Test counts below are copied from commit messages and logs, not re-run on
+2026-10-20.
 
 ## One line per area
 
 | Area | State |
 | --- | --- |
-| Backend | Sprint 0 spike merged (PR #68). MongoDB, custom user, JWT wiring, `/health/`, `/me/`. 17 tests, 93.46% coverage, confirmed by CI. No story endpoints. |
-| Mobile | Phase 0 merged. Scaffold, theme, 20 primitives, API layer, mocks, session, navigation. 204 tests. Every screen is a `Placeholder`. |
-| CI | **Both workflows now on `main` and green.** `mobile-ci` and `backend-ci` (PR #70). Not yet required checks — see [[Backend CI]]. |
-| Protection | Ruleset `main-protection` active: PR + 1 approval, squash only, linear history, threads resolved. No CI gate. |
-| Docs | Specification and prototype done, in `docs/design/`. Design critique in `docs/design/README.md`. |
-| In flight (2026-10-19, not on `main`) | Three stacked PRs, CI green on each, merge in order: **#73** Figma tokens + light/dark (269 tests) → **#74** component library + dev gallery (337) → **#75** navigation skeleton per handoff 03 (370). See [[2026-10-19]]. `main` itself has since moved to `6e5c014` (#71 time zone helpers, #72 README); this snapshot does not cover those. |
-| Stories | 0 of 19 finished. Sprint 0 was infrastructure only. |
+| Backend | Sprint 0 spike merged (#68): MongoDB, custom user, JWT wiring, `/health/`, `/me/`. Time zone helpers with DST-safe local-to-UTC conversion for US-5 (#71). No story endpoints yet. |
+| Mobile | Handoffs 01–03 merged: Figma tokens with light/dark (#82), component library with dev gallery and the 03 navigation tree (#83), AI-epic routes and 20pt header titles (#85). 370 tests at the time of the 03 PR. Screens are still placeholders. |
+| CI | `mobile-ci` and `backend-ci` on `main` (#70, #76). Required-check status not re-checked since 2026-10-09; see [[Backend CI]]. |
+| Protection | Ruleset `main-protection` as of 2026-10-09: PR + 1 approval, squash only, linear history, threads resolved. No CI gate then; not re-checked. |
+| Docs | Spec and design critique in `docs/design/`; Figma is the appearance source (#82). Developer handoffs `00`–`12` in `docs/handoff/` (#85). Root `CLAUDE.md` added in #85. |
+| Vault | This vault is committed at `Capstone_CSC325/` and shared. Root `CLAUDE.md` and `AGENTS.md` tell every AI to read it first and update it last. |
+| In flight | No open pull requests on 2026-10-20. |
+| Stories | Not re-counted. US-5 has backend helpers (#71); no story is finished end to end. |
 
 ## Layout
 
@@ -40,6 +45,8 @@ docker-compose.yml  single-node Mongo replica set, used locally and by CI
 
 ## What is actually verified
 
+As of 2026-10-09; not re-run for this snapshot.
+
 **Backend — verified on GitHub's runners**, not just locally. Run `38009241217`:
 ruff clean, no missing migrations, `schema.yml` current, 17 tests passed,
 93.46% coverage against a 90% floor, no known vulnerabilities. Details in
@@ -52,11 +59,13 @@ simulator on the development machine. See [[Phase 0 — Mobile Scaffold]].
 
 ## Known gaps in the repo itself
 
+Carried over from the 2026-10-09 snapshot and not re-checked, except where noted.
+
 - **CI does not gate merges.** `main-protection` has no required status checks,
   so a pull request with a red `backend-verify` can still be merged. One
   ruleset change away from done — [[Backend CI]].
-- **`ubuntu-latest` migrates to Ubuntu 26 on 2026-10-19.** Both workflows are
-  on it and carry GitHub's annotation. Pin or migrate on purpose.
+- **`ubuntu-latest` moved to Ubuntu 26 on 2026-10-19.** Both workflows were on
+  it as of 2026-10-09. Check that they still pass, or pin on purpose.
 - No `seed_demo` command. Specification section 13 asks for one; Sprint 3's AI
   work and every demo need it.
 - Team roles (Scrum Master, Product Owner, slice owners) still unassigned in the

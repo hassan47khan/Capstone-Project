@@ -4,9 +4,14 @@ Context for working with Claude Code in this vault.
 
 ## What this vault is
 
-Personal notes for the SubTrak capstone. It sits inside the repository at
-`Capstone_CSC325/` and is **gitignored** — nothing here ships, and nothing here
-is authoritative. Start at [[SubTrak]].
+Shared team notes for the SubTrak capstone. The vault is committed to the
+repository at `Capstone_CSC325/`, so everyone's notes and everyone's AI read
+the same copy. Nothing here ships, and nothing here is authoritative. Start at
+[[SubTrak]].
+
+Every AI session reads the vault first and updates it last; the rule is in the
+root `CLAUDE.md` and `AGENTS.md`. `.obsidian/workspace.json` is gitignored
+because Obsidian rewrites it on every open.
 
 The authoritative artefacts are all in the repository:
 
