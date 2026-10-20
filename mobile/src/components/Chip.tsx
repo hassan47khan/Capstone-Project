@@ -13,7 +13,7 @@
  *
  * Design tokens
  *   height       sizes.chip (44) — also the minimum touch target
- *   radius       radius.pill
+ *   radius       radius.badge (4, measured — 01 §5)
  *   unselected   colors.surface background, colors.border border, colors.text text
  *   selected     colors.accent background, colors.onAccent text
  *   text         typography.labelSemibold
@@ -76,7 +76,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   chip: {
     height: sizes.chip,
     minHeight: sizes.minTouch,
-    borderRadius: radius.pill,
+    borderRadius: radius.badge,
     paddingHorizontal: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',

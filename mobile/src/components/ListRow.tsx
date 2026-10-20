@@ -30,7 +30,7 @@
  *   logo       Tile (40, brand tint or serviceTint)
  *   title      typography.labelSemibold at 15 (02 §9)
  *   subtitle   typography.caption + typography.captionStrong
- *   price      typography.price via Amount; suffix typography.micro
+ *   price      typography.price via Amount; suffix typography.caption
  */
 import { Pressable, Text, View } from 'react-native';
 
@@ -174,7 +174,9 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     gap: spacing.xs / 2,
   },
   suffix: {
-    ...typography.micro,
+    // 12px, not the prototype's 9–10px: the cycle is information, so it may not
+    // sit below the type floor (01 §4).
+    ...typography.caption,
   },
   dimmed: {
     opacity: opacity.cancelled,

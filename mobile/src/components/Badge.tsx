@@ -15,10 +15,10 @@
  * is reinforcement, not information.
  *
  * Design tokens
- *   radius      radius.pill (fully rounded)
+ *   radius      radius.badge (4, measured — 01 §5)
  *   neutral     colors.surface2 background, colors.text text
  *   accent      colors.accentSurface background, colors.accent text
- *   notice      colors.noticeSurface background, colors.noticeText text
+ *   notice      colors.warningSurface background, colors.text text
  *   text        typography.labelSemibold
  *
  * Used by: Subscription detail, Subscriptions list rows.
@@ -62,7 +62,7 @@ export function Badge({ label, tone = 'neutral', testID }: BadgeProps) {
 const useStyles = makeStyles(({ colors, typography }) => ({
   badge: {
     alignSelf: 'flex-start',
-    borderRadius: radius.pill,
+    borderRadius: radius.badge,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
   },
@@ -74,6 +74,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   neutralText: { color: colors.text },
   accent: { backgroundColor: colors.accentSurface },
   accentText: { color: colors.accent },
-  notice: { backgroundColor: colors.noticeSurface },
-  noticeText: { color: colors.noticeText },
+  notice: { backgroundColor: colors.warningSurface },
+  // Text on the warning tint is `text`, never muted grey (01 §1).
+  noticeText: { color: colors.text },
 }));

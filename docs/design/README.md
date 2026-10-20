@@ -136,6 +136,7 @@ them is drawn.
 - Contrast was not stated. Every pair is now computed from the tokens and
   asserted in `src/theme/tokens.test.ts` for **both** themes. The tightest are
   the `entertainment` bar on its `surface2` track at 3.03:1 (needs 3.0) and
-  `textMuted` on `bg` at 4.76:1 (needs 4.5). Three Figma values failed and were
-  darkened (`textSubtle`, `productivity`, `healthWellness`). The full report and
-  designer flags are in `mobile/src/theme/CONTRAST.md`.
+  `textMuted` on `bg` at 4.76:1 (needs 4.5). Two Figma values failed and were
+  darkened (`productivity`, `healthWellness`); a third, `textSubtle`, was dropped
+  altogether because handoff 01 §1 bans it for text and text was its only use.
+  The full report and designer flags are in `mobile/src/theme/CONTRAST.md`.
