@@ -269,7 +269,9 @@ describe('modals (03 §3)', () => {
     await renderApp();
     await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
 
-    expect(flattenStyle(screen.getByTestId('header-title').props.style).fontSize).toBe(20);
+    expect(flattenStyle(screen.getByTestId('header-title').props.style).fontSize).toBe(
+      20,
+    );
   });
 });
 
