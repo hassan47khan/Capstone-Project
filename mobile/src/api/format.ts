@@ -125,7 +125,7 @@ function splitAmount(
 
 /**
  * The pieces of a formatted amount, kept separate so the `Amount` component can
- * render the cents smaller and in `ink2` the way the design does:
+ * render the cents separately from the dollars the way the design does:
  *
  *     $144.45   ->   symbol "$", whole "144", fraction "45"
  *
@@ -274,6 +274,28 @@ export function formatDateLong(value: string): string {
   const parsed = parseDateOnly(value);
   if (!parsed) return value;
   return `${MONTHS_SHORT[parsed.month - 1]} ${parsed.day}, ${parsed.year}`;
+}
+
+/** "2026-10-12" -> "October 12, 2026". For screen-reader labels, where "Oct" reads badly. */
+export function formatDateSpoken(value: string): string {
+  const parsed = parseDateOnly(value);
+  if (!parsed) return value;
+  return `${MONTHS_LONG[parsed.month - 1]} ${parsed.day}, ${parsed.year}`;
+}
+
+/**
+ * The short cycle suffix beside a price: "/mo", "/wk", "/yr", "/day", and
+ * "/2mo" when the count is above one (Figma's Headspace row).
+ */
+export function formatCycleSuffix(unit: string, count: number): string {
+  const short: Record<string, string> = {
+    day: 'day',
+    week: 'wk',
+    month: 'mo',
+    year: 'yr',
+  };
+  const noun = short[unit] ?? unit;
+  return count === 1 ? `/${noun}` : `/${count}${noun}`;
 }
 
 /** "2026-09-30" -> "Wednesday, September 30". The Home screen eyebrow. */

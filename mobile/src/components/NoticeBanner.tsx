@@ -17,19 +17,20 @@
  *   only when the user swipes onto it. The icon is decorative; the words carry
  *   the meaning, and the amber tint is reinforcement.
  *
- * Design tokens
- *   background  colors.noticeBg
- *   border      colors.noticeLine
- *   text        colors.noticeInk
- *   radius      radius.card (16)
+ * Design tokens (the warning family, 01 §1)
+ *   background  colors.warningSurface
+ *   border      colors.warningBorder
+ *   icon        colors.warning, on a sizes.warningIcon (40) colors.warningIconBg circle
+ *   text        colors.text — muted grey is 4.22:1 on the tint, a 12px AA failure
+ *   radius      radius.card (6)
  *
  * Used by: Home (notice slot), Subscription detail (price-increase), Settings
  *          (rate unavailable).
  */
 import { AlertCircle, ChevronRight } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { makeStyles, radius, sizes, spacing, useTheme } from '@/theme';
 
 export interface NoticeBannerProps {
   /** The message. Written as a full sentence — it is the entire content. */
@@ -54,16 +55,20 @@ export function NoticeBanner({
   accessibilityHint,
   testID,
 }: NoticeBannerProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const body = (
     <View style={styles.banner}>
-      <AlertCircle
-        size={20}
-        color={colors.noticeInk}
-        strokeWidth={1.7}
-        // Decorative: the text says everything the icon implies.
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
+      <View style={styles.iconCircle}>
+        <AlertCircle
+          size={sizes.icon}
+          color={colors.warning}
+          strokeWidth={1.7}
+          // Decorative: the text says everything the icon implies.
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      </View>
 
       <View style={styles.text}>
         {title ? <Text style={styles.title}>{title}</Text> : null}
@@ -72,8 +77,8 @@ export function NoticeBanner({
 
       {onPress ? (
         <ChevronRight
-          size={20}
-          color={colors.noticeInk}
+          size={sizes.icon}
+          color={colors.text}
           strokeWidth={1.7}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
@@ -111,28 +116,38 @@ export function NoticeBanner({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.noticeBg,
+    backgroundColor: colors.warningSurface,
     borderWidth: 1,
-    borderColor: colors.noticeLine,
+    borderColor: colors.warningBorder,
     borderRadius: radius.card,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
+  },
+  // 01 §1: a 40px circle behind the alert icon, which is what `warningIconBg`
+  // is for. It layers over `warningSurface`, so both stay translucent.
+  iconCircle: {
+    width: sizes.warningIcon,
+    height: sizes.warningIcon,
+    borderRadius: radius.pill,
+    backgroundColor: colors.warningIconBg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   text: {
     flex: 1,
     gap: spacing.xs,
   },
   title: {
-    ...typography.rowTitle,
-    color: colors.noticeInk,
+    ...typography.labelSemibold,
+    color: colors.text,
   },
   message: {
-    ...typography.body,
-    color: colors.noticeInk,
+    ...typography.bodyMd,
+    color: colors.text,
   },
-});
+}));

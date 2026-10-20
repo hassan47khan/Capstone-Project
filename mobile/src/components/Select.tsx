@@ -1,36 +1,38 @@
 /**
- * Select — a labelled field that opens a list of choices.
+ * Select — a labelled field that opens a list of choices (handoff 02 §5).
  *
  * What it is for
- *   The category picker on the subscription form, and any field whose value is
- *   chosen from a list rather than typed.
+ *   The category picker on the subscription form, the billing-cycle fallback,
+ *   and any field whose value is chosen from a list rather than typed.
  *
- * Why it opens a sheet instead of using a native picker
- *   React Native's `Picker` looks and behaves differently on each platform and
- *   cannot be styled to match this design. A modal list reuses `GroupedList` and
- *   `ListRow`, so a choice looks like every other list in the app, and the
- *   search and empty states come for free when a list gets long.
+ * Closed, it is a TextField
+ *   It draws the same `FieldBox` as TextField, with a trailing 16px chevron, so
+ *   every input on a form looks like one family.
+ *
+ * Open, it is a bottom sheet
+ *   Not an inline dropdown: on a phone a dropdown fights the keyboard and the
+ *   screen edge. The sheet lists the options; the chosen one carries an 18px
+ *   accent check. `renderOption` lets a caller draw richer rows — the category
+ *   field uses it to show a CategoryBadge.
  *
  * Why the trigger has role "combobox"
  *   It is a control whose value is picked from a set. A screen reader announces
  *   it with its current value, which a plain button would not.
  *
  * Design tokens
- *   trigger   same as TextField: sizes.control, radius.control, colors.control
- *   label     typography.fieldLabel
- *   value     typography.body in colors.ink; placeholder in colors.ink3
- *
- * Used by: Add/Edit subscription (category), and any future single-choice field.
+ *   trigger   FieldBox — sizes.field (52), radius.card, colors.borderControl
+ *   chevron   sizes.iconSmall (16), colors.textMuted
+ *   check     sizes.iconCheck (18), colors.accent
+ *   rows      sizes.minTouch tall, typography.bodyLg
  */
 import { Check, ChevronDown } from 'lucide-react-native';
-import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
-import { colors, radius, sizes, spacing, typography } from '@/theme';
+import { makeStyles, sizes, spacing, useTheme } from '@/theme';
 
-import { Button } from './Button';
-import { GroupedList } from './GroupedList';
-import { ListRow } from './ListRow';
+import { BottomSheet } from './BottomSheet';
+import { FieldBox, FieldMessage } from './TextField';
 
 export interface SelectOption<T extends string> {
   value: T;
@@ -48,6 +50,10 @@ export interface SelectProps<T extends string> {
   /** Shown when nothing is chosen. */
   placeholder?: string;
 
+  /** Draws an option's content. Defaults to its label as text. */
+  renderOption?: (option: SelectOption<T>) => ReactNode;
+
+  helper?: string;
   error?: string;
   disabled?: boolean;
   testID?: string;
@@ -59,14 +65,17 @@ export function Select<T extends string>({
   value,
   onChange,
   placeholder = 'Select',
+  renderOption,
+  helper,
   error,
   disabled = false,
   testID,
 }: SelectProps<T>) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [open, setOpen] = useState(false);
 
   const selected = options.find((option) => option.value === value);
-  const displayText = selected?.label ?? placeholder;
 
   return (
     <View style={styles.container}>
@@ -80,129 +89,122 @@ export function Select<T extends string>({
         // Announces the current choice, which is the whole point of the control.
         accessibilityValue={{ text: selected?.label ?? 'None selected' }}
         accessibilityState={{ disabled, expanded: open }}
-        style={[
-          styles.trigger,
-          Boolean(error) && styles.triggerError,
-          disabled && styles.triggerDisabled,
-        ]}
+        accessibilityHint={error ?? helper}
         testID={testID}
       >
-        <Text style={[styles.value, !selected && styles.placeholder]} numberOfLines={1}>
-          {displayText}
-        </Text>
-        <ChevronDown
-          size={20}
-          color={colors.ink2}
-          strokeWidth={1.7}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        />
+        <FieldBox
+          focused={open}
+          error={Boolean(error)}
+          disabled={disabled}
+          testID={testID ? `${testID}-box` : undefined}
+        >
+          <View style={styles.value}>
+            {selected ? (
+              renderOption ? (
+                renderOption(selected)
+              ) : (
+                <Text style={styles.valueText} numberOfLines={1}>
+                  {selected.label}
+                </Text>
+              )
+            ) : (
+              <Text style={[styles.valueText, styles.placeholder]} numberOfLines={1}>
+                {placeholder}
+              </Text>
+            )}
+          </View>
+          <ChevronDown
+            size={sizes.iconSmall}
+            color={colors.textMuted}
+            strokeWidth={2}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        </FieldBox>
       </Pressable>
 
-      {error ? (
-        <Text style={styles.error} accessibilityLiveRegion="polite">
-          {error}
-        </Text>
-      ) : null}
+      <FieldMessage error={error} helper={helper} testID={testID} />
 
-      <Modal
+      <BottomSheet
         visible={open}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        // Android's hardware back must close the sheet, not the screen beneath.
-        onRequestClose={() => setOpen(false)}
+        onClose={() => setOpen(false)}
+        title={label}
+        testID={testID ? `${testID}-sheet` : undefined}
       >
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle} accessibilityRole="header">
-              {label}
-            </Text>
-            <Button label="Cancel" variant="text" onPress={() => setOpen(false)} />
-          </View>
-
-          <ScrollView contentContainerStyle={styles.sheetBody}>
-            <GroupedList>
-              {options.map((option) => (
-                <ListRow
-                  key={option.value}
-                  title={option.label}
-                  selected={option.value === value}
-                  onPress={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  accessibilityLabel={option.label}
-                  trailing={
-                    option.value === value ? (
-                      <Check size={20} color={colors.accent} strokeWidth={2} />
-                    ) : null
-                  }
-                  testID={testID ? `${testID}-option-${option.value}` : undefined}
-                />
-              ))}
-            </GroupedList>
-          </ScrollView>
-        </View>
-      </Modal>
+        <ScrollView style={styles.list} accessibilityRole="list">
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={option.label}
+                accessibilityState={{ selected: isSelected }}
+                style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
+                testID={testID ? `${testID}-option-${option.value}` : undefined}
+              >
+                <View style={styles.optionContent}>
+                  {renderOption ? (
+                    renderOption(option)
+                  ) : (
+                    <Text style={styles.valueText}>{option.label}</Text>
+                  )}
+                </View>
+                {isSelected ? (
+                  <Check
+                    size={sizes.iconCheck}
+                    color={colors.accent}
+                    strokeWidth={2}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  />
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </BottomSheet>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   container: {
     gap: spacing.sm,
   },
   label: {
-    ...typography.fieldLabel,
-  },
-  trigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: sizes.minTouch,
-    height: sizes.control,
-    borderWidth: 1,
-    borderColor: colors.control,
-    borderRadius: radius.control,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-  },
-  triggerError: {
-    borderColor: colors.danger,
-    backgroundColor: colors.dangerBg,
-  },
-  triggerDisabled: {
-    backgroundColor: colors.sunken,
+    ...typography.labelSemibold,
   },
   value: {
-    ...typography.body,
-    color: colors.ink,
     flex: 1,
+  },
+  valueText: {
+    ...typography.bodyLg,
   },
   placeholder: {
-    color: colors.ink3,
+    color: colors.textMuted,
   },
-  error: {
-    ...typography.caption,
-    color: colors.danger,
+  list: {
+    // Long lists scroll inside the sheet rather than pushing it off screen.
+    maxHeight: sizes.rowSubscription * 6,
   },
-  sheet: {
-    flex: 1,
-    backgroundColor: colors.paper,
-  },
-  sheetHeader: {
+  option: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
+    minHeight: sizes.minTouch,
+    paddingVertical: spacing.sm,
+    gap: spacing.md,
+    borderBottomWidth: sizes.hairline,
+    borderBottomColor: colors.border,
   },
-  sheetTitle: {
-    ...typography.authTitle,
+  optionPressed: {
+    backgroundColor: colors.surface2,
   },
-  sheetBody: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
+  optionContent: {
+    flex: 1,
   },
-});
+}));

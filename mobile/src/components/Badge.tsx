@@ -15,17 +15,17 @@
  * is reinforcement, not information.
  *
  * Design tokens
- *   radius      radius.pill (fully rounded)
- *   neutral     colors.sunken background, colors.ink2 text
- *   accent      colors.accentTint background, colors.accent text
- *   notice      colors.noticeBg background, colors.noticeInk text
- *   text        typography.badge
+ *   radius      radius.badge (4, measured — 01 §5)
+ *   neutral     colors.surface2 background, colors.text text
+ *   accent      colors.accentSurface background, colors.accent text
+ *   notice      colors.warningSurface background, colors.text text
+ *   text        typography.labelSemibold
  *
  * Used by: Subscription detail, Subscriptions list rows.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { makeStyles, radius, spacing } from '@/theme';
 
 export type BadgeTone = 'neutral' | 'accent' | 'notice';
 
@@ -44,6 +44,7 @@ export interface BadgeProps {
 }
 
 export function Badge({ label, tone = 'neutral', testID }: BadgeProps) {
+  const styles = useStyles();
   return (
     <View
       style={[styles.badge, styles[tone]]}
@@ -58,20 +59,22 @@ export function Badge({ label, tone = 'neutral', testID }: BadgeProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   badge: {
     alignSelf: 'flex-start',
-    borderRadius: radius.pill,
+    borderRadius: radius.badge,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
   },
   label: {
-    ...typography.badge,
+    ...typography.labelSemibold,
   },
-  neutral: { backgroundColor: colors.sunken },
-  neutralText: { color: colors.ink2 },
-  accent: { backgroundColor: colors.accentTint },
+  neutral: { backgroundColor: colors.surface2 },
+  // Not textMuted: muted text on surface2 is 4.28:1, below AA (see CONTRAST.md).
+  neutralText: { color: colors.text },
+  accent: { backgroundColor: colors.accentSurface },
   accentText: { color: colors.accent },
-  notice: { backgroundColor: colors.noticeBg },
-  noticeText: { color: colors.noticeInk },
-});
+  notice: { backgroundColor: colors.warningSurface },
+  // Text on the warning tint is `text`, never muted grey (01 §1).
+  noticeText: { color: colors.text },
+}));

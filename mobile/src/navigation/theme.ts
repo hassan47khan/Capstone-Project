@@ -8,24 +8,33 @@
  *
  * Why it is worth doing
  *   Without it there is a white flash at the edges of every push animation on a
- *   warm-paper app. It is a small thing that makes the difference between
- *   feeling designed and feeling assembled.
+ *   warm-cream app (or a glaring one in dark mode). It is a small thing that
+ *   makes the difference between feeling designed and feeling assembled.
+ *
+ * Why it is a function
+ *   The colours follow the live theme, so RootNavigator builds this from
+ *   `useTheme()`. Built on React Navigation's own Dark/Default theme so its
+ *   fonts and any colour we do not override suit the scheme.
  */
-import { DefaultTheme, type Theme } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
 
-import { colors } from '@/theme';
+import type { ColorScheme, ColorTokens } from '@/theme';
 
-export const navigationTheme: Theme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: colors.accent,
-    /** The ground behind screens, including mid-transition. */
-    background: colors.paper,
-    /** Headers and the tab bar, if a default one is ever used. */
-    card: colors.tabBg,
-    text: colors.ink,
-    border: colors.line,
-    notification: colors.danger,
-  },
-};
+export function getNavigationTheme(colors: ColorTokens, scheme: ColorScheme): Theme {
+  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    dark: scheme === 'dark',
+    colors: {
+      ...base.colors,
+      primary: colors.accent,
+      /** The ground behind screens, including mid-transition. */
+      background: colors.bg,
+      /** Headers and the tab bar, if a default one is ever used. */
+      card: colors.tabBar,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.danger,
+    },
+  };
+}

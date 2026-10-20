@@ -12,10 +12,11 @@
  *   still, so the screen does not jump when data lands. On a list that is the
  *   difference between a calm load and a flicker.
  *
- * Why there is no shimmer animation
- *   A looping animation is a distraction, costs a frame budget on low-end
- *   Android, and `prefers-reduced-motion` is not reliably available in React
- *   Native. A static tint is calmer and never has to be turned off.
+ * Motion (02 §14, §15)
+ *   An opacity pulse between 0.4 and 1.0 over 1.5s, ease-in-out, on the native
+ *   driver. Under reduced motion it does not pulse: it renders static at 0.6.
+ *   One shared animated value per block; a group of blocks pulses together
+ *   because they start together.
  *
  * Accessibility
  *   One "Loading" announcement per skeleton GROUP, not per block — six blocks
@@ -23,15 +24,15 @@
  *   `SkeletonGroup` to wrap a set.
  *
  * Design tokens
- *   fill     colors.sunken
- *   radius   radius.control for blocks, radius.tile for squares
+ *   fill     colors.surface2
+ *   radius   radius.card for blocks, radius.avatar for squares
  *
  * Used by: Home hero and renewals list, Subscriptions list, Insights.
  */
-import type { ReactNode } from 'react';
-import { StyleSheet, View, type DimensionValue } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Animated, View, type DimensionValue } from 'react-native';
 
-import { colors, radius, sizes, spacing } from '@/theme';
+import { makeStyles, opacity, radius, sizes, spacing, useMotion } from '@/theme';
 
 export interface SkeletonProps {
   /** Pass a percentage string to vary line lengths so a block looks like text. */
@@ -48,14 +49,45 @@ export function Skeleton({
   shape = 'block',
   testID,
 }: SkeletonProps) {
+  const styles = useStyles();
+  const m = useMotion();
+  const pulse = useState(() => new Animated.Value(opacity.pulseHigh))[0];
+
+  useEffect(() => {
+    if (!m.moves) {
+      pulse.setValue(opacity.skeletonStatic);
+      return;
+    }
+    const half = m.pulse / 2;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: opacity.pulseLow,
+          duration: half,
+          easing: m.easeInOut,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: opacity.pulseHigh,
+          duration: half,
+          easing: m.easeInOut,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [m, pulse]);
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.skeleton,
         {
           width,
           height,
-          borderRadius: shape === 'tile' ? radius.tile : radius.control,
+          borderRadius: shape === 'tile' ? radius.avatar : radius.card,
+          opacity: pulse,
         },
       ]}
       // Silent individually; the surrounding group does the announcing.
@@ -98,6 +130,7 @@ export function SkeletonGroup({
  * data arrives.
  */
 export function SkeletonRow({ testID }: { testID?: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.row} testID={testID}>
       <Skeleton width={sizes.tile} height={sizes.tile} shape="tile" />
@@ -110,9 +143,9 @@ export function SkeletonRow({ testID }: { testID?: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   skeleton: {
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.surface2,
   },
   row: {
     flexDirection: 'row',
@@ -126,4 +159,4 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.sm,
   },
-});
+}));

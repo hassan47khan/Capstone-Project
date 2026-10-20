@@ -15,27 +15,28 @@
  * for why that matters.
  *
  * Design tokens
- *   bar height  sizes.barRow (8)
- *   track       colors.sunken
- *   fill        categoryColors[category].bar
- *   label       typography.rowTitle
- *   value       typography.caption, amounts in ink2
+ *   bar height  sizes.barRow (12)
+ *   track       colors.surface2
+ *   fill        categoryColors[categorySlugToKey[category]]
+ *   label       typography.labelSemibold
+ *   value       typography.caption (textMuted)
  *
  * Used by: Insights "By category", Home legend.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { formatMoney } from '@/api/format';
 import type { CurrencyCode, MoneyString } from '@/api/types';
 import {
   CATEGORY_LABELS,
-  categoryColors,
-  colors,
+  UNCATEGORIZED_LABEL,
+  categorySlugToKey,
+  makeStyles,
+  useTheme,
   numericVariant,
   radius,
   sizes,
   spacing,
-  typography,
   type Category,
 } from '@/theme';
 
@@ -55,8 +56,10 @@ export interface BarRowProps {
 }
 
 export function BarRow({ category, amount, currency, percent, testID }: BarRowProps) {
-  const label = CATEGORY_LABELS[category ?? 'other'];
-  const palette = categoryColors[category ?? 'other'];
+  const styles = useStyles();
+  const label = category ? CATEGORY_LABELS[category] : UNCATEGORIZED_LABEL;
+  const { categoryColors } = useTheme();
+  const fill = categoryColors[categorySlugToKey[category ?? 'other']];
   const { display } = formatMoney(amount, currency);
 
   return (
@@ -87,7 +90,7 @@ export function BarRow({ category, amount, currency, percent, testID }: BarRowPr
             {
               // Clamped so a bad value cannot render a bar wider than its track.
               width: `${Math.max(0, Math.min(100, percent))}%`,
-              backgroundColor: palette.bar,
+              backgroundColor: fill,
             },
           ]}
         />
@@ -96,7 +99,7 @@ export function BarRow({ category, amount, currency, percent, testID }: BarRowPr
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   row: {
     gap: spacing.sm,
     paddingVertical: spacing.md,
@@ -108,22 +111,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   label: {
-    ...typography.rowTitle,
+    ...typography.labelSemibold,
     flexShrink: 1,
   },
   value: {
     ...typography.caption,
     ...numericVariant,
-    color: colors.ink2,
+    color: colors.textMuted,
   },
   track: {
     height: sizes.barRow,
     borderRadius: radius.pill,
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.surface2,
     overflow: 'hidden',
   },
   fill: {
     height: '100%',
     borderRadius: radius.pill,
   },
-});
+}));

@@ -123,7 +123,7 @@ describe('Alex — the full account', () => {
   });
 
   it('covers every category plus the uncategorized case', () => {
-    // Exercises all seven colour triplets and the null-category label.
+    // Exercises all seven category colours and the null-category label.
     const used = new Set(mockSubscriptions.map((s) => s.category));
     expect(used.size).toBeGreaterThanOrEqual(7);
     expect(used.has(null)).toBe(true);

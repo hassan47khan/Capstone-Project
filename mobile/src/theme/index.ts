@@ -2,9 +2,9 @@
  * Theme barrel.
  *
  * Everything visual is imported from `@/theme`, so a component never reaches
- * into an individual theme file. That keeps the "no raw hex, no raw font sizes"
- * rule to a single import line per file and makes it obvious in review when
- * something bypasses the system.
+ * into an individual theme file. Colours come from `useTheme()` (or a
+ * `makeStyles` factory), never from `lightColors`/`darkColors` directly — those
+ * are exported for the contrast tests and app.config only.
  */
 
 export {
@@ -13,22 +13,52 @@ export {
   contrastRatio,
 } from './contrast';
 export { fontAssets, useAppFonts } from './fonts';
+export { makeStyles } from './makeStyles';
+export { motionFor, useMotion } from './motion';
+export type { Motion } from './motion';
+export { schemeThemes, ThemeProvider, useTheme } from './ThemeProvider';
+export type {
+  ColorScheme,
+  SchemeTheme,
+  Theme,
+  ThemePreference,
+  ThemeProviderProps,
+} from './ThemeProvider';
 export {
-  CATEGORIES,
+  CATEGORY_KEYS,
   CATEGORY_LABELS,
-  categoryColors,
-  colors,
+  UNCATEGORIZED_LABEL,
+  CATEGORY_SLUGS,
+  categorySlugToKey,
+  darkCategoryColors,
+  darkColors,
+  darkServicePalette,
+  device,
+  lightCategoryColors,
+  lightColors,
+  lightServicePalette,
+  motion,
   opacity,
   radius,
+  serviceTint,
   sizes,
   spacing,
   tokens,
+  touchTarget,
 } from './tokens';
-export type { Category, ColorToken, Tokens } from './tokens';
+export type {
+  Category,
+  CategoryColors,
+  CategoryKey,
+  ColorToken,
+  ColorTokens,
+  ServiceColors,
+  Tokens,
+} from './tokens';
 export {
+  createTypography,
   fontFamily,
   maxFontSizeMultiplier,
   numericVariant,
-  typography,
 } from './typography';
-export type { TypographyToken } from './typography';
+export type { Typography, TypographyToken } from './typography';

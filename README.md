@@ -25,7 +25,7 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 | Area | State |
 | --- | --- |
 | Backend | Sprint 0 spike merged. MongoDB, custom user model, JWT wiring, `GET /health/` and `GET /me/`. 17 tests, 93% coverage, green in CI. No story endpoints yet. |
-| Mobile | Phase 0 complete — scaffold, theme, 20 primitives, API layer, mock backend, session, navigation shell, 204 tests. Every screen is still a placeholder. |
+| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation shell, 337 tests. Every screen is still a placeholder. |
 | CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. They are **not yet required checks** — see [Continuous Integration](#continuous-integration). |
 | Docs | System design specification and visual prototype are done. |
 
@@ -56,7 +56,9 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 | Document | Location |
 | --- | --- |
 | System Design Specification | [docs/design/SubTrak — System Design Specification.md](docs/design/SubTrak%20%E2%80%94%20System%20Design%20Specification.md) |
-| Visual design prototype | `docs/design/SubTrak prototype.pdf` |
+| Visual design (source of truth) | Figma file `kyUS7F8bg4x7GpcPEF4UDN`, page "Full Integrated Prototype Epic A, B, C" |
+| Earlier visual prototype (retired) | `docs/design/SubTrak prototype.pdf` |
+| Colour contrast report | [mobile/src/theme/CONTRAST.md](mobile/src/theme/CONTRAST.md) |
 | Design notes, page map and state critique | [docs/design/README.md](docs/design/README.md) |
 | Mobile client conventions | [mobile/CLAUDE.md](mobile/CLAUDE.md) |
 
@@ -266,10 +268,23 @@ tests, the API layer, the mock backend, session handling and the navigation
 shell. **Every screen is still a placeholder** — Epic A is Phase 1, Epic C is
 Phase 2, Epic B is Phase 3. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
 
-There is no device or simulator on the development machine, so what is verified
-is `tsc`, ESLint, Prettier, Jest (204 tests) and a Metro bundle for both iOS and
-Android. Layout, real contrast, font scaling and native modules are **not**
-verified — run the app in Expo Go on a phone to check those.
+The tokens follow the Figma design: DM Serif Display and DM Sans, with light and
+dark themes that follow the phone's setting. Components read colours through
+`useTheme()`, so nothing is hardcoded to one theme. Every colour pair is checked
+for WCAG AA contrast in both themes by `src/theme/tokens.test.ts`. The results
+are in [mobile/src/theme/CONTRAST.md](mobile/src/theme/CONTRAST.md).
+
+The shared components follow the developer handoff's component library: buttons,
+fields (text, currency, date, select), the segmented control, toggles, settings
+rows, list rows, bottom sheets, toasts, and empty/loading states. Every animation
+switches off or cross-fades when the phone's Reduce Motion setting is on. In a
+development build, **Settings → Component gallery** shows every component in
+every state, with a light/dark switch.
+
+There is no device or simulator on the development machine. What is verified is
+`tsc`, ESLint, Prettier and Jest (337 tests). Layout, font scaling, the live
+light/dark switch and native modules are **not** verified. Run the app in Expo
+Go on a phone to check those.
 
 ## Continuous Integration
 

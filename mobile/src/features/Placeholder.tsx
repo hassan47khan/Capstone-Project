@@ -15,10 +15,11 @@
  * Every one of these is deleted as its real screen lands. If any survive past
  * Phase 3, that is a bug.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Text, View } from 'react-native';
 
 import { Header, Screen } from '@/components';
-import { colors, radius, spacing, typography } from '@/theme';
+import { makeStyles, radius, sizes, spacing } from '@/theme';
 
 export interface PlaceholderProps {
   /** The screen's eventual title, so navigation reads correctly while testing. */
@@ -33,6 +34,9 @@ export interface PlaceholderProps {
   /** Shown when the screen is pushed rather than a tab. */
   backLabel?: string;
   onBack?: () => void;
+
+  /** Rendered under the card — dev-only links such as the component gallery. */
+  children?: ReactNode;
 }
 
 export function Placeholder({
@@ -41,7 +45,9 @@ export function Placeholder({
   stories,
   backLabel,
   onBack,
+  children,
 }: PlaceholderProps) {
+  const styles = useStyles();
   return (
     <Screen edges={backLabel ? ['top', 'bottom'] : ['top']}>
       <Header title={title} backLabel={backLabel} onBack={onBack} />
@@ -55,23 +61,24 @@ export function Placeholder({
         <Text style={styles.detail}>{phase}</Text>
         <Text style={styles.detail}>{stories}</Text>
       </View>
+      {children}
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   card: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
+    borderWidth: sizes.hairline,
+    borderColor: colors.border,
     borderRadius: radius.card,
     padding: spacing.xl,
     gap: spacing.sm,
   },
   label: {
-    ...typography.rowTitle,
+    ...typography.labelSemibold,
   },
   detail: {
     ...typography.caption,
   },
-});
+}));

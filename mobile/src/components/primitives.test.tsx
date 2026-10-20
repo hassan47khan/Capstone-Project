@@ -16,7 +16,14 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ApiError } from '@/api/errors';
 import { declaredTouchHeight, flattenStyle } from '@/test/render';
-import { categoryColors, sizes } from '@/theme';
+import {
+  darkCategoryColors,
+  darkServicePalette,
+  lightCategoryColors,
+  serviceTint,
+  sizes,
+  ThemeProvider,
+} from '@/theme';
 
 import { Amount } from './Amount';
 import { Badge } from './Badge';
@@ -24,14 +31,9 @@ import { BarRow } from './BarRow';
 import { Chip } from './Chip';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
-import { GroupedList } from './GroupedList';
-import { ListRow } from './ListRow';
 import { NoticeBanner } from './NoticeBanner';
-import { Segmented } from './Segmented';
-import { Select } from './Select';
 import { Skeleton, SkeletonGroup, SkeletonRow } from './Skeleton';
 import { StackedBar } from './StackedBar';
-import { Switch } from './Switch';
 import { Tile } from './Tile';
 
 /**
@@ -121,180 +123,55 @@ describe('Chip', () => {
 
 describe('Tile', () => {
   it('shows the first letter of the name, uppercased', async () => {
-    await render(<Tile name="streamly plus" category="streaming" />);
+    await render(<Tile name="streamly plus" />);
 
     expect(screen.getByText('S', HIDDEN)).toBeOnTheScreen();
   });
 
   it('does not split a multi-byte character in half', async () => {
     // `name[0]` on an emoji yields half a surrogate pair and a broken glyph.
-    await render(<Tile name="🎬 Movie Club" category="streaming" />);
+    await render(<Tile name="🎬 Movie Club" />);
 
     expect(screen.getByText('🎬', HIDDEN)).toBeOnTheScreen();
   });
 
   it('falls back to a question mark for a blank name', async () => {
-    await render(<Tile name="   " category={null} />);
+    await render(<Tile name="   " />);
 
     expect(screen.getByText('?', HIDDEN)).toBeOnTheScreen();
   });
 
-  it('uses the uncategorized palette for a null category', async () => {
-    await render(<Tile name="Thing" category={null} testID="tile" />);
+  it('uses the catalog brand colours when given them', async () => {
+    // 01 §3: service logos use brand colour, observed on Netflix.
+    await render(
+      <Tile name="Netflix" brand={{ tint: '#ffecee', ink: '#e50914' }} testID="tile" />,
+    );
 
     const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
-    expect(style.backgroundColor).toBe(categoryColors.other.tint);
-  });
-});
-
-describe('Switch', () => {
-  it('is announced as a switch with its on/off state', async () => {
-    await render(<Switch label="Renewal reminders" value onValueChange={jest.fn()} />);
-
-    expect(screen.getByRole('switch', { name: 'Renewal reminders' })).toBeChecked();
+    expect(style.backgroundColor).toBe('#ffecee');
   });
 
-  it('toggles from a tap anywhere on the row, not just the control', async () => {
-    const onValueChange = jest.fn();
+  it('derives the same tint from the same name every time', async () => {
+    // A user-entered service has no brand entry. Random would make the row
+    // change colour between launches.
+    await render(<Tile name="Northside Gym" testID="tile" />);
+
+    const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
+    expect(style.backgroundColor).toBe(serviceTint('Northside Gym').tint);
+    expect(serviceTint(' northside gym ')).toEqual(serviceTint('Northside Gym'));
+  });
+
+  it('switches to the dark service palette in the dark theme', async () => {
     await render(
-      <Switch
-        label="Price change alerts"
-        description="When a subscription costs more"
-        value={false}
-        onValueChange={onValueChange}
-        testID="toggle"
-      />,
+      <ThemeProvider initialPreference="dark">
+        <Tile name="Northside Gym" testID="tile" />
+      </ThemeProvider>,
     );
 
-    await fireEvent.press(screen.getByTestId('toggle'));
-
-    expect(onValueChange).toHaveBeenCalledWith(true);
-  });
-
-  it('meets the 44pt touch target', async () => {
-    await render(<Switch label="X" value onValueChange={jest.fn()} testID="toggle" />);
-
-    expect(
-      declaredTouchHeight(screen.getByTestId('toggle').props.style),
-    ).toBeGreaterThanOrEqual(sizes.minTouch);
-  });
-});
-
-describe('Segmented', () => {
-  const CYCLES = [
-    { value: 'week', label: 'Weekly' },
-    { value: 'month', label: 'Monthly' },
-    { value: 'year', label: 'Yearly' },
-  ] as const;
-
-  it('is announced as a single-choice group', async () => {
-    await render(
-      <Segmented
-        label="Billing cycle"
-        options={CYCLES}
-        value="month"
-        onChange={jest.fn()}
-      />,
+    const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
+    expect(style.backgroundColor).toBe(
+      serviceTint('Northside Gym', darkServicePalette).tint,
     );
-
-    expect(screen.getByLabelText('Billing cycle')).toBeOnTheScreen();
-  });
-
-  it('marks only the current option as selected', async () => {
-    await render(
-      <Segmented
-        label="Billing cycle"
-        options={CYCLES}
-        value="month"
-        onChange={jest.fn()}
-      />,
-    );
-
-    expect(screen.getByRole('radio', { name: 'Monthly' })).toBeSelected();
-    expect(screen.getByRole('radio', { name: 'Weekly' })).not.toBeSelected();
-  });
-
-  it('reports the chosen value', async () => {
-    const onChange = jest.fn();
-    await render(
-      <Segmented
-        label="Billing cycle"
-        options={CYCLES}
-        value="month"
-        onChange={onChange}
-        testID="cycle"
-      />,
-    );
-
-    await fireEvent.press(screen.getByTestId('cycle-year'));
-
-    expect(onChange).toHaveBeenCalledWith('year');
-  });
-});
-
-describe('ListRow', () => {
-  it('is announced as one element rather than three separate stops', async () => {
-    await render(
-      <ListRow
-        title="Streamly Plus"
-        subtitle="Streaming · Renews Oct 3"
-        accessibilityLabel="Streamly Plus, Streaming, renews Oct 3, $15.49"
-        onPress={jest.fn()}
-        variant="subscription"
-      />,
-    );
-
-    expect(
-      screen.getByLabelText('Streamly Plus, Streaming, renews Oct 3, $15.49'),
-    ).toBeOnTheScreen();
-  });
-
-  it('composes a label from its two lines when none is given', async () => {
-    await render(<ListRow title="Currency" subtitle="USD ($)" onPress={jest.fn()} />);
-
-    expect(screen.getByLabelText('Currency, USD ($)')).toBeOnTheScreen();
-  });
-
-  it('is not a button when it has no press handler', async () => {
-    // A row of content should not offer an action that does nothing.
-    await render(<ListRow title="Billing cycle" subtitle="Monthly" />);
-
-    expect(screen.queryByRole('button')).toBeNull();
-  });
-
-  it('announces a selected row, such as the chosen currency', async () => {
-    await render(<ListRow title="USD" selected onPress={jest.fn()} testID="row" />);
-
-    expect(screen.getByTestId('row')).toBeSelected();
-  });
-});
-
-describe('GroupedList', () => {
-  it('renders its title, rows and footnote', async () => {
-    await render(
-      <GroupedList title="Display" footnote="Rates from Sep 30.">
-        <ListRow title="Currency" />
-        <ListRow title="Time zone" />
-      </GroupedList>,
-    );
-
-    expect(screen.getByText('Display')).toBeOnTheScreen();
-    expect(screen.getByText('Currency')).toBeOnTheScreen();
-    expect(screen.getByText('Time zone')).toBeOnTheScreen();
-    expect(screen.getByText('Rates from Sep 30.')).toBeOnTheScreen();
-  });
-
-  it('drops conditional rows that rendered nothing', async () => {
-    // Otherwise a `{flag && <Row/>}` leaves a divider with nothing beneath it.
-    const showExtra = false;
-    await render(
-      <GroupedList testID="list">
-        <ListRow title="Only row" />
-        {showExtra && <ListRow title="Hidden" />}
-      </GroupedList>,
-    );
-
-    expect(screen.queryByText('Hidden')).toBeNull();
   });
 });
 
@@ -303,8 +180,8 @@ describe('StackedBar', () => {
     await render(
       <StackedBar
         segments={[
-          { category: 'software', percent: 45 },
-          { category: 'streaming', percent: 55 },
+          { category: 'productivity', percent: 45 },
+          { category: 'entertainment', percent: 55 },
         ]}
         testID="bar"
       />,
@@ -317,12 +194,32 @@ describe('StackedBar', () => {
     expect(flattenStyle(second.props.style).flexGrow).toBe(55);
   });
 
+  it('colours each segment by its category token, per theme', async () => {
+    const segments = [{ category: 'ai-tools', percent: 100 }] as const;
+
+    await render(<StackedBar segments={segments} testID="bar" />);
+    const [light] = screen.getByTestId('bar', HIDDEN).props.children;
+    expect(flattenStyle(light.props.style).backgroundColor).toBe(
+      lightCategoryColors.aiTools,
+    );
+
+    await render(
+      <ThemeProvider initialPreference="dark">
+        <StackedBar segments={segments} testID="bar" />
+      </ThemeProvider>,
+    );
+    const [dark] = screen.getByTestId('bar', HIDDEN).props.children;
+    expect(flattenStyle(dark.props.style).backgroundColor).toBe(
+      darkCategoryColors.aiTools,
+    );
+  });
+
   it('omits zero-width segments', async () => {
     await render(
       <StackedBar
         segments={[
-          { category: 'software', percent: 100 },
-          { category: 'fitness', percent: 0 },
+          { category: 'productivity', percent: 100 },
+          { category: 'health-wellness', percent: 0 },
         ]}
         testID="bar"
       />,
@@ -333,7 +230,7 @@ describe('StackedBar', () => {
 
   it('is hidden from screen readers, because the legend says it in words', async () => {
     await render(
-      <StackedBar segments={[{ category: 'software', percent: 100 }]} testID="bar" />,
+      <StackedBar segments={[{ category: 'productivity', percent: 100 }]} testID="bar" />,
     );
 
     expect(screen.getByTestId('bar', HIDDEN).props.accessibilityElementsHidden).toBe(
@@ -346,11 +243,11 @@ describe('BarRow', () => {
   it('shows the category, amount and percentage as text beside the bar', async () => {
     // Prompt section 10: every chart has the same figures in words.
     await render(
-      <BarRow category="software" amount="99.99" currency="USD" percent={45} />,
+      <BarRow category="productivity" amount="69.99" currency="USD" percent={32} />,
     );
 
-    expect(screen.getByText('Software')).toBeOnTheScreen();
-    expect(screen.getByText('$99.99 · 45%')).toBeOnTheScreen();
+    expect(screen.getByText('Productivity')).toBeOnTheScreen();
+    expect(screen.getByText('$69.99 · 32%')).toBeOnTheScreen();
   });
 
   it('labels a null category as Uncategorized', async () => {
@@ -361,10 +258,12 @@ describe('BarRow', () => {
 
   it('announces the row as one readable sentence', async () => {
     await render(
-      <BarRow category="fitness" amount="34.99" currency="USD" percent={16} />,
+      <BarRow category="health-wellness" amount="34.99" currency="USD" percent={16} />,
     );
 
-    expect(screen.getByLabelText('Fitness, $34.99, 16 percent')).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('Health & Wellness, $34.99, 16 percent'),
+    ).toBeOnTheScreen();
   });
 });
 
@@ -479,60 +378,5 @@ describe('Skeleton', () => {
     expect(screen.getByTestId('block', HIDDEN).props.accessibilityElementsHidden).toBe(
       true,
     );
-  });
-});
-
-describe('Select', () => {
-  const CATEGORIES = [
-    { value: 'streaming', label: 'Streaming' },
-    { value: 'software', label: 'Software' },
-  ] as const;
-
-  it('shows the placeholder when nothing is chosen', async () => {
-    await render(
-      <Select
-        label="Category"
-        options={CATEGORIES}
-        value={null}
-        onChange={jest.fn()}
-        placeholder="Choose a category"
-      />,
-    );
-
-    expect(screen.getByText('Choose a category')).toBeOnTheScreen();
-  });
-
-  it('announces its current value, which a plain button would not', async () => {
-    await render(
-      <Select
-        label="Category"
-        options={CATEGORIES}
-        value="software"
-        onChange={jest.fn()}
-        testID="cat"
-      />,
-    );
-
-    expect(screen.getByTestId('cat').props.accessibilityValue).toEqual({
-      text: 'Software',
-    });
-  });
-
-  it('reports the option the user picks', async () => {
-    const onChange = jest.fn();
-    await render(
-      <Select
-        label="Category"
-        options={CATEGORIES}
-        value={null}
-        onChange={onChange}
-        testID="cat"
-      />,
-    );
-
-    await fireEvent.press(screen.getByTestId('cat'));
-    await fireEvent.press(screen.getByTestId('cat-option-streaming'));
-
-    expect(onChange).toHaveBeenCalledWith('streaming');
   });
 });

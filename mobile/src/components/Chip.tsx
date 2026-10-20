@@ -3,26 +3,26 @@
  *
  * What it is for
  *   The horizontal category filter row on the Subscriptions screen: "All",
- *   "Streaming", "Software" and so on. Exactly one is selected at a time.
+ *   "Entertainment", "Productivity" and so on. Exactly one is selected at a time.
  *
  * Why the role is "radio" and not "button"
  *   The row behaves as a single-choice group: picking one deselects the others.
- *   A screen reader announcing "button, Streaming" tells the user nothing about
- *   that relationship, whereas "radio button, Streaming, selected" does — and
+ *   A screen reader announcing "button, Entertainment" tells the user nothing about
+ *   that relationship, whereas "radio button, Entertainment, selected" does — and
  *   `accessibilityState.selected` is what makes the current choice audible.
  *
  * Design tokens
  *   height       sizes.chip (44) — also the minimum touch target
- *   radius       radius.pill
- *   unselected   colors.surface background, colors.line border, colors.ink text
- *   selected     colors.ink background, colors.surface text
- *   text         typography.badge
+ *   radius       radius.badge (4, measured — 01 §5)
+ *   unselected   colors.surface background, colors.border border, colors.text text
+ *   selected     colors.accent background, colors.onAccent text
+ *   text         typography.labelSemibold
  *
  * Used by: Subscriptions (category filter row).
  */
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
 
-import { colors, opacity, radius, sizes, spacing, typography } from '@/theme';
+import { makeStyles, opacity, radius, sizes, spacing } from '@/theme';
 
 export interface ChipProps {
   label: string;
@@ -45,6 +45,7 @@ export function Chip({
   accessibilityLabel,
   testID,
 }: ChipProps) {
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -71,11 +72,11 @@ export function Chip({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, typography }) => ({
   chip: {
     height: sizes.chip,
     minHeight: sizes.minTouch,
-    borderRadius: radius.pill,
+    borderRadius: radius.badge,
     paddingHorizontal: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
@@ -83,19 +84,18 @@ const styles = StyleSheet.create({
   unselected: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.border,
   },
   selected: {
-    // Near-black rather than the accent, matching the prototype's filter row,
-    // where the selected chip is the strongest thing in the band.
-    backgroundColor: colors.ink,
+    // Accent fill, as the Figma filter row's active pill (node 16:21).
+    backgroundColor: colors.accent,
   },
   pressed: {
     opacity: opacity.pressed,
   },
   label: {
-    ...typography.badge,
+    ...typography.labelSemibold,
   },
-  unselectedLabel: { color: colors.ink },
-  selectedLabel: { color: colors.surface },
-});
+  unselectedLabel: { color: colors.text },
+  selectedLabel: { color: colors.onAccent },
+}));

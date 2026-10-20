@@ -53,7 +53,8 @@ module.exports = [
   },
 
   /**
-   * "No raw hex values or font sizes in screen files" (prompt section 14).
+   * "No raw hex values or font sizes in screen files" (prompt section 14), and
+   * handoff 01 §8: zero hardcoded colour, size or radius outside src/theme.
    *
    * Screens and features must import from src/theme. Only the theme itself and
    * app.config.ts are allowed to spell a colour out. This is a regex check, so
@@ -67,8 +68,23 @@ module.exports = [
         'error',
         {
           selector: 'Literal[value=/^#(?:[0-9a-fA-F]{3}){1,2}$/]',
+          message: 'No raw hex colours. Read the colour from useTheme() or makeStyles.',
+        },
+        {
+          selector: 'Literal[value=/^(?:rgb|hsl)a?\\(/]',
+          message: 'No raw rgb()/hsl() colours. Read the colour from useTheme().',
+        },
+        {
+          selector:
+            'Property[key.name=/^(?:fontSize|lineHeight|letterSpacing|borderRadius)$/][value.type="Literal"]',
           message:
-            'No raw hex colours. Import the token from src/theme/tokens.ts instead.',
+            'No raw type sizes or radii. Spread a typography role or use the radius scale.',
+        },
+        {
+          selector:
+            'ImportSpecifier[imported.name=/^(?:light|dark)(?:Colors|CategoryColors|ServicePalette)$/]',
+          message:
+            'Do not import a theme directly — it would ignore dark mode. Use useTheme().',
         },
       ],
     },

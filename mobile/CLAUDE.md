@@ -4,17 +4,17 @@ The React Native client. Read this before changing anything in `mobile/`.
 
 ## Sources of truth
 
-Two documents govern this app. **Neither is in the repo yet** — Hassan is adding
-them at the paths below. Until then, ask for the current copies.
+| Document                    | Where                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| Visual design               | Figma `kyUS7F8bg4x7GpcPEF4UDN`, page "Full Integrated Prototype Epic A, B, C" |
+| System Design Specification | `docs/design/SubTrak — System Design Specification.md`                        |
 
-| Document                            | Will live at                                    |
-| ----------------------------------- | ----------------------------------------------- |
-| Visual design ("SubTrak prototype") | `docs/design/SubTrak prototype.pdf`             |
-| System Design Specification         | `docs/SubTrak — System Design Specification.md` |
-
-Where they disagree, the specification wins on behaviour and the PDF wins on
-appearance. [docs/design/README.md](../docs/design/README.md) records the three
-deliberate overrides and what the design left out.
+Where they disagree, the specification wins on behaviour and Figma wins on
+appearance. The earlier PDF prototype (`docs/design/SubTrak prototype.pdf`) is
+**retired** as an appearance source. [docs/design/README.md](../docs/design/README.md)
+records the deliberate overrides and what the design left out, and
+[src/theme/CONTRAST.md](src/theme/CONTRAST.md) records every token that differs
+from Figma and why.
 
 ## The rules that matter
 
@@ -23,8 +23,12 @@ deliberate overrides and what the design left out.
    server. `src/api/format.ts` formats and never calculates — no `Number`, no
    `parseFloat`, no arithmetic on an amount, anywhere. Chart components take
    server-computed percentages; they never derive one from an amount.
-2. **No raw hex or font sizes outside `src/theme`.** ESLint fails the build on a
-   hex literal under `src/components` or `src/features`.
+2. **No raw hex or font sizes outside `src/theme`, and never a static colour.**
+   Colours come from `useTheme()` or a `makeStyles` factory so dark mode works;
+   importing `lightColors`/`darkColors` in a component is a lint error, as are hex,
+   `rgb()`, and literal `fontSize`/`lineHeight`/`letterSpacing`/`borderRadius`
+   under `src/components` or `src/features`. Danger red is for destructive actions
+   and errors only, never data.
 3. **Accessibility is graded.** Every input has a visible label and an
    `accessibilityLabel`. Every switch uses `accessibilityRole="switch"` with
    state. Every touch target is at least 44pt. Every chart has the same figures
@@ -38,14 +42,17 @@ deliberate overrides and what the design left out.
 ```
 src/
   api/          client (refresh, mock transport), endpoints, types, errors, format
-  components/   the 20 primitives — no API, no navigation, no copy
+  components/   the handoff-02 library + Phase-0 primitives — no API, no navigation,
+                no copy. Every state is drawn in the dev gallery (features/dev)
   config/       env.ts, features.ts
   features/     auth, dashboard, subscriptions, settings, insights
                 extraction, sharing, notifications, analytics  (typed seams, no UI)
   navigation/   root / auth / app / tabs, linking, types
   session/      SessionContext, tokenStore
   test/         fixtures, routes (shared mock table), MSW handlers, render helpers
-  theme/        tokens.ts, typography.ts, fonts.ts, contrast.ts
+  theme/        tokens.ts (light + dark), typography.ts (DM Serif Display, DM Sans),
+                ThemeProvider/useTheme, makeStyles, motion.ts (useMotion: every
+                animation honours Reduce Motion), fonts.ts, contrast.ts, CONTRAST.md
 ```
 
 ## Mocks

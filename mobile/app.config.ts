@@ -19,8 +19,13 @@
  */
 import type { ExpoConfig, ConfigContext } from 'expo/config';
 
-/** Brand ground colour. Kept in sync with `tokens.colors.paper` in src/theme/tokens.ts. */
-const PAPER = '#F5F3EE';
+/**
+ * Page grounds, light and dark. Must equal `lightColors.bg` and `darkColors.bg`
+ * in src/theme/tokens.ts — tokens.test.ts asserts it — so the splash and the
+ * first screen share one ground and there is no flash between them.
+ */
+const BG_LIGHT = '#f6f4ee';
+const BG_DARK = '#121a1c';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -30,9 +35,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/icon.png',
   scheme: 'subtrak',
-  // The design is a single light theme (see the prototype's visual language page).
-  // Locking this prevents the OS dark mode from inverting colours we never designed.
-  userInterfaceStyle: 'light',
+  // Light and dark are both designed (src/theme/tokens.ts). ThemeProvider follows
+  // the OS unless the user picks one; this lets the OS report its setting.
+  userInterfaceStyle: 'automatic',
   // Note: there is no top-level `splash` key. SDK 54 moved splash configuration
   // into the `expo-splash-screen` config plugin, declared in `plugins` below.
   ios: {
@@ -42,7 +47,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'edu.csc325.subtrak',
     adaptiveIcon: {
-      backgroundColor: PAPER,
+      // The launcher icon is not themed by the OS; it keeps the brand cream.
+      backgroundColor: BG_LIGHT,
       foregroundImage: './assets/android-icon-foreground.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
@@ -59,9 +65,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         image: './assets/splash-icon.png',
         resizeMode: 'contain',
-        // Matches tokens.colors.paper, so the splash and the first screen share
-        // one ground and there is no flash of white between them.
-        backgroundColor: PAPER,
+        // Matches the theme's `bg`, so the splash and the first screen share one
+        // ground and there is no flash between them — in either appearance.
+        backgroundColor: BG_LIGHT,
+        dark: {
+          image: './assets/splash-icon.png',
+          backgroundColor: BG_DARK,
+        },
       },
     ],
   ],

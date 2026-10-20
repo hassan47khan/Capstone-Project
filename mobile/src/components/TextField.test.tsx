@@ -8,8 +8,8 @@
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
-import { declaredTouchHeight } from '@/test/render';
-import { colors, sizes } from '@/theme';
+import { declaredTouchHeight, flattenStyle } from '@/test/render';
+import { lightColors, sizes } from '@/theme';
 
 import { TextField } from './TextField';
 
@@ -109,9 +109,51 @@ describe('TextField', () => {
       );
 
       // The message is the primary signal; this is the redundant visual one.
-      const field = screen.getByTestId('p-error');
-      expect(field).toBeOnTheScreen();
+      expect(screen.getByTestId('p-error')).toBeOnTheScreen();
+      const box = flattenStyle(screen.getByTestId('p-box').props.style);
+      expect(box.borderColor).toBe(lightColors.danger);
+      expect(box.borderWidth).toBe(2);
     });
+
+    it('announces a newly appeared error politely', async () => {
+      await render(
+        <TextField
+          label="Price"
+          value="0"
+          onChangeText={jest.fn()}
+          error="Bad"
+          testID="p"
+        />,
+      );
+
+      expect(screen.getByTestId('p-error').props.accessibilityLiveRegion).toBe('polite');
+    });
+  });
+
+  describe('focus (02 §2)', () => {
+    it('draws a 2px accent border without moving the contents', async () => {
+      await render(
+        <TextField label="Name" value="" onChangeText={jest.fn()} testID="n" />,
+      );
+      const before = flattenStyle(screen.getByTestId('n-box').props.style);
+
+      await fireEvent(screen.getByTestId('n'), 'focus');
+      const after = flattenStyle(screen.getByTestId('n-box').props.style);
+
+      expect(after.borderColor).toBe(lightColors.accent);
+      expect(after.borderWidth).toBe(2);
+      // Border + padding is constant, so the text does not shift.
+      expect(Number(after.borderWidth) + Number(after.paddingHorizontal)).toBe(
+        Number(before.borderWidth) + Number(before.paddingHorizontal),
+      );
+    });
+  });
+
+  it('reserves the message slot even when there is nothing to say', async () => {
+    // So the form does not jump when an error appears.
+    await render(<TextField label="Name" value="" onChangeText={jest.fn()} testID="n" />);
+
+    expect(screen.getByTestId('n-message', { includeHiddenElements: true })).toBeTruthy();
   });
 
   describe('password field', () => {
@@ -224,6 +266,6 @@ describe('TextField', () => {
       : [helper.props.style];
     const merged = Object.assign({}, ...style.filter(Boolean));
 
-    expect(merged.color).not.toBe(colors.danger);
+    expect(merged.color).not.toBe(lightColors.danger);
   });
 });
