@@ -264,6 +264,82 @@ describe('modals (03 §3)', () => {
       'left',
     );
   });
+
+  it('header titles are 20pt (03 §4)', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+
+    expect(flattenStyle(screen.getByTestId('header-title').props.style).fontSize).toBe(20);
+  });
+});
+
+describe('tab stacks (03 §1)', () => {
+  beforeEach(async () => {
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+  });
+
+  const selectedTabs = () =>
+    screen
+      .getAllByRole('tab', HIDDEN)
+      .filter((tab) => tab.props.accessibilityState?.selected)
+      .map((tab) => tab.props.accessibilityLabel);
+
+  it.each([
+    ['Calendar', 'calendar-trial-shield', 'Trial Shield'],
+    ['Settings', 'settings-shared-plans', 'Shared plans'],
+    ['Settings', 'settings-connect-email', 'Connect email'],
+  ])(
+    '%s pushes %s inside the tab, with back and the tab bar kept',
+    async (tab, rowTestID, expectedTitle) => {
+      await renderApp();
+      await waitFor(() => expect(screen.getByTestId(`tab-${tab}`)).toBeOnTheScreen());
+      await fireEvent.press(screen.getByTestId(`tab-${tab}`));
+
+      await fireEvent.press(screen.getByTestId(rowTestID));
+
+      await waitFor(() =>
+        expect(screen.getByRole('header', { name: expectedTitle })).toBeOnTheScreen(),
+      );
+      expect(screen.getByRole('button', { name: `Back to ${tab}` })).toBeOnTheScreen();
+      expect(screen.getAllByTestId('tab-bar')).toHaveLength(1);
+      expect(selectedTabs()).toEqual([tab]);
+    },
+  );
+
+  it('tapping the selected tab pops its stack back to the root', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Calendar')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('tab-Calendar'));
+    await fireEvent.press(screen.getByTestId('calendar-trial-shield'));
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Trial Shield' })).toBeOnTheScreen(),
+    );
+
+    await fireEvent.press(screen.getByTestId('tab-Calendar'));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('header', { name: 'Trial Shield' })).toBeNull(),
+    );
+    expect(screen.getByRole('header', { name: 'Calendar' })).toBeOnTheScreen();
+  });
+
+  it('Connect email opens Review extraction as a modal, and no tab changes', async () => {
+    await renderApp();
+    await waitFor(() => expect(screen.getByTestId('tab-Settings')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('tab-Settings'));
+    await fireEvent.press(screen.getByTestId('settings-connect-email'));
+    await waitFor(() =>
+      expect(screen.getByTestId('connect-email-review')).toBeOnTheScreen(),
+    );
+
+    await fireEvent.press(screen.getByTestId('connect-email-review'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Review extraction' })).toBeOnTheScreen(),
+    );
+    expect(screen.getByRole('button', { name: 'Close' })).toBeOnTheScreen();
+    expect(selectedTabs()).toEqual(['Settings']);
+  });
 });
 
 describe('the full tree is navigable (03 §1)', () => {
@@ -276,6 +352,7 @@ describe('the full tree is navigable (03 §1)', () => {
     ['SelectTimeZone', undefined, 'Time zone'],
     ['NotificationRules', undefined, 'Notification rules'],
     ['ProfileAccount', undefined, 'Profile & account'],
+    ['ReviewExtraction', undefined, 'Review extraction'],
   ];
 
   it.each(APP_ROUTES)('App: %s', async (route, params, expectedTitle) => {

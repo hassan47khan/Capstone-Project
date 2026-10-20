@@ -1,12 +1,12 @@
 /**
- * Epic F seam — shared plans and the cost splitter (US-14, US-15).
+ * Shared plans seam — the cost splitter (US-14, US-15, handoff 11 §2.6).
  *
  * What this is for
- *   The types Epic F will use, and nothing else. The Family tab exists in the
- *   prototype but is not registered while `FEATURE_SHARING` is false — see
- *   src/navigation/TabNavigator.tsx.
+ *   The types the SharedPlans screen will use. That screen is a placeholder
+ *   pushed inside the Settings tab (src/navigation/TabNavigator.tsx). It is not
+ *   Family, which is handoff 10, a stretch goal, with no route at all.
  *
- * The rule Epic F must keep (specification section 9)
+ * The rule this feature must keep (specification section 9)
  *   Splits are calculated on the SERVER, in integer minor units, with a
  *   per-currency exponent table so JPY has no decimals and leftover cents go to
  *   participants in a fixed order. The client displays shares; it never divides

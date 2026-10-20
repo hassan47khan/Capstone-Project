@@ -11,6 +11,8 @@
  *   ├── Auth   (unauthenticated, or signed in but email unverified)
  *   └── App
  *       ├── MainTabs: Home · Calendar · Analytics · Settings  (+ the FAB)
+ *       │     Calendar → stack: CalendarMain, TrialShield
+ *       │     Settings → stack: SettingsMain, SharedPlans, ConnectEmail
  *       └── modal group, presented over the tabs
  *
  * Deliberately absent (03 §7): Welcome/landing, the feature tour, Admin Log In,
@@ -34,12 +36,29 @@ export type AuthStackParamList = {
   PasswordResetSuccess: undefined;
 };
 
+/**
+ * The Calendar tab's stack (handoff 11 §2.5). The root is `CalendarMain`, not
+ * `Calendar`, because React Navigation warns when a nested screen shares its
+ * parent's name.
+ */
+export type CalendarStackParamList = {
+  CalendarMain: undefined;
+  TrialShield: undefined;
+};
+
+/** The Settings tab's stack (handoff 11 §2.3, §2.6). Root named as above. */
+export type SettingsStackParamList = {
+  SettingsMain: undefined;
+  SharedPlans: undefined;
+  ConnectEmail: undefined;
+};
+
 /** The four bottom tabs. The FAB between Calendar and Analytics is not a tab. */
 export type MainTabParamList = {
   Home: undefined;
-  Calendar: undefined;
+  Calendar: NavigatorScreenParams<CalendarStackParamList>;
   Analytics: undefined;
-  Settings: undefined;
+  Settings: NavigatorScreenParams<SettingsStackParamList>;
 };
 
 /** Signed in: the tabs, plus the modal group presented over them. */
@@ -55,6 +74,8 @@ export type AppStackParamList = {
   SelectTimeZone: undefined;
   NotificationRules: undefined;
   ProfileAccount: undefined;
+  /** Opened from ConnectEmail or the scan list (handoff 11 §2.4). */
+  ReviewExtraction: undefined;
   /** Dev-only component gallery. Registered only when `__DEV__` is true. */
   DevGallery: undefined;
 };

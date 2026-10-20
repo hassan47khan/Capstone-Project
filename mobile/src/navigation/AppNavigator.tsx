@@ -3,7 +3,8 @@
  *
  * What it is for
  *   The tab navigator, plus the modal group presented over it: add, detail,
- *   edit and history for subscriptions, and the Settings sub-screens.
+ *   edit and history for subscriptions, the Settings sub-screens, and the AI
+ *   review screen (ReviewExtraction, 11 §2.4).
  *
  * The three modal rules (03 §3) and where each is enforced
  *   1. Add Subscription presents as a modal with a close (X). The group below
@@ -20,6 +21,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { GalleryScreen } from '@/features/dev/GalleryScreen';
+import { ReviewExtractionScreen } from '@/features/extraction/ReviewExtractionScreen';
 import { ConfirmCurrencyChangeSheet } from '@/features/settings/ConfirmCurrencyChangeSheet';
 import { NotificationRulesScreen } from '@/features/settings/NotificationRulesScreen';
 import { ProfileAccountScreen } from '@/features/settings/ProfileAccountScreen';
@@ -58,6 +60,7 @@ export function AppNavigator() {
         <Stack.Screen name="SelectTimeZone" component={SelectTimeZoneScreen} />
         <Stack.Screen name="NotificationRules" component={NotificationRulesScreen} />
         <Stack.Screen name="ProfileAccount" component={ProfileAccountScreen} />
+        <Stack.Screen name="ReviewExtraction" component={ReviewExtractionScreen} />
 
         {/* Development only: absent from a release bundle, so unreachable there. */}
         {__DEV__ ? <Stack.Screen name="DevGallery" component={GalleryScreen} /> : null}

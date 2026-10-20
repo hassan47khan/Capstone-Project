@@ -73,9 +73,10 @@ export function createTypography(colors: ColorTokens) {
       ...numericVariant,
     },
     /**
-     * Bottom-sheet titles (02 §12). Measured at 20/28 on the destructive sheet
-     * and 18 on the currency sheet; those are two drifted styles, so both
-     * normalize to the larger, as 02 §2 does for the form fields.
+     * Screen header titles (03 §4) and bottom-sheet titles (02 §12). Sheets
+     * measured at 20/28 on the destructive sheet and 18 on the currency sheet;
+     * those are two drifted styles, so both normalize to the larger, as 02 §2
+     * does for the form fields.
      */
     displaySm: {
       fontFamily: fontFamily.display,
@@ -84,7 +85,7 @@ export function createTypography(colors: ColorTokens) {
       letterSpacing: -0.3,
       color: colors.text,
     },
-    /** Screen and section titles. */
+    /** Section titles, empty and error states. */
     displayMd: {
       fontFamily: fontFamily.display,
       fontSize: 24,
