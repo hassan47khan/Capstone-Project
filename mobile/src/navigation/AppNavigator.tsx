@@ -1,32 +1,35 @@
 /**
- * The authenticated stack.
+ * The authenticated stack (handoff 03 §1, §3).
  *
- * What this is for
- *   The tab navigator, plus every screen that is pushed over it: subscription
- *   detail, the add/edit form, and the Settings branch.
+ * What it is for
+ *   The tab navigator, plus the modal group presented over it: add, detail,
+ *   edit and history for subscriptions, and the Settings sub-screens.
  *
- * Why these are pushed rather than being tabs
- *   The design shows no tab bar on a detail or form screen — they are
- *   destinations you come back from, not places you live. Pushing them onto a
- *   stack above the tabs gives that for free, with the platform's back gesture.
+ * The three modal rules (03 §3) and where each is enforced
+ *   1. Add Subscription presents as a modal with a close (X). The group below
+ *      sets `presentation: 'modal'`; the screen's Header renders the X.
+ *   2. A presented modal marks no tab as active. The modal is a sibling of
+ *      `MainTabs` in THIS stack, not a screen inside the tabs, so the tab
+ *      navigator's state — and its selected tab — is untouched underneath.
+ *   3. A dirty form confirms before it is discarded: `useDiscardGuard` in the
+ *      form screens (handoff 07 wires it to real form state).
  *
- * The AddEntry seam
- *   `AddEntry` currently forwards straight to the manual form. Epic D will
- *   replace it with the AI-or-manual choice screen. Every Add button in the app
- *   already points at `AddEntry`, so that swap is one file — which is the whole
- *   reason the indirection exists now, while it looks pointless.
+ * Motion (02 §15)
+ *   Modals slide up over 350ms. Under reduced motion they cross-fade instead.
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { GalleryScreen } from '@/features/dev/GalleryScreen';
-import { AddEntryScreen } from '@/features/subscriptions/AddEntryScreen';
+import { ConfirmCurrencyChangeSheet } from '@/features/settings/ConfirmCurrencyChangeSheet';
+import { NotificationRulesScreen } from '@/features/settings/NotificationRulesScreen';
+import { ProfileAccountScreen } from '@/features/settings/ProfileAccountScreen';
+import { SelectCurrencyScreen } from '@/features/settings/SelectCurrencyScreen';
+import { SelectTimeZoneScreen } from '@/features/settings/SelectTimeZoneScreen';
+import { AddSubscriptionScreen } from '@/features/subscriptions/AddSubscriptionScreen';
+import { EditHistoryScreen } from '@/features/subscriptions/EditHistoryScreen';
+import { EditSubscriptionScreen } from '@/features/subscriptions/EditSubscriptionScreen';
 import { SubscriptionDetailScreen } from '@/features/subscriptions/SubscriptionDetailScreen';
-import { SubscriptionFormScreen } from '@/features/subscriptions/SubscriptionFormScreen';
-import { CurrencyPickerScreen } from '@/features/settings/CurrencyPickerScreen';
-import { NotificationPreferencesScreen } from '@/features/settings/NotificationPreferencesScreen';
-import { ProfileScreen } from '@/features/settings/ProfileScreen';
-import { SettingsScreen } from '@/features/settings/SettingsScreen';
-import { TimeZonePickerScreen } from '@/features/settings/TimeZonePickerScreen';
+import { useMotion } from '@/theme';
 
 import { TabNavigator } from './TabNavigator';
 import type { AppStackParamList } from './types';
@@ -34,32 +37,38 @@ import type { AppStackParamList } from './types';
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 export function AppNavigator() {
+  const m = useMotion();
+
   return (
-    <Stack.Navigator initialRouteName="Tabs" screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Tabs" component={TabNavigator} />
+    <Stack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={TabNavigator} />
 
-      <Stack.Screen name="SubscriptionDetail" component={SubscriptionDetailScreen} />
-      <Stack.Screen name="AddEntry" component={AddEntryScreen} />
+      <Stack.Group
+        screenOptions={{
+          presentation: 'modal',
+          animation: m.moves ? 'slide_from_bottom' : 'fade',
+          animationDuration: m.modal,
+        }}
+      >
+        <Stack.Screen name="AddSubscription" component={AddSubscriptionScreen} />
+        <Stack.Screen name="SubscriptionDetail" component={SubscriptionDetailScreen} />
+        <Stack.Screen name="EditSubscription" component={EditSubscriptionScreen} />
+        <Stack.Screen name="EditHistory" component={EditHistoryScreen} />
+        <Stack.Screen name="SelectCurrency" component={SelectCurrencyScreen} />
+        <Stack.Screen name="SelectTimeZone" component={SelectTimeZoneScreen} />
+        <Stack.Screen name="NotificationRules" component={NotificationRulesScreen} />
+        <Stack.Screen name="ProfileAccount" component={ProfileAccountScreen} />
+
+        {/* Development only: absent from a release bundle, so unreachable there. */}
+        {__DEV__ ? <Stack.Screen name="DevGallery" component={GalleryScreen} /> : null}
+      </Stack.Group>
+
+      {/* A sheet over Select Currency: the screen below stays visible. */}
       <Stack.Screen
-        name="SubscriptionForm"
-        component={SubscriptionFormScreen}
-        // A form is a task you complete or abandon, so it slides up from the
-        // bottom and has a Cancel rather than a back link — matching the
-        // prototype's "New subscription" screen.
-        options={{ presentation: 'modal' }}
+        name="ConfirmCurrencyChange"
+        component={ConfirmCurrencyChangeSheet}
+        options={{ presentation: 'transparentModal', animation: 'none' }}
       />
-
-      <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="CurrencyPicker" component={CurrencyPickerScreen} />
-      <Stack.Screen name="TimeZonePicker" component={TimeZonePickerScreen} />
-      <Stack.Screen
-        name="NotificationPreferences"
-        component={NotificationPreferencesScreen}
-      />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
-
-      {/* Development only: absent from a release bundle, so unreachable there. */}
-      {__DEV__ ? <Stack.Screen name="DevGallery" component={GalleryScreen} /> : null}
     </Stack.Navigator>
   );
 }

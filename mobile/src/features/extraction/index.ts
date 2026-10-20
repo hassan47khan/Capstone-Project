@@ -9,8 +9,9 @@
  * Why the seam exists now
  *   The add-subscription flow branches on whether the AI path is offered. If
  *   that branch is introduced later, every Add button and its tests change. By
- *   routing Add through `AddEntry` today and having that screen ask
- *   `isExtractionAvailable()`, Epic D replaces one function and one screen.
+ *   routing every add through the one FAB → `AddSubscription` route (03 §2)
+ *   and having that screen ask `isExtractionAvailable()`, Epic D replaces one
+ *   function and one screen.
  *
  * The rule Epic D must keep (specification section 7)
  *   The model proposes a draft; the user edits and confirms; only then does the
@@ -57,7 +58,7 @@ export interface ExtractionAttempt {
  * returns false when the circuit breaker is open, the per-user daily cap is
  * reached, or the kill switch is off. Until then the feature flag answers for it.
  *
- * Always false in Phases 0–3, so `AddEntry` routes straight to the manual form.
+ * Always false in Phases 0–3, so `AddSubscription` is the manual form.
  */
 export async function isExtractionAvailable(): Promise<boolean> {
   return FEATURE_EXTRACTION;

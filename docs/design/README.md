@@ -20,26 +20,41 @@ radius 6, with a designed dark theme. The page map below still uses the PDF's
 page numbers for screen names. Every token that differs from Figma, and why, is
 in `mobile/src/theme/CONTRAST.md`.
 
-## Page map
+## Route map
 
-| Page | Screen | Epic | Phase | Status |
-| --- | --- | --- | --- | --- |
-| 1 | Visual language (tokens, type, components) | — | 0 | **Built** — `src/theme/tokens.ts`, `src/components/` |
-| 2 | Welcome | A | 1 | Placeholder |
-| 3 | Create your account | A (US-1) | 1 | Placeholder |
-| 4 | Welcome back (Log in) | A (US-2) | 1 | Placeholder |
-| 5 | Overview (Home) | C (US-6, US-8) | 2 | Placeholder |
-| 6 | Subscriptions list | C (US-6, US-7) | 2 | Placeholder |
-| 7 | Subscription detail | C (US-7) + H (US-19) | 2 | Placeholder |
-| 8 | New subscription | C (US-7) | 2 | Placeholder |
-| 9 | Insights | C (US-8) + G (US-17) | 2 | Placeholder |
-| 10 | Family (shared plan) | F (US-14, US-15) | — | **Out of scope.** Behind `FEATURE_SHARING` |
-| 11 | Settings | B (US-4, US-5) | 3 | Placeholder |
-| 12 | Currency picker | B (US-4) | 3 | Placeholder |
+The app's screens follow developer handoff `03-navigation.md` (since
+2026-10-19). That replaced the PDF prototype's page list. Every screen below
+exists and is navigable, and each is a placeholder until its handoff file is
+built.
 
-Three screens the app needs are **not in the prototype** and are designed in the
-same system: **Confirm email**, **Forgot password**, **Reset password** — all
-required by US-1 and US-3.
+| Route | Where | Handoff | Stories |
+| --- | --- | --- | --- |
+| Login | Auth stack (first screen) | 05 | US-2 |
+| Register | Auth stack | 05 | US-1 |
+| VerifyEmailSent | Auth stack; first screen for an unverified session | 05 | US-1 |
+| EmailConfirmed | Auth stack; `subtrak://verify-email?token=` | 05 | US-1 |
+| ForgotPassword → ResetLinkSent → CreateNewPassword → PasswordResetSuccess | Auth stack; `subtrak://reset-password?token=` opens CreateNewPassword | 05 | US-3 |
+| Home | Tab | 06 | US-6, US-8 |
+| Calendar | Tab | 11 §1 | — |
+| Analytics | Tab | 08 | US-8, US-17 |
+| Settings | Tab | 09 | US-4, US-5 |
+| AddSubscription | Modal, opened only by the tab-bar FAB | 07 | US-7 |
+| SubscriptionDetail | Modal; `subtrak://subscription/:id` | 07 | US-7, US-16, US-19 |
+| EditSubscription, EditHistory | Modal | 07 | US-7, US-16 |
+| SelectCurrency → ConfirmCurrencyChange (sheet), SelectTimeZone, NotificationRules, ProfileAccount | Modal, from Settings | 09 | US-4, US-5, US-12, US-13, US-18 |
+
+**Deliberately not built (03 §7):**
+- the Welcome/landing page;
+- the dashboard preview and the 6-card feature tour;
+- Admin Log In;
+- the Paywall;
+- the Family tab (handoff 10, a stretch goal; `SharedPlanScreen` is kept but
+  not registered).
+
+The navigation rules (03 §3):
+- The FAB is the only add affordance.
+- Modals close with an X and leave the tab beneath unchanged.
+- A dirty form asks before it is discarded.
 
 ## Where the design and the specification disagree
 

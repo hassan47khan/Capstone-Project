@@ -144,6 +144,73 @@ describe('Button', () => {
     });
   });
 
+  describe('destructiveOutline vs destructive (02 §1)', () => {
+    it('outlines the trigger and fills only the confirm', async () => {
+      await render(
+        <>
+          <Button
+            label="Delete Subscription"
+            variant="destructiveOutline"
+            onPress={jest.fn()}
+            testID="trigger"
+          />
+          <Button
+            label="Delete"
+            variant="destructive"
+            onPress={jest.fn()}
+            testID="confirm"
+          />
+        </>,
+      );
+
+      const trigger = StyleSheetFlatten(
+        screen.getByTestId('trigger-surface').props.style,
+      );
+      const confirm = StyleSheetFlatten(
+        screen.getByTestId('confirm-surface').props.style,
+      );
+
+      // The trigger takes NO danger tint: the prototype's tinted Remove button
+      // put its label at 4.29:1, an AA failure at 14px.
+      expect(trigger.backgroundColor).toBe('transparent');
+      expect(trigger.borderColor).toBe(lightColors.danger);
+      expect(trigger.borderWidth).toBe(1);
+
+      // A solid red button always means "this happens now".
+      expect(confirm.backgroundColor).toBe(lightColors.danger);
+      expect(confirm.borderWidth).toBeUndefined();
+    });
+
+    it('draws the outline label in danger, and Bold as 02 §1 tabulates', async () => {
+      await render(
+        <Button
+          label="Remove from Family"
+          variant="destructiveOutline"
+          onPress={jest.fn()}
+        />,
+      );
+
+      const label = StyleSheetFlatten(screen.getByText('Remove from Family').props.style);
+      expect(label.color).toBe(lightColors.danger);
+      expect(label.fontFamily).toBe('DMSans_700Bold');
+    });
+
+    it('keeps secondary and ghost SemiBold', async () => {
+      await render(
+        <>
+          <Button label="Cancel" variant="secondary" onPress={jest.fn()} />
+          <Button label="Forgot password?" variant="ghost" onPress={jest.fn()} />
+        </>,
+      );
+
+      for (const text of ['Cancel', 'Forgot password?']) {
+        expect(StyleSheetFlatten(screen.getByText(text).props.style).fontFamily).toBe(
+          'DMSans_600SemiBold',
+        );
+      }
+    });
+  });
+
   describe('motion', () => {
     afterEach(() => jest.restoreAllMocks());
 
@@ -174,21 +241,24 @@ describe('Button', () => {
   });
 
   describe('accessibility floor', () => {
-    it.each(['primary', 'secondary', 'destructive', 'ghost'] as const)(
-      '%s meets the 44pt minimum touch target',
-      async (variant) => {
-        await render(
-          <Button label="Action" onPress={jest.fn()} variant={variant} testID="btn" />,
-        );
+    it.each([
+      'primary',
+      'secondary',
+      'destructiveOutline',
+      'destructive',
+      'ghost',
+    ] as const)('%s meets the 44pt minimum touch target', async (variant) => {
+      await render(
+        <Button label="Action" onPress={jest.fn()} variant={variant} testID="btn" />,
+      );
 
-        const style = StyleSheetFlatten(screen.getByTestId('btn').props.style);
-        const effectiveHeight = style.height ?? style.minHeight ?? 0;
+      const style = StyleSheetFlatten(screen.getByTestId('btn').props.style);
+      const effectiveHeight = style.height ?? style.minHeight ?? 0;
 
-        expect(Math.max(effectiveHeight, style.minHeight ?? 0)).toBeGreaterThanOrEqual(
-          sizes.minTouch,
-        );
-      },
-    );
+      expect(Math.max(effectiveHeight, style.minHeight ?? 0)).toBeGreaterThanOrEqual(
+        sizes.minTouch,
+      );
+    });
 
     it('caps font scaling so a large system font cannot burst the button', async () => {
       await render(<Button label="Save" onPress={jest.fn()} />);

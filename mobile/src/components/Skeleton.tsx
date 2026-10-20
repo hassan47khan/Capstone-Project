@@ -38,8 +38,8 @@ export interface SkeletonProps {
   /** Pass a percentage string to vary line lengths so a block looks like text. */
   width?: DimensionValue;
   height?: number;
-  /** `tile` gives the squarer radius used for monogram placeholders. */
-  shape?: 'block' | 'tile';
+  /** `mark` gives the round radius of a ServiceMark placeholder. */
+  shape?: 'block' | 'mark';
   testID?: string;
 }
 
@@ -86,7 +86,7 @@ export function Skeleton({
         {
           width,
           height,
-          borderRadius: shape === 'tile' ? radius.avatar : radius.card,
+          borderRadius: shape === 'mark' ? radius.avatar : radius.card,
           opacity: pulse,
         },
       ]}
@@ -125,7 +125,7 @@ export function SkeletonGroup({
 }
 
 /**
- * The placeholder for one subscription row: tile, two lines of text, a price.
+ * The placeholder for one subscription row: mark, two lines of text, a price.
  * Matching the real row's 64pt height is what stops the list jumping when the
  * data arrives.
  */
@@ -133,7 +133,7 @@ export function SkeletonRow({ testID }: { testID?: string }) {
   const styles = useStyles();
   return (
     <View style={styles.row} testID={testID}>
-      <Skeleton width={sizes.tile} height={sizes.tile} shape="tile" />
+      <Skeleton width={sizes.mark} height={sizes.mark} shape="mark" />
       <View style={styles.rowText}>
         <Skeleton width="60%" height={16} />
         <Skeleton width="40%" height={12} />

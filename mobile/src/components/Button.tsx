@@ -2,11 +2,22 @@
  * Button — every tappable action in the app (handoff 02 §1).
  *
  * What it is for
- *   The four treatments the design uses, behind one component:
- *     primary      accent fill        the single main action on a screen
- *     secondary    outlined surface   an alternative action ("Cancel")
- *     destructive  danger fill        "Delete subscription", confirmed in a sheet
- *     ghost        accent label only  an inline action ("Forgot password?")
+ *   The five treatments the design uses, behind one component:
+ *     primary             accent fill       the single main action on a screen
+ *     secondary           outlined surface  an alternative action ("Cancel")
+ *     destructiveOutline  danger outline    the TRIGGER of a destructive flow
+ *     destructive         danger fill       the CONFIRM inside the sheet
+ *     ghost               accent label only an inline action ("Forgot password?")
+ *
+ * Why destructive comes in two forms
+ *   02 §1 splits them by position in the flow. `destructiveOutline` is what the
+ *   user taps first — Detail "Delete Subscription", Family "Remove {name} from
+ *   Family" — and solid `destructive` is reserved for the final button inside
+ *   the confirm sheet, so a filled red button always means "this happens now".
+ *
+ *   The outline variant stays transparent rather than taking a `danger` tint.
+ *   The prototype's Remove button tinted it and its label measured 4.29:1, an
+ *   AA failure at 14px; on `surface` the same label is 5.39:1 (CONTRAST.md).
  *
  * Why secondary and disabled look nothing alike
  *   In the prototype the Edit screen's "Cancel" read as disabled because both
@@ -30,8 +41,10 @@
  *   height         sizes.button (48), floor sizes.minTouch (44)
  *   radius         radius.button (6)
  *   padding        spacing.lg (16)
- *   label          typography.bodyLg — Bold on filled variants, SemiBold otherwise
+ *   label          typography.bodyLg — SemiBold on secondary and ghost, Bold on
+ *                  the rest (02 §1)
  *   secondary edge colors.borderControl, not `border` (1.51:1 fails 1.4.11)
+ *   outline edge   colors.danger
  *
  * Used by: every screen with an action.
  */
@@ -55,7 +68,8 @@ import {
   useTheme,
 } from '@/theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'ghost';
+export type ButtonVariant =
+  'primary' | 'secondary' | 'destructiveOutline' | 'destructive' | 'ghost';
 
 export interface ButtonProps {
   /** The visible label. Also the accessible name unless `accessibilityLabel` is set. */
@@ -130,9 +144,11 @@ export function Button({
     ? colors.textMuted
     : variant === 'primary' || variant === 'destructive'
       ? colors.onAccent
-      : variant === 'ghost'
-        ? colors.accent
-        : colors.text;
+      : variant === 'destructiveOutline'
+        ? colors.danger
+        : variant === 'ghost'
+          ? colors.accent
+          : colors.text;
 
   return (
     <Pressable
@@ -171,9 +187,9 @@ export function Button({
             <Text
               style={[
                 styles.label,
-                variant === 'primary' || variant === 'destructive'
-                  ? styles.labelBold
-                  : styles.labelSemiBold,
+                variant === 'secondary' || variant === 'ghost'
+                  ? styles.labelSemiBold
+                  : styles.labelBold,
                 { color: labelColor },
               ]}
               numberOfLines={1}
@@ -215,6 +231,14 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     borderColor: colors.borderControl,
   },
   secondaryPressed: { backgroundColor: colors.surface2 },
+  destructiveOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: sizes.hairline,
+    borderColor: colors.danger,
+  },
+  // No `danger` tint on press either: the fill the prototype used is what made
+  // the label fail AA. The pressed state borrows the neutral `surface2`.
+  destructiveOutlinePressed: { backgroundColor: colors.surface2 },
   ghost: { backgroundColor: 'transparent' },
   ghostPressed: { backgroundColor: colors.surface2 },
   disabled: { backgroundColor: colors.surface2 },

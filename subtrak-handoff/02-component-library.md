@@ -368,7 +368,10 @@ Visual height 28; **touch target 44** via `hitSlop`. Chips sit in a horizontally
 scrolling row (gap 8, 16 gutters) — the prototype wrapped them onto multiple
 lines.
 
-**A11y:** `accessibilityRole="button"`, `accessibilityState={{ selected }}`.
+**A11y:** `accessibilityState={{ selected }}`. **As built the role is `radio`,
+not `button`** — the row is a single-choice group, so "radio button,
+Entertainment, selected" tells a screen-reader user what "button, Entertainment"
+does not. The selected state is set either way.
 
 ---
 
@@ -392,8 +395,12 @@ Measured: radius 4, padding 8–10h / 4v, DM Sans Bold. **12px** (the prototype'
 | Variant | Fill | Text |
 |---|---|---|
 | `success` | `color.success` @ 10% | `color.success` |
-| `neutral` | `color.surface2` | `color.textMuted` |
+| `neutral` | `color.surface2` | `color.text` — **see below** |
 | `warning` | `color.warningSurface` | `color.text` (not `warning` — 3.79:1 fails) |
+
+`neutral` text is `color.text`, not the `textMuted` first listed here: muted grey
+on `surface2` measures 4.28:1, which fails AA at 12px for the same reason
+`warning` on its own tint does. Both tones take full-strength text.
 
 Used for "12 active", "Active", "Cancelled", "Trial". Never a pill.
 
@@ -430,6 +437,13 @@ beside it. Tint/brand pairs and their (low) contrast are in `01 §3`.
 ---
 
 ## 22. Definition of done
+
+> **Status:** all 21 are built in `mobile/src/components`, consuming tokens only.
+> The `ProgressBar` and confidence chip of the note above §20 remain deferred to
+> the AI epic (`11 §2`), as that note directs. Three of the 21 landed under the
+> names the code already used for the same pattern, so there is one component per
+> pattern rather than two: `FilterChip` (§17), `AlertCard` (§20) and
+> `ServiceMark` (§21) replaced the earlier `Chip`, `NoticeBanner` and `Tile`.
 
 - [ ] All 21 components built, consuming tokens only.
 - [ ] Every component has TypeScript props, an `accessibilityRole`, and a label.

@@ -25,7 +25,7 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 | Area | State |
 | --- | --- |
 | Backend | Sprint 0 spike merged. MongoDB, custom user model, JWT wiring, `GET /health/` and `GET /me/`. 17 tests, 93% coverage, green in CI. No story endpoints yet. |
-| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation shell, 337 tests. Every screen is still a placeholder. |
+| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links), 412 tests. Every screen is still a placeholder. |
 | CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. They are **not yet required checks** — see [Continuous Integration](#continuous-integration). |
 | Docs | System design specification and visual prototype are done. |
 
@@ -282,7 +282,7 @@ development build, **Settings → Component gallery** shows every component in
 every state, with a light/dark switch.
 
 There is no device or simulator on the development machine. What is verified is
-`tsc`, ESLint, Prettier and Jest (337 tests). Layout, font scaling, the live
+`tsc`, ESLint, Prettier and Jest (412 tests). Layout, font scaling, the live
 light/dark switch and native modules are **not** verified. Run the app in Expo
 Go on a phone to check those.
 

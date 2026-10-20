@@ -1,0 +1,19 @@
+# Store and check out text files with LF, whatever core.autocrlf says.
+#
+# The repo has always stored LF and mobile/.prettierrc enforces it
+# ("endOfLine": "lf"). Without this file, a Windows checkout with
+# core.autocrlf=true writes CRLF to the working tree, and `npm run verify`
+# fails format:check on every file even though nothing is misformatted.
+* text=auto eol=lf
+
+# Binary: never touch line endings or diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary

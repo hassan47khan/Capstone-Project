@@ -1,8 +1,11 @@
 /**
  * Reset your password screen.
  *
- * Placeholder. The real screen is built in Phase 1 — Epic A and satisfies US-3.
+ * Placeholder. The real screen is built in Phase 2 — handoff 05 (Epic A) and satisfies US-3.
  * See src/features/Placeholder.tsx for why these exist.
+ *
+ * The back button shows only when there is somewhere to go back to: the
+ * auth gate and deep links can open this screen as the first in the stack.
  */
 import { useNavigation } from '@react-navigation/native';
 
@@ -14,9 +17,9 @@ export function ForgotPasswordScreen() {
   return (
     <Placeholder
       title="Reset your password"
-      phase="Phase 1 — Epic A"
+      phase="Phase 2 — handoff 05 (Epic A)"
       stories="US-3"
-      backLabel="Log in"
+      backLabel={navigation.canGoBack() ? 'Log in' : undefined}
       onBack={() => navigation.goBack()}
     />
   );
