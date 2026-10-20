@@ -43,6 +43,27 @@ RootNavigator
 
 ---
 
+### 1.1 React Navigation 7 file layout
+
+```
+src/navigation/
+├── RootNavigator.tsx        auth gate; AuthStack vs AppStack
+├── AuthStack.tsx
+├── AppStack.tsx             MainTabs + ModalStack (presented over tabs)
+├── MainTabs.tsx / TabNavigator.tsx   the one TabBar; FAB opens AddSubscription
+├── CalendarStack.tsx        Calendar, TrialShield          (11 §2.5)
+├── SettingsStack.tsx        Settings, SharedPlans, ConnectEmail   (11 §2.6)
+├── ModalStack.tsx           AddSubscription, SubscriptionDetail, EditSubscription,
+│                            EditHistory, SelectCurrency, SelectTimeZone,
+│                            NotificationRules, ProfileAccount, ReviewExtraction
+└── linking.ts               deep links (§6)
+```
+
+Each tab that has sub-screens owns a stack file, so a teammate adds a screen by
+registering it in that stack file. Screens not built yet register as placeholders.
+Shared Plans and Connected email are part of the **graded AI epic**, not the Family
+stretch goal; they get placeholder routes now.
+
 ## 2. Tab bar
 
 Exact values from Figma node `21:52`:
