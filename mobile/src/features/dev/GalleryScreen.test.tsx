@@ -25,6 +25,11 @@ function InNavigator() {
   );
 }
 
+/**
+ * Every section the gallery draws. 02 §22's definition of done requires the
+ * gallery to show every component in every state, so a new component that is
+ * not listed here is a failing test rather than a thing nobody notices.
+ */
 const SECTIONS = [
   'Theme',
   'Button',
@@ -36,6 +41,18 @@ const SECTIONS = [
   'SettingsRow + Toggle',
   'Card',
   'ListRow',
+  'ListRow - compact (02 S9)',
+  'ServiceMark (02 S21)',
+  'Stepper (02 S16)',
+  'SearchField (02 S18)',
+  'FilterChip (02 S17)',
+  'Badge (02 S19)',
+  'AlertCard (02 S20)',
+  'Toggle (02 S7)',
+  'Amount',
+  'StackedBar + BarRow',
+  'SectionHeader - with a category square',
+  'ErrorState',
   'CategoryBadge',
   'BottomSheet + Toast',
   'EmptyState',

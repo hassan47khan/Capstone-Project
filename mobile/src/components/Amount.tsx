@@ -25,6 +25,10 @@
  *   hero       typography.displayLg (28)
  *   large      typography.displayMd (24)
  *   row        typography.price (DM Sans Bold 16, accent) — no split
+ *   compact    typography.labelMd (DM Sans Medium 14, text) — the trailing
+ *              amount on a ListRow `compact`, which 02 §9 draws in `text` and
+ *              not `accent`: a dozen accent figures down Home's renewals list
+ *              would out-shout the one hero total above them
  *
  * Used by: Home hero, Insights totals, Subscription detail price, list rows.
  */
@@ -45,8 +49,9 @@ export interface AmountProps {
    * hero  — the single biggest figure on a screen (Home monthly spend)
    * large — a secondary headline figure (Insights, detail price)
    * row   — inline in a list row, at interface size with no size split
+   * compact — inline in a ListRow `compact`, quieter than `row`
    */
-  size?: 'hero' | 'large' | 'row';
+  size?: 'hero' | 'large' | 'row' | 'compact';
 
   /**
    * Marks the figure as not converted to the display currency, because no
@@ -70,15 +75,18 @@ export function Amount({
   const styles = useStyles();
   const { symbol, whole, fraction, display } = formatMoney(value, currency);
 
-  // The row size is ordinary interface text — no split, no serif display face.
-  if (size === 'row') {
+  // The inline sizes are ordinary interface text — no split, no serif face.
+  if (size === 'row' || size === 'compact') {
     return (
       <View
         style={styles.inlineGroup}
         accessible
         accessibilityLabel={labelFor(display, unconverted)}
       >
-        <Text style={[styles.rowAmount, style]} testID={testID}>
+        <Text
+          style={[size === 'compact' ? styles.compactAmount : styles.rowAmount, style]}
+          testID={testID}
+        >
           {display}
         </Text>
         {unconverted ? <Text style={styles.marker}>*</Text> : null}
@@ -148,6 +156,10 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   },
   rowAmount: {
     ...typography.price,
+  },
+  compactAmount: {
+    ...typography.labelMd,
+    ...numericVariant,
   },
   marker: {
     ...typography.caption,

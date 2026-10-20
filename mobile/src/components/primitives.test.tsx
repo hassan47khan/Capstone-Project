@@ -15,26 +15,28 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ApiError } from '@/api/errors';
-import { declaredTouchHeight, flattenStyle } from '@/test/render';
+import { flattenStyle } from '@/test/render';
 import {
   darkCategoryColors,
   darkServicePalette,
   lightCategoryColors,
+  lightColors,
+  radius,
   serviceTint,
   sizes,
   ThemeProvider,
 } from '@/theme';
 
+import { AlertCard } from './AlertCard';
 import { Amount } from './Amount';
 import { Badge } from './Badge';
 import { BarRow } from './BarRow';
-import { Chip } from './Chip';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
-import { NoticeBanner } from './NoticeBanner';
+import { FilterChip } from './FilterChip';
+import { ServiceMark } from './ServiceMark';
 import { Skeleton, SkeletonGroup, SkeletonRow } from './Skeleton';
 import { StackedBar } from './StackedBar';
-import { Tile } from './Tile';
 
 /**
  * Opts a query into elements hidden from the accessibility tree.
@@ -83,60 +85,93 @@ describe('Amount', () => {
 
 describe('Badge', () => {
   it('announces itself as a status rather than a loose word', async () => {
-    await render(<Badge label="Trial" tone="notice" />);
+    await render(<Badge label="Trial" tone="warning" />);
 
     expect(screen.getByLabelText('Status: Trial')).toBeOnTheScreen();
   });
 
   it('always shows the word, so colour is never the only signal', async () => {
-    await render(<Badge label="Active" tone="accent" />);
+    await render(<Badge label="Active" tone="success" />);
 
     expect(screen.getByText('Active')).toBeOnTheScreen();
   });
+
+  it('is Bold 12 at the type floor, never a pill (02 §19)', async () => {
+    // The prototype's 10px count badge is raised to 01 §4's 12pt floor.
+    await render(<Badge label="12 active" tone="success" testID="badge" />);
+
+    const label = flattenStyle(screen.getByText('12 active').props.style);
+    expect(label.fontSize).toBe(12);
+    expect(label.fontFamily).toBe('DMSans_700Bold');
+    expect(flattenStyle(screen.getByTestId('badge').props.style).borderRadius).toBe(
+      radius.badge,
+    );
+  });
+
+  it.each([
+    ['success', 'successSurface', 'success'],
+    ['neutral', 'surface2', 'text'],
+    ['warning', 'warningSurface', 'text'],
+  ] as const)('tone %s pairs its measured fill and text', async (tone, fill, text) => {
+    // `neutral` and `warning` take `text`, not `textMuted`: muted grey is
+    // 4.28:1 on surface2 and 4.22:1 on the warning tint — both AA failures.
+    await render(<Badge label="State" tone={tone} testID="badge" />);
+
+    expect(flattenStyle(screen.getByTestId('badge').props.style).backgroundColor).toBe(
+      lightColors[fill],
+    );
+    expect(flattenStyle(screen.getByText('State').props.style).color).toBe(
+      lightColors[text],
+    );
+  });
 });
 
-describe('Chip', () => {
+describe('FilterChip (02 §17)', () => {
   it('announces its selected state', async () => {
     // Without this the current filter is invisible to a screen-reader user.
-    await render(<Chip label="Streaming" selected onPress={jest.fn()} />);
+    await render(<FilterChip label="Streaming" selected onPress={jest.fn()} />);
 
     expect(screen.getByRole('radio', { name: 'Streaming' })).toBeSelected();
   });
 
   it('fires onPress', async () => {
     const onPress = jest.fn();
-    await render(<Chip label="Software" selected={false} onPress={onPress} />);
+    await render(<FilterChip label="Software" selected={false} onPress={onPress} />);
 
     await fireEvent.press(screen.getByRole('radio'));
 
     expect(onPress).toHaveBeenCalled();
   });
 
-  it('meets the 44pt touch target', async () => {
-    await render(<Chip label="All" selected onPress={jest.fn()} testID="chip" />);
+  it('draws at 28 and reaches 44 through hitSlop', async () => {
+    // 02 §17 measures 28. Growing the box would make a filter row read as a
+    // row of buttons, so the slop — not the height — carries the touch floor.
+    await render(<FilterChip label="All" selected onPress={jest.fn()} testID="chip" />);
 
-    expect(
-      declaredTouchHeight(screen.getByTestId('chip').props.style),
-    ).toBeGreaterThanOrEqual(sizes.minTouch);
+    const chip = screen.getByTestId('chip');
+    expect(flattenStyle(chip.props.style).height).toBe(sizes.chipVisual);
+
+    const { top, bottom } = chip.props.hitSlop;
+    expect(sizes.chipVisual + top + bottom).toBeGreaterThanOrEqual(sizes.minTouch);
   });
 });
 
-describe('Tile', () => {
+describe('ServiceMark (02 §21)', () => {
   it('shows the first letter of the name, uppercased', async () => {
-    await render(<Tile name="streamly plus" />);
+    await render(<ServiceMark name="streamly plus" />);
 
     expect(screen.getByText('S', HIDDEN)).toBeOnTheScreen();
   });
 
   it('does not split a multi-byte character in half', async () => {
     // `name[0]` on an emoji yields half a surrogate pair and a broken glyph.
-    await render(<Tile name="🎬 Movie Club" />);
+    await render(<ServiceMark name="🎬 Movie Club" />);
 
     expect(screen.getByText('🎬', HIDDEN)).toBeOnTheScreen();
   });
 
   it('falls back to a question mark for a blank name', async () => {
-    await render(<Tile name="   " />);
+    await render(<ServiceMark name="   " />);
 
     expect(screen.getByText('?', HIDDEN)).toBeOnTheScreen();
   });
@@ -144,7 +179,11 @@ describe('Tile', () => {
   it('uses the catalog brand colours when given them', async () => {
     // 01 §3: service logos use brand colour, observed on Netflix.
     await render(
-      <Tile name="Netflix" brand={{ tint: '#ffecee', ink: '#e50914' }} testID="tile" />,
+      <ServiceMark
+        name="Netflix"
+        brand={{ tint: '#ffecee', ink: '#e50914' }}
+        testID="tile"
+      />,
     );
 
     const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
@@ -154,7 +193,7 @@ describe('Tile', () => {
   it('derives the same tint from the same name every time', async () => {
     // A user-entered service has no brand entry. Random would make the row
     // change colour between launches.
-    await render(<Tile name="Northside Gym" testID="tile" />);
+    await render(<ServiceMark name="Northside Gym" testID="tile" />);
 
     const style = flattenStyle(screen.getByTestId('tile', HIDDEN).props.style);
     expect(style.backgroundColor).toBe(serviceTint('Northside Gym').tint);
@@ -164,7 +203,7 @@ describe('Tile', () => {
   it('switches to the dark service palette in the dark theme', async () => {
     await render(
       <ThemeProvider initialPreference="dark">
-        <Tile name="Northside Gym" testID="tile" />
+        <ServiceMark name="Northside Gym" testID="tile" />
       </ThemeProvider>,
     );
 
@@ -172,6 +211,43 @@ describe('Tile', () => {
     expect(style.backgroundColor).toBe(
       serviceTint('Northside Gym', darkServicePalette).tint,
     );
+  });
+
+  it('prefers the catalog mark over the initial, at up to two characters', async () => {
+    // 02 §21: "iC" for iCloud, not "I".
+    await render(<ServiceMark name="iCloud+" mark="iC" />);
+
+    expect(screen.getByText('iC', HIDDEN)).toBeOnTheScreen();
+  });
+
+  // 02 §21: radius is always half the diameter and the mark always 0.375 of it,
+  // so adding a size needs no new measurement.
+  it.each([
+    ['compact', sizes.markCompact],
+    ['row', sizes.mark],
+    ['medium', sizes.markMedium],
+    ['large', sizes.markLarge],
+  ] as const)('is a circle with a 0.375 mark at %s', async (size, diameter) => {
+    await render(<ServiceMark name="Netflix" size={size} testID="mark" />);
+
+    const style = flattenStyle(screen.getByTestId('mark', HIDDEN).props.style);
+    expect(style.width).toBe(diameter);
+    expect(style.height).toBe(diameter);
+    expect(style.borderRadius).toBe(diameter / 2);
+
+    const letter = flattenStyle(screen.getByText('N', HIDDEN).props.style);
+    expect(letter.fontSize).toBe(diameter * 0.375);
+  });
+
+  it('is a 28pt rounded square when square, whatever size is asked for', async () => {
+    // 02 §21 draws the square at one size only, on Member detail (10 §3.4).
+    await render(
+      <ServiceMark name="Netflix" shape="square" size="large" testID="mark" />,
+    );
+
+    const style = flattenStyle(screen.getByTestId('mark', HIDDEN).props.style);
+    expect(style.width).toBe(sizes.markSquare);
+    expect(style.borderRadius).toBe(radius.card);
   });
 });
 
@@ -267,11 +343,9 @@ describe('BarRow', () => {
   });
 });
 
-describe('NoticeBanner', () => {
+describe('AlertCard (02 §20)', () => {
   it('is announced as an alert so it is not missed', async () => {
-    await render(
-      <NoticeBanner message="Streamly Plus is going up to $17.99 on Oct 3." />,
-    );
+    await render(<AlertCard message="Streamly Plus is going up to $17.99 on Oct 3." />);
 
     expect(
       screen.getByRole('alert', {
@@ -282,7 +356,7 @@ describe('NoticeBanner', () => {
 
   it('becomes a button when it has somewhere to go', async () => {
     const onPress = jest.fn();
-    await render(<NoticeBanner message="A thing happened." onPress={onPress} />);
+    await render(<AlertCard message="A thing happened." onPress={onPress} />);
 
     await fireEvent.press(screen.getByRole('button'));
 

@@ -23,13 +23,14 @@ Thresholds (WCAG 2.1 AA):
 | `category.healthWellness` | `#5d9088` | `#547f78` | It was 2.95:1 on `surface2`. It is now 3.66.                                                                                                                                                     |
 | `borderControl` (new)     | n/a       | `#8f897c` | Figma's `border` `#d8d2c5` is 1.51:1 on white, so it can't be an input outline. `border` stays for cards and dividers, which are decorative.                                                     |
 | `radius.button`           | 5         | 6         | Cards are 6 and buttons are 5, a 1px difference that was almost certainly unintentional. Both are normalized to 6.                                                                               |
+| `toggleOff` (light)       | flattened | `#76817d` | Figma's toggles are flattened SVGs, so the off colour had to be decided. 02 §7 decides `#76817d`; this file first shipped the lighter `#8b877d` (3.58:1). The decided value is 4.03:1.           |
 
 ## New pairs: light and dark
 
 | Pair                              | Light | Dark  | Needs |
 | --------------------------------- | ----- | ----- | ----- |
 | borderControl on surface          | 3.48  | 3.93  | 3.0   |
-| toggleOff on surface (switch off) | 3.58  | 3.93  | 3.0   |
+| toggleOff on surface (switch off) | 4.03  | 3.93  | 3.0   |
 | accent on accentSurface           | 6.23  | 5.09  | 4.5   |
 | danger on dangerSurface           | 4.67  | 5.64  | 4.5   |
 | text on bg                        | 14.00 | 14.42 | 4.5   |

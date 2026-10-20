@@ -77,8 +77,9 @@ export interface ColorTokens {
   dangerSurface: string;
 
   /**
-   * The backdrop behind a bottom sheet: black at 40% (02 §12). A colour string,
-   * not a hex, like the `warning` fills below — translucency lives in tokens so
+   * The backdrop behind a bottom sheet: black at 70% — the value measured on
+   * both sheets, confirm and destructive alike (02 §12). A colour string, not a
+   * hex, like the `warning` fills below: translucency lives in tokens so
    * components never spell `rgba(` themselves.
    */
   scrim: string;
@@ -134,7 +135,7 @@ export const lightColors: ColorTokens = {
   dangerPressed: '#a64131',
   dangerSurface: '#f9ece8',
 
-  scrim: 'rgba(0, 0, 0, 0.4)',
+  scrim: 'rgba(0, 0, 0, 0.7)',
 
   // Measured at Home node 4:2968, with the alphas Figma draws.
   warning: '#996b13',
@@ -144,7 +145,7 @@ export const lightColors: ColorTokens = {
 
   // The Figma tab bar is plain surface.
   tabBar: '#ffffff',
-  toggleOff: '#8b877d',
+  toggleOff: '#76817d',
 };
 
 /**
@@ -175,7 +176,7 @@ export const darkColors: ColorTokens = {
   dangerPressed: '#d37f6d',
   dangerSurface: '#3b2420',
 
-  scrim: 'rgba(0, 0, 0, 0.4)',
+  scrim: 'rgba(0, 0, 0, 0.7)',
 
   // Figma's #996b13 lightened, like accent/danger/success are: at the same
   // alphas over a dark ground the amber fills drift *towards* the ink, and the
@@ -378,8 +379,8 @@ export const radius = {
   avatar: 20,
   /** 48px centre add button. */
   fab: 24,
-  /** Top corners of a bottom sheet (02 §12). */
-  sheet: 16,
+  /** Top corners of a bottom sheet — measured at 24 on both sheets (02 §12). */
+  sheet: 24,
 } as const;
 
 /** The floor for anything tappable. Graded, and enforced by component tests. */
@@ -413,8 +414,16 @@ export const sizes = {
   /** Settings rows — Figma node 3:1819 (02 §11). */
   rowSettings: 46,
   rowSettingsToggle: 52,
-  /** Settings-row stepper buttons (02 §11). */
+  /** Settings-row stepper buttons (02 §11) — 28 visible, 44 to the finger. */
   stepper: 28,
+  /** Standalone Stepper control, beside a Select of the same height (02 §16). */
+  stepperControl: 44,
+  /** The − and + glyphs inside a standalone Stepper (02 §16). */
+  iconStepper: 14,
+  /** Search field (02 §18) — 44, not the 52 of a form field. */
+  search: 44,
+  /** FilterChip: 28 drawn, 44 to the finger via hitSlop (02 §17). */
+  chipVisual: 28,
   /** Toggle track and thumb (02 §7). */
   toggleWidth: 40,
   toggleHeight: 24,
@@ -426,9 +435,15 @@ export const sizes = {
   borderFocus: 2,
   /** The circle behind a warning banner's icon — 01 §1 `warningIconBg`. */
   warningIcon: 40,
-  /** Service logo circle in a list row, and the larger one on a detail screen. */
-  tile: 40,
-  tileLarge: 72,
+  /**
+   * ServiceMark diameters (02 §21). The four the design draws, plus the 28
+   * square used by the dense member-subscription rows on Member detail.
+   */
+  markSquare: 28,
+  markCompact: 36,
+  mark: 40,
+  markMedium: 44,
+  markLarge: 72,
   /** Height of a stacked bar and of a single category bar (Figma bar track: 12). */
   barStacked: 12,
   barRow: 12,
@@ -453,6 +468,14 @@ export const sizes = {
   /** Bottom-sheet grabber (02 §12). */
   grabberWidth: 40,
   grabberHeight: 4,
+  /**
+   * The destructive sheet's header (02 §12, measured on the Delete sheet
+   * `4:4330`): a 48px `dangerSurface` circle holding a 24px alert triangle, and
+   * a 34pt bottom padding that the safe-area inset is added to.
+   */
+  sheetIconCircle: 48,
+  iconAlert: 24,
+  sheetBottomDestructive: 34,
   /** Toast minimum height (02 §13). */
   toast: 44,
   /** Readable measure for centred prose (EmptyState). */

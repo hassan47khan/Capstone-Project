@@ -14,29 +14,39 @@
  * Colour never carries the meaning alone: the word is always present. The tint
  * is reinforcement, not information.
  *
+ * Never a pill (02 §19): the radius is the measured 4, so a badge does not read
+ * as a tappable chip.
+ *
  * Design tokens
  *   radius      radius.badge (4, measured — 01 §5)
+ *   padding     spacing.sm (8) horizontal, spacing.xs (4) vertical
+ *   label       typography.caption at DM Sans Bold — 12px, the 01 §4 floor. The
+ *               prototype's 10px count badge is raised to it.
+ *   success     colors.successSurface background, colors.success text (4.79:1)
  *   neutral     colors.surface2 background, colors.text text
- *   accent      colors.accentSurface background, colors.accent text
- *   notice      colors.warningSurface background, colors.text text
- *   text        typography.labelSemibold
+ *   warning     colors.warningSurface background, colors.text text
  *
- * Used by: Subscription detail, Subscriptions list rows.
+ * Deviations from 02 §19
+ *   `neutral` text is `text`, not `textMuted`: muted grey on `surface2` is
+ *   4.28:1, an AA failure (CONTRAST.md). `warning` text is `text` for the same
+ *   reason — 02 §19 already notes `warning` on its own tint is 3.79:1.
+ *
+ * Used by: Subscription detail, Subscriptions list rows, Insights counts.
  */
 import { Text, View } from 'react-native';
 
-import { makeStyles, radius, spacing } from '@/theme';
+import { fontFamily, makeStyles, radius, spacing } from '@/theme';
 
-export type BadgeTone = 'neutral' | 'accent' | 'notice';
+export type BadgeTone = 'success' | 'neutral' | 'warning';
 
 export interface BadgeProps {
   /** The word shown. Short — one or two words at most. */
   label: string;
 
   /**
-   * neutral — cancelled, or any inert state
-   * accent  — active, the healthy state
-   * notice  — trial, or anything that needs attention before a date
+   * success — "Active", "12 active": the healthy state
+   * neutral — "Cancelled", or any inert state
+   * warning — "Trial", or anything needing attention before a date
    */
   tone?: BadgeTone;
 
@@ -63,18 +73,19 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   badge: {
     alignSelf: 'flex-start',
     borderRadius: radius.badge,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   label: {
-    ...typography.labelSemibold,
+    ...typography.caption,
+    fontFamily: fontFamily.bodyBold,
   },
+  success: { backgroundColor: colors.successSurface },
+  successText: { color: colors.success },
   neutral: { backgroundColor: colors.surface2 },
   // Not textMuted: muted text on surface2 is 4.28:1, below AA (see CONTRAST.md).
   neutralText: { color: colors.text },
-  accent: { backgroundColor: colors.accentSurface },
-  accentText: { color: colors.accent },
-  notice: { backgroundColor: colors.warningSurface },
+  warning: { backgroundColor: colors.warningSurface },
   // Text on the warning tint is `text`, never muted grey (01 §1).
-  noticeText: { color: colors.text },
+  warningText: { color: colors.text },
 }));
