@@ -36,7 +36,9 @@ not the artefact.
   `todo`, `blocked`, `done`, `open`, `current`.
 - Templates live in `99 - Templates` (Task, Bug Report, Code Review, Log Entry).
   Insert them with the Templates plugin so `{{date}}` resolves.
-- Daily notes go in `04 - Logs` as `YYYY-MM-DD.md`.
+- Session logs go in `04 - Logs` as `YYYY-MM-DD branch-slug.md`. They are
+  gitignored and stay on your machine; anything others need goes in a tracked
+  note or the PR description.
 - Link with wiki-style double-bracket links, including to notes that do not exist yet — an
   unresolved link marks something worth writing.
 
@@ -45,7 +47,8 @@ not the artefact.
 Dates are absolute, never "last week". When a note records a figure that can
 drift — a test count, a coverage percentage, a commit — say when it was measured
 and whether it was re-run or copied from a commit message. [[Repo State]] is the
-one note meant to be rewritten rather than appended to; everything else gets a
+one note meant to be rewritten rather than appended to. It describes only
+`main`, and only whoever merged a PR rewrites it, right after the merge; everything else gets a
 "Since this note was written" section so the original reasoning survives.
 
 Spec references are by section number, matching the convention in the backend's

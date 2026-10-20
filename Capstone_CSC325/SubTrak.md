@@ -41,6 +41,6 @@ Folders are numbered so the file explorer stays in reading order:
 `99 - Templates`. Templates are in `99 - Templates` (Task, Bug Report, Code
 Review, Log Entry) — insert with the Templates plugin rather than copying.
 
-Daily work goes in `04 - Logs` as `YYYY-MM-DD.md`. Task notes carry
-`status` / `owner` / `due` front matter so the file explorer and search can
-filter on them. See [[CLAUDE]] for the full set.
+Session logs go in `04 - Logs` as `YYYY-MM-DD branch-slug.md`, local-only and
+gitignored. Task notes carry `status` / `owner` / `due` front matter so the
+file explorer and search can filter on them. See [[CLAUDE]] for the full set.
