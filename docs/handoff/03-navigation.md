@@ -46,17 +46,29 @@ RootNavigator
 ### 1.1 React Navigation 7 file layout
 
 ```
-src/navigation/
-├── RootNavigator.tsx        auth gate; AuthStack vs AppStack
-├── AuthStack.tsx
-├── AppStack.tsx             MainTabs + ModalStack (presented over tabs)
-├── MainTabs.tsx / TabNavigator.tsx   the one TabBar; FAB opens AddSubscription
-├── CalendarStack.tsx        Calendar, TrialShield          (11 §2.5)
-├── SettingsStack.tsx        Settings, SharedPlans, ConnectEmail   (11 §2.6)
-├── ModalStack.tsx           AddSubscription, SubscriptionDetail, EditSubscription,
+mobile/src/navigation/
+├── RootNavigator.tsx        auth gate (§5); mounts Auth or App, never both
+├── AuthNavigator.tsx        Login, Register, VerifyEmailSent, EmailConfirmed,
+│                            ForgotPassword, ResetLinkSent, CreateNewPassword,
+│                            PasswordResetSuccess
+├── AppNavigator.tsx         MainTabs + the modal group (presented over tabs):
+│                            AddSubscription, SubscriptionDetail, EditSubscription,
 │                            EditHistory, SelectCurrency, SelectTimeZone,
-│                            NotificationRules, ProfileAccount, ReviewExtraction
-└── linking.ts               deep links (§6)
+│                            NotificationRules, ProfileAccount, ReviewExtraction;
+│                            ConfirmCurrencyChange as a transparent sheet
+├── TabNavigator.tsx         the one TabBar; FAB opens AddSubscription
+│                            Home · Calendar · Analytics · Settings, plus both
+│                            tab stacks, defined in this file:
+│                              Calendar stack: CalendarMain, TrialShield  (11 §2.5)
+│                              Settings stack: SettingsMain, SharedPlans,
+│                                              ConnectEmail               (11 §2.6)
+├── types.ts                 param lists for every navigator
+├── linking.ts               deep links (§6)
+├── pendingLink.ts           parks an App link that arrives while signed out
+└── useDiscardGuard.tsx      dirty-form confirm (§3, rule 3)
+
+Stack roots are CalendarMain and SettingsMain, not Calendar and Settings: a nested
+screen may not share its parent tab's name.
 ```
 
 Each tab that has sub-screens owns a stack file, so a teammate adds a screen by
