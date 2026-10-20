@@ -14,15 +14,15 @@ Thresholds (WCAG 2.1 AA):
 
 ## Fixes made while promoting Figma values
 
-| Token                     | Figma     | Shipped   | Why                                                                                                                                          |
-| ------------------------- | --------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Token                     | Figma     | Shipped   | Why                                                                                                                                                                                              |
+| ------------------------- | --------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `textSubtle`              | `#78817b` | _removed_ | 01 §1 bans it for text (4.02:1 on `surface`). Darkening it to `#66706a` passed the arithmetic but kept a token whose only purpose was text, so it is gone and the `/mo` suffix uses `textMuted`. |
-| `typography.micro`        | 10px      | _removed_ | 01 §4 retires `micro` and forbids a 9 or 10px style. The `/mo` suffix it styled is information, so it moved to `caption` (12px).            |
-| `radius.badge` (new)      | n/a       | `4`       | Badges and chips measure 4 in Figma; this file first assumed `pill`. 01 §5: measured wins. `pill` now means only things that must read as round. |
-| `category.productivity`   | `#b38b35` | `#9c7a2e` | It was 2.58:1 on the `surface2` bar track, which fails 3:1. It is now 3.28.                                                                  |
-| `category.healthWellness` | `#5d9088` | `#547f78` | It was 2.95:1 on `surface2`. It is now 3.66.                                                                                                 |
-| `borderControl` (new)     | n/a       | `#8f897c` | Figma's `border` `#d8d2c5` is 1.51:1 on white, so it can't be an input outline. `border` stays for cards and dividers, which are decorative. |
-| `radius.button`           | 5         | 6         | Cards are 6 and buttons are 5, a 1px difference that was almost certainly unintentional. Both are normalized to 6.                           |
+| `typography.micro`        | 10px      | _removed_ | 01 §4 retires `micro` and forbids a 9 or 10px style. The `/mo` suffix it styled is information, so it moved to `caption` (12px).                                                                 |
+| `radius.badge` (new)      | n/a       | `4`       | Badges and chips measure 4 in Figma; this file first assumed `pill`. 01 §5: measured wins. `pill` now means only things that must read as round.                                                 |
+| `category.productivity`   | `#b38b35` | `#9c7a2e` | It was 2.58:1 on the `surface2` bar track, which fails 3:1. It is now 3.28.                                                                                                                      |
+| `category.healthWellness` | `#5d9088` | `#547f78` | It was 2.95:1 on `surface2`. It is now 3.66.                                                                                                                                                     |
+| `borderControl` (new)     | n/a       | `#8f897c` | Figma's `border` `#d8d2c5` is 1.51:1 on white, so it can't be an input outline. `border` stays for cards and dividers, which are decorative.                                                     |
+| `radius.button`           | 5         | 6         | Cards are 6 and buttons are 5, a 1px difference that was almost certainly unintentional. Both are normalized to 6.                                                                               |
 
 ## New pairs: light and dark
 
@@ -53,12 +53,12 @@ nest, since the 40px icon circle sits on the card fill, which sits on the page. 
 banner appears on `bg` (Home) and inside a `surface` card elsewhere, so both grounds are
 measured and asserted.
 
-| Over      | Flattened fill | text | `warning` icon on fill | icon on its circle |
-| --------- | -------------- | ---- | ---------------------- | ------------------ |
-| light bg      | `#ede6d8` | 12.40 | 3.79 | 3.27 |
-| light surface | `#f5f0e7` | 13.56 | 4.14 | 3.56 |
-| dark bg       | `#262921` | 12.07 | 6.95 | 5.39 |
-| dark surface  | `#2e322c` | 10.67 | 6.14 | 4.78 |
+| Over          | Flattened fill | text  | `warning` icon on fill | icon on its circle |
+| ------------- | -------------- | ----- | ---------------------- | ------------------ |
+| light bg      | `#ede6d8`      | 12.40 | 3.79                   | 3.27               |
+| light surface | `#f5f0e7`      | 13.56 | 4.14                   | 3.56               |
+| dark bg       | `#262921`      | 12.07 | 6.95                   | 5.39               |
+| dark surface  | `#2e322c`      | 10.67 | 6.14                   | 4.78               |
 
 Text needs 4.5; the icon and its circle are graphics and need 3.
 
@@ -99,13 +99,13 @@ Text needs 4.5; the icon and its circle are graphics and need 3.
 01 §2 predates the taxonomy decision in handoff 04, so its table and this one differ in
 three ways. The code follows 04; **01 §2 is stale and should be updated to match.**
 
-| 01 §2                            | Shipped                | Why                                                                                                  |
-| -------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| `gaming` `#8a7798`               | _dropped_              | Not a category in handoff 04. The hex is still used — it is the Figma donut's AI Tools slice.         |
-| —                                | `other` `#78746b`      | 04's seventh category. Distinct from an uncategorized subscription, which borrows its colour (US-8).  |
-| `aiTools` `#5b6fa6` (invented)   | `#8a7798`              | Pulled from the real Figma donut legend, node `4:2957`, instead of invented.                          |
-| `cloudStorage` `#7d8f4e` (inv.)  | `#507c92`              | Pulled from the Figma donut legend, node `4:2952`.                                                   |
-| `newsMedia` `#8f6a52` (invented) | `#7c7a4a`              | Still derived — Figma has no fill for it — but re-picked to stay distinct from `entertainment`.        |
+| 01 §2                            | Shipped           | Why                                                                                                  |
+| -------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `gaming` `#8a7798`               | _dropped_         | Not a category in handoff 04. The hex is still used — it is the Figma donut's AI Tools slice.        |
+| —                                | `other` `#78746b` | 04's seventh category. Distinct from an uncategorized subscription, which borrows its colour (US-8). |
+| `aiTools` `#5b6fa6` (invented)   | `#8a7798`         | Pulled from the real Figma donut legend, node `4:2957`, instead of invented.                         |
+| `cloudStorage` `#7d8f4e` (inv.)  | `#507c92`         | Pulled from the Figma donut legend, node `4:2952`.                                                   |
+| `newsMedia` `#8f6a52` (invented) | `#7c7a4a`         | Still derived — Figma has no fill for it — but re-picked to stay distinct from `entertainment`.      |
 
 So 01's sign-off item 1 ("category colours for AI Tools, Cloud Storage and News & Media
 are invented") is now only true of **News & Media**. The other two are measured.

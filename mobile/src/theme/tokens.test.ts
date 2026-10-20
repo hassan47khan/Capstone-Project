@@ -231,7 +231,6 @@ describe.each(THEMES)('$name theme', ({ name, colors, categories, services }) =>
         CONTRAST_LARGE_TEXT_AND_GRAPHICS,
       );
     });
-
   });
 
   describe('control boundaries (WCAG 1.4.11)', () => {
