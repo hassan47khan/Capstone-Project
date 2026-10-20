@@ -1,4 +1,4 @@
-# SubTrak — Developer Handoff
+# SubTrak — Developer Handoff -- Completed
 
 **Project:** SubTrak (CSC 325 capstone) · `hassan47khan/Capstone-Project`
 **Stack:** React Native (Expo) · Django + DRF · MongoDB Atlas

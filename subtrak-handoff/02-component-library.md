@@ -1,4 +1,4 @@
-# 02 — Component Library
+# 02 — Component Library -- Completed
 
 **Prerequisites:** `01-design-tokens.md` implemented.
 **Deliverable:** 21 shared components + a dev-only gallery screen.
