@@ -5,7 +5,7 @@
 
 ## Team notes (Obsidian vault): read first, update last
 - **Before starting:** read `Capstone_CSC325/SubTrak.md`, then `Capstone_CSC325/00 - Project/Repo State.md` and the newest note in `Capstone_CSC325/04 - Logs/`.
-- **Before finishing:** add to or create today's `04 - Logs/YYYY-MM-DD.md` (template: `99 - Templates/Log Entry.md`). If what is merged on `main` changed, rewrite `Repo State.md`. Conventions: `Capstone_CSC325/CLAUDE.md`.
+- **Before finishing:** add to or create today's `Capstone_CSC325/04 - Logs/YYYY-MM-DD.md` (template: `Capstone_CSC325/99 - Templates/Log Entry.md`). If what is merged on `main` changed, rewrite `Capstone_CSC325/00 - Project/Repo State.md`. Conventions: `Capstone_CSC325/CLAUDE.md`.
 - Specs, README and `mobile/CLAUDE.md` outrank the vault. If a note disagrees with them, fix the note.
 
 ## Stack (settled)

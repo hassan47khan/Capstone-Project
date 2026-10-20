@@ -17,8 +17,9 @@ The authoritative artefacts are all in the repository:
 
 | Source of truth | Where |
 | --- | --- |
+| Developer handoff specs (per task) | `docs/handoff/` `01`–`12`; outrank Figma and screenshots |
 | Requirements, data model, API, auth, CI | `docs/design/SubTrak — System Design Specification.md` |
-| Visual design | `docs/design/SubTrak prototype.pdf`, critiqued in `docs/design/README.md` |
+| Visual design | Figma `IKYivyJtmBYzJNQ7g8qPGc` (Home: `4:2901` in `kyUS7F8bg4x7GpcPEF4UDN`); see root `CLAUDE.md` and `mobile/CLAUDE.md`. The PDF prototype in `docs/design/` is retired. |
 | Setup, commands, project status | `README.md` |
 | Mobile client conventions | `mobile/CLAUDE.md` |
 

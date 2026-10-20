@@ -23,8 +23,8 @@ Test counts below are copied from commit messages and logs, not re-run on
 | CI | `mobile-ci` and `backend-ci` on `main` (#70, #76). Required-check status not re-checked since 2026-10-09; see [[Backend CI]]. |
 | Protection | Ruleset `main-protection` as of 2026-10-09: PR + 1 approval, squash only, linear history, threads resolved. No CI gate then; not re-checked. |
 | Docs | Spec and design critique in `docs/design/`; Figma is the appearance source (#82). Developer handoffs `00`–`12` in `docs/handoff/` (#85). Root `CLAUDE.md` added in #85. |
-| Vault | This vault is committed at `Capstone_CSC325/` and shared. Root `CLAUDE.md` and `AGENTS.md` tell every AI to read it first and update it last. |
-| In flight | No open pull requests on 2026-10-20. |
+| Vault | This vault is committed at `Capstone_CSC325/` and shared (`41ca1a2`–`80ffa05`). |
+| In flight | Branch `docs/vault-agent-rules`: adds `AGENTS.md` and a vault rule to the root `CLAUDE.md` telling every AI to read the vault first and update it last. Not merged as of 2026-10-20. |
 | Stories | Not re-counted. US-5 has backend helpers (#71); no story is finished end to end. |
 
 ## Layout
