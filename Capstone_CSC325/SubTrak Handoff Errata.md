@@ -62,8 +62,19 @@ holds: TanStack Query, TypeScript strict, simplejwt, and tokens through
 - [ ] **The header title is 24, not 20.** `Header` uses `typography.displayMd`
       (24). 03 §4 normalizes it to 20. `displaySm` (20/28) exists but is
       documented as the bottom-sheet title. This isn't in the deviation list in
-      `GalleryScreen.tsx` or [[2026-10-19]]. Either switch to 20 or record it as
+      `GalleryScreen.tsx` or the [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]]. Either switch to 20 or record it as
       a deliberate deviation.
-- [ ] Device pass is still open (see [[2026-10-19]] next steps).
+- [ ] Device pass is still open (see the checklist in the [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]]).
 
 Stack is React Navigation 7, not expo-router; 03-navigation.md and CLAUDE.md corrected.
+
+**2026-10-20, later. #85 (`4c1d8fb`) closed the first four gaps above.**
+These are code-read checks, not a re-run of the tests.
+- Calendar is a stack, with `TrialShield` registered in `TabNavigator.tsx`.
+- Settings is a stack, with `SharedPlans` and `ConnectEmail` registered. The
+  screen is now `SharedPlansScreen` in `features/sharing/`.
+  `SharedPlanScreen` no longer exists, so ignore the rename note above.
+- `ReviewExtraction` is registered in the modal group in `AppNavigator.tsx`.
+- `Header` titles use `typography.displaySm` (20/28).
+
+The device pass is still open.

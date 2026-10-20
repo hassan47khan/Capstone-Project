@@ -73,6 +73,6 @@ remembering before anyone tries that route again.
 - **Tests.** The "21 contrast pairs" figure no longer applies; the suite now
   runs every pair in both themes.
 
-See [[2026-10-19]].
+See the [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]].
 
 See [[Repo State]] for where this sits now.

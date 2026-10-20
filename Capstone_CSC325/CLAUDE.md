@@ -4,16 +4,23 @@ Context for working with Claude Code in this vault.
 
 ## What this vault is
 
-Personal notes for the SubTrak capstone. It sits inside the repository at
-`Capstone_CSC325/` and is **gitignored** — nothing here ships, and nothing here
-is authoritative. Start at [[SubTrak]].
+Shared team notes for the SubTrak capstone. The vault is committed to the
+repository at `Capstone_CSC325/`, so everyone's notes and everyone's AI read
+the same copy. Nothing here ships, and nothing here is authoritative. Start at
+[[SubTrak]].
+
+Every AI session reads the vault first and updates it last; the rule is in the
+root `CLAUDE.md`. Per-user Obsidian files (`workspace.json`,
+`workspace-mobile.json`, `graph.json`, `appearance.json`) are gitignored
+because Obsidian rewrites them as people use the vault.
 
 The authoritative artefacts are all in the repository:
 
 | Source of truth | Where |
 | --- | --- |
+| Developer handoff specs (per task) | `docs/handoff/` `01`–`12`; outrank Figma and screenshots |
 | Requirements, data model, API, auth, CI | `docs/design/SubTrak — System Design Specification.md` |
-| Visual design | `docs/design/SubTrak prototype.pdf`, critiqued in `docs/design/README.md` |
+| Visual design | Figma `IKYivyJtmBYzJNQ7g8qPGc` (Home: `4:2901` in `kyUS7F8bg4x7GpcPEF4UDN`); see root `CLAUDE.md` and `mobile/CLAUDE.md`. The PDF prototype in `docs/design/` is retired. |
 | Setup, commands, project status | `README.md` |
 | Mobile client conventions | `mobile/CLAUDE.md` |
 
@@ -29,7 +36,9 @@ not the artefact.
   `todo`, `blocked`, `done`, `open`, `current`.
 - Templates live in `99 - Templates` (Task, Bug Report, Code Review, Log Entry).
   Insert them with the Templates plugin so `{{date}}` resolves.
-- Daily notes go in `04 - Logs` as `YYYY-MM-DD.md`.
+- Session logs go in `04 - Logs` as `YYYY-MM-DD branch-slug.md`. They are
+  gitignored and stay on your machine; anything others need goes in a tracked
+  note or the PR description.
 - Link with wiki-style double-bracket links, including to notes that do not exist yet — an
   unresolved link marks something worth writing.
 
@@ -38,7 +47,8 @@ not the artefact.
 Dates are absolute, never "last week". When a note records a figure that can
 drift — a test count, a coverage percentage, a commit — say when it was measured
 and whether it was re-run or copied from a commit message. [[Repo State]] is the
-one note meant to be rewritten rather than appended to; everything else gets a
+one note meant to be rewritten rather than appended to. It describes only
+`main`, and only whoever merged a PR rewrites it, right after the merge; everything else gets a
 "Since this note was written" section so the original reasoning survives.
 
 Spec references are by section number, matching the convention in the backend's

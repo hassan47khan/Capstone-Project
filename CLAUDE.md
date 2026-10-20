@@ -3,6 +3,12 @@
 **What:** mobile subscription tracker. Expo (React Native, TypeScript strict) + Django/DRF + MongoDB Atlas.
 **Specs:** the file(s) for your task live in `docs/handoff/` (numbered `01`–`12`; only the ones assigned to you are present). Read your file plus the prerequisites it lists. If a spec points at a file that is not in `docs/handoff/`, stop and say so instead of guessing. Spec > Figma > screenshots.
 
+## Team notes (Obsidian vault): read first, update last
+- **Before starting:** read `Capstone_CSC325/SubTrak.md`, then `Capstone_CSC325/00 - Project/Repo State.md`, then your newest local log in `Capstone_CSC325/04 - Logs/` if one exists.
+- **Before finishing:** write a session log to `Capstone_CSC325/04 - Logs/`, named by date and branch slug, e.g. `2026-10-21 hassan-feature-x.md` (template: `Capstone_CSC325/99 - Templates/Log Entry.md`). Logs are gitignored and local-only; never commit them. Do not name logs by person and day, because one person can run several sessions on different branches.
+- **Repo State:** never edit `Capstone_CSC325/00 - Project/Repo State.md` on a feature branch. It describes only what is on `main`; unmerged work goes in the PR description. Whoever merges a PR updates Repo State right after the merge, in a small follow-up PR to `main` (`main` is protected, so it cannot take a direct commit). Conventions: `Capstone_CSC325/CLAUDE.md`.
+- Specs, README and `mobile/CLAUDE.md` outrank the vault. If a note disagrees with them, fix the note.
+
 ## Stack (settled)
 React Navigation 7 · React Native StyleSheet with tokens from `src/theme` · TanStack Query over the generated TS client · TypeScript strict · simplejwt (rotating refresh in `expo-secure-store`).
 
