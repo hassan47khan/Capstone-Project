@@ -67,3 +67,14 @@ holds: TanStack Query, TypeScript strict, simplejwt, and tokens through
 - [ ] Device pass is still open (see [[2026-10-19]] next steps).
 
 Stack is React Navigation 7, not expo-router; 03-navigation.md and CLAUDE.md corrected.
+
+**2026-10-20, later. #85 (`4c1d8fb`) closed the first four gaps above.**
+These are code-read checks, not a re-run of the tests.
+- Calendar is a stack, with `TrialShield` registered in `TabNavigator.tsx`.
+- Settings is a stack, with `SharedPlans` and `ConnectEmail` registered. The
+  screen is now `SharedPlansScreen` in `features/sharing/`.
+  `SharedPlanScreen` no longer exists, so ignore the rename note above.
+- `ReviewExtraction` is registered in the modal group in `AppNavigator.tsx`.
+- `Header` titles use `typography.displaySm` (20/28).
+
+The device pass is still open.

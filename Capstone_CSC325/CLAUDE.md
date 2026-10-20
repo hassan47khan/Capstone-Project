@@ -10,7 +10,8 @@ the same copy. Nothing here ships, and nothing here is authoritative. Start at
 [[SubTrak]].
 
 Every AI session reads the vault first and updates it last; the rule is in the
-root `CLAUDE.md` and `AGENTS.md`. `.obsidian/workspace.json` is gitignored
+root `CLAUDE.md`. Per-user Obsidian files (`workspace.json`,
+`workspace-mobile.json`, `graph.json`, `appearance.json`) are gitignored
 because Obsidian rewrites it on every open.
 
 The authoritative artefacts are all in the repository:

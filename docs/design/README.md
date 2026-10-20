@@ -48,8 +48,8 @@ built.
 - the dashboard preview and the 6-card feature tour;
 - Admin Log In;
 - the Paywall;
-- the Family tab (handoff 10, a stretch goal; `SharedPlanScreen` is kept but
-  not registered).
+- the Family tab (handoff 10, a stretch goal; no route. Shared Plans is a
+  separate AI-epic screen, `SharedPlansScreen` in the Settings stack).
 
 The navigation rules (03 §3):
 - The FAB is the only add affordance.

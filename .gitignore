@@ -44,5 +44,8 @@ Thumbs.db
 
 
 
-# Obsidian vault: per-user window layout, rewritten on every open
+# Obsidian vault: per-user layout and view settings, rewritten as people use it
 Capstone_CSC325/.obsidian/workspace.json
+Capstone_CSC325/.obsidian/workspace-mobile.json
+Capstone_CSC325/.obsidian/graph.json
+Capstone_CSC325/.obsidian/appearance.json

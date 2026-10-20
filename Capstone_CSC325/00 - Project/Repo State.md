@@ -20,7 +20,7 @@ Test counts below are copied from commit messages and logs, not re-run on
 | --- | --- |
 | Backend | Sprint 0 spike merged (#68): MongoDB, custom user, JWT wiring, `/health/`, `/me/`. Time zone helpers with DST-safe local-to-UTC conversion for US-5 (#71). No story endpoints yet. |
 | Mobile | Handoffs 01–03 merged: Figma tokens with light/dark (#82), component library with dev gallery and the 03 navigation tree (#83), AI-epic routes and 20pt header titles (#85). 370 tests at the time of the 03 PR. Screens are still placeholders. |
-| CI | `mobile-ci` and `backend-ci` on `main` (#70, #76). Required-check status not re-checked since 2026-10-09; see [[Backend CI]]. |
+| CI | `mobile-ci` (`ff8cefd`, pushed without a PR) and `backend-ci` (#70) on `main`. Required-check status not re-checked since 2026-10-09; see [[Backend CI]]. |
 | Protection | Ruleset `main-protection` as of 2026-10-09: PR + 1 approval, squash only, linear history, threads resolved. No CI gate then; not re-checked. |
 | Docs | Spec and design critique in `docs/design/`; Figma is the appearance source (#82). Developer handoffs `00`–`12` in `docs/handoff/` (#85). Root `CLAUDE.md` added in #85. |
 | Vault | This vault is committed at `Capstone_CSC325/` and shared (`41ca1a2`–`80ffa05`). |
@@ -38,9 +38,12 @@ backend/     Django 6.1 + DRF on MongoDB
   mongo_migrations/  admin, auth, contenttypes migrations for Mongo
   schema.yml generated OpenAPI contract — CI fails if it drifts
 mobile/      Expo SDK 57, TypeScript strict, React Navigation, TanStack Query
-docs/design/ specification, prototype PDF, design notes
+docs/design/ specification, design notes, retired prototype PDF
+docs/handoff/  developer handoff specs 00–12 (outrank Figma)
+Capstone_CSC325/  this Obsidian vault, shared team notes
 docker-compose.yml  single-node Mongo replica set, used locally and by CI
 .github/workflows/  mobile-ci.yml, backend-ci.yml
+CLAUDE.md    root rules for every AI session (AGENTS.md on this branch only)
 ```
 
 ## What is actually verified
