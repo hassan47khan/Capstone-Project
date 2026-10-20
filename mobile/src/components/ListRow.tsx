@@ -24,13 +24,27 @@
  * Money
  *   Price is a decimal string formatted by `Amount`; nothing here calculates.
  *
+ * The `compact` variant (02 §9)
+ *   Home's Upcoming Renewals draw the same row smaller and quieter: padding 12,
+ *   a 36pt mark, the name at 14, the subtitle a relative date ("in 2 days")
+ *   instead of the two-tone absolute one, and the trailing amount in Medium
+ *   `text` with no `/mo` suffix. It is a prop rather than a second component
+ *   because the prototype's drifted Analytics copy is what this whole file
+ *   exists to prevent.
+ *
+ *   The relative date needs a reference day, so `compact` takes `today`. Given
+ *   no `today` it falls back to the absolute date rather than inventing one
+ *   from the device clock, which would make the row untestable and would drift
+ *   from the server's idea of today across a timezone boundary.
+ *
  * Design tokens
  *   container  colors.surface, 1px colors.border, radius.card, spacing.lg padding,
  *              spacing.md gap, sizes.rowSubscription (72); pressed colors.surface2
- *   logo       Tile (40, brand tint or serviceTint)
- *   title      typography.labelSemibold at 15 (02 §9)
+ *   compact    spacing.md padding, no fixed height
+ *   logo       ServiceMark (40, or 36 compact; brand tint or serviceTint)
+ *   title      typography.labelSemibold at 15, or at 14 when compact (02 §9)
  *   subtitle   typography.caption + typography.captionStrong
- *   price      typography.price via Amount; suffix typography.micro
+ *   price      typography.price via Amount; suffix typography.caption
  */
 import { Pressable, Text, View } from 'react-native';
 
@@ -40,6 +54,7 @@ import {
   formatDateLong,
   formatDateSpoken,
   formatMoney,
+  formatRelativeDays,
 } from '@/api/format';
 import type { BillingCycle, CurrencyCode, MoneyString } from '@/api/types';
 import {
@@ -54,7 +69,7 @@ import {
 
 import { Amount } from './Amount';
 import { Badge } from './Badge';
-import { Tile } from './Tile';
+import { ServiceMark } from './ServiceMark';
 
 export interface ListRowProps {
   name: string;
@@ -66,7 +81,19 @@ export interface ListRowProps {
   nextBillOn: string;
   /** Catalog brand colours for the logo. */
   brand?: ServiceColors;
+  /** The catalog's 1–2 character mark ("iC", "GP"). Falls back to the initial. */
+  mark?: string;
   cancelled?: boolean;
+  /**
+   * The smaller, quieter row of Home's Upcoming Renewals (02 §9). Pair it with
+   * `today` to get the relative date it is designed around.
+   */
+  compact?: boolean;
+  /**
+   * "YYYY-MM-DD", the server's today. Turns a `compact` row's subtitle into
+   * "in 2 days". Ignored on a standard row.
+   */
+  today?: string;
   onPress?: () => void;
   testID?: string;
 }
@@ -78,16 +105,24 @@ export function ListRow({
   cycle,
   nextBillOn,
   brand,
+  mark,
   cancelled = false,
+  compact = false,
+  today,
   onPress,
   testID,
 }: ListRowProps) {
   const styles = useStyles();
   const { display } = formatMoney(price, currency);
 
+  // Only when a reference day was supplied; otherwise the absolute date stands.
+  const relative = compact && today ? formatRelativeDays(nextBillOn, today) : null;
+
   const label = [
     name,
     `${display} ${formatCycle(cycle.unit, cycle.count)}`,
+    // The spoken form stays absolute even on a compact row: "in 2 days" read
+    // aloud with no date is not something a user can act on.
     `next bill ${formatDateSpoken(nextBillOn)}`,
     cancelled ? 'cancelled' : null,
   ]
@@ -101,15 +136,28 @@ export function ListRow({
       accessible
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.row,
+        compact && styles.rowCompact,
+        pressed && styles.pressed,
+      ]}
       testID={testID}
     >
-      <Tile name={name} brand={brand} />
+      <ServiceMark
+        name={name}
+        mark={mark}
+        brand={brand}
+        size={compact ? 'compact' : 'row'}
+      />
 
       <View style={styles.info}>
         <View style={styles.titleLine}>
           <Text
-            style={[styles.title, cancelled && styles.dimmed]}
+            style={[
+              styles.title,
+              compact && styles.titleCompact,
+              cancelled && styles.dimmed,
+            ]}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
@@ -117,15 +165,26 @@ export function ListRow({
           </Text>
           {cancelled ? <Badge label="Cancelled" /> : null}
         </View>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          Next bill:{' '}
-          <Text style={styles.subtitleValue}>{formatDateLong(nextBillOn)}</Text>
-        </Text>
+
+        {relative ? (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {relative}
+          </Text>
+        ) : (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            Next bill:{' '}
+            <Text style={styles.subtitleValue}>{formatDateLong(nextBillOn)}</Text>
+          </Text>
+        )}
       </View>
 
       <View style={[styles.price, cancelled && styles.dimmed]}>
-        <Amount value={price} currency={currency} size="row" />
-        <Text style={styles.suffix}>{formatCycleSuffix(cycle.unit, cycle.count)}</Text>
+        <Amount value={price} currency={currency} size={compact ? 'compact' : 'row'} />
+        {/* The suffix is the standard row's only: a compact row's cycle is
+            already implied by the renewal date beside it. */}
+        {compact ? null : (
+          <Text style={styles.suffix}>{formatCycleSuffix(cycle.unit, cycle.count)}</Text>
+        )}
       </View>
     </Pressable>
   );
@@ -142,6 +201,11 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     borderWidth: sizes.hairline,
     borderColor: colors.border,
     borderRadius: radius.card,
+  },
+  // 02 §9: padding 12 and no fixed height — the shorter content sets it.
+  rowCompact: {
+    minHeight: undefined,
+    padding: spacing.md,
   },
   pressed: {
     backgroundColor: colors.surface2,
@@ -161,6 +225,9 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     fontFamily: fontFamily.bodySemiBold,
     flexShrink: 1,
   },
+  titleCompact: {
+    ...typography.labelSemibold,
+  },
   subtitle: {
     ...typography.caption,
   },
@@ -174,7 +241,9 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     gap: spacing.xs / 2,
   },
   suffix: {
-    ...typography.micro,
+    // 12px, not the prototype's 9–10px: the cycle is information, so it may not
+    // sit below the type floor (01 §4).
+    ...typography.caption,
   },
   dimmed: {
     opacity: opacity.cancelled,

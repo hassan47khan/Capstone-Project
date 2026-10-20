@@ -21,19 +21,35 @@
  *   the dimmed screen behind it. The backdrop is a labelled button only when it
  *   actually dismisses.
  *
+ * Two tones (02 §12)
+ *   `default`      grabber, gap 20, the ordinary confirm or picker.
+ *   `destructive`  no grabber — a sheet that deletes something may not look
+ *                  swipe-away-able — plus a header row (48px `dangerSurface`
+ *                  circle, 24px alert triangle in `danger`), gap 24 and a 34pt
+ *                  bottom padding. Measured on the Delete sheet `4:4330`.
+ *
+ *   `tone` is only the look. Whether a stray tap can dismiss the sheet is
+ *   `dismissible`, which stays separate so a non-destructive sheet can still
+ *   demand an explicit choice.
+ *
  * Design tokens
  *   grabber   sizes.grabberWidth × grabberHeight (40 × 4), radius.pill, colors.border
- *   padding   spacing.xxl (24)
- *   backdrop  colors.scrim (black 40%)
- *   radius    radius.sheet (16), top corners only
+ *   padding   spacing.xxl (24); destructive adds sizes.sheetBottomDestructive
+ *   backdrop  colors.scrim (black 70%, measured on both sheets)
+ *   radius    radius.sheet (24), top corners only
+ *   top edge  1px colors.border
+ *   title     typography.displaySm (DM Serif 20/28)
  */
+import { AlertTriangle } from 'lucide-react-native';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Dimensions, Modal, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { makeStyles, radius, sizes, spacing, useMotion } from '@/theme';
+import { makeStyles, radius, sizes, spacing, useMotion, useTheme } from '@/theme';
 
 import { Button } from './Button';
+
+export type SheetTone = 'default' | 'destructive';
 
 export interface BottomSheetProps {
   visible: boolean;
@@ -44,6 +60,8 @@ export interface BottomSheetProps {
   children: ReactNode;
   /** False for destructive confirms: only an explicit choice closes the sheet. */
   dismissible?: boolean;
+  /** `destructive` drops the grabber and adds the alert header (02 §12). */
+  tone?: SheetTone;
   testID?: string;
 }
 
@@ -53,11 +71,14 @@ export function BottomSheet({
   title,
   children,
   dismissible = true,
+  tone = 'default',
   testID,
 }: BottomSheetProps) {
   const styles = useStyles();
+  const { colors } = useTheme();
   const m = useMotion();
   const insets = useSafeAreaInsets();
+  const isDestructive = tone === 'destructive';
   const progress = useState(() => new Animated.Value(0))[0];
   // Stays mounted through the closing animation, then unmounts. Opening sets it
   // during render (React's "adjust state while rendering" pattern) so the Modal
@@ -121,14 +142,37 @@ export function BottomSheet({
         <Animated.View
           style={[
             styles.sheet,
-            { paddingBottom: spacing.xxl + insets.bottom },
+            isDestructive && styles.sheetDestructive,
+            {
+              paddingBottom:
+                (isDestructive ? sizes.sheetBottomDestructive : spacing.xxl) +
+                insets.bottom,
+            },
             sheetMotion,
           ]}
           accessibilityViewIsModal
           accessibilityLabel={title}
           testID={testID}
         >
-          <View style={styles.grabber} />
+          {/* A destructive sheet has no grabber: nothing here is swipe-away. */}
+          {isDestructive ? (
+            <View style={styles.alertCircle}>
+              <AlertTriangle
+                size={sizes.iconAlert}
+                color={colors.danger}
+                strokeWidth={1.7}
+                // Decorative — the title says what is about to happen.
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                testID={testID ? `${testID}-alert` : undefined}
+              />
+            </View>
+          ) : (
+            <View
+              style={styles.grabber}
+              testID={testID ? `${testID}-grabber` : undefined}
+            />
+          )}
           {title ? (
             <Text style={styles.title} accessibilityRole="header">
               {title}
@@ -150,8 +194,8 @@ export interface ConfirmSheetProps {
   onConfirm: () => void;
   onCancel: () => void;
   /**
-   * A destructive confirm uses the danger button and cannot be dismissed by a
-   * backdrop tap (02 §12).
+   * A destructive confirm takes the `destructive` sheet tone, the solid danger
+   * button, and cannot be dismissed by a backdrop tap (02 §12).
    */
   destructive?: boolean;
   testID?: string;
@@ -176,6 +220,7 @@ export function ConfirmSheet({
       onClose={onCancel}
       title={title}
       dismissible={!destructive}
+      tone={destructive ? 'destructive' : 'default'}
       testID={testID}
     >
       <Text style={styles.message}>{message}</Text>
@@ -219,10 +264,27 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
+    // 02 §12: a 1px border on the top edge, so the sheet reads as a separate
+    // surface against a pale screen behind it and not just a lighter patch.
+    borderTopWidth: sizes.hairline,
+    borderColor: colors.border,
     paddingHorizontal: spacing.xxl,
     // Content starts 24 below the top edge (02 §12); the grabber sits in that band.
     paddingTop: spacing.xxl,
-    gap: spacing.lg,
+    gap: spacing.xl,
+  },
+  sheetDestructive: {
+    gap: spacing.xxl,
+  },
+  // 48px `dangerSurface` circle around the 24px alert triangle (02 §12). In
+  // flow, not absolute like the grabber: the title sits beneath it.
+  alertCircle: {
+    width: sizes.sheetIconCircle,
+    height: sizes.sheetIconCircle,
+    borderRadius: radius.pill,
+    backgroundColor: colors.dangerSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   grabber: {
     position: 'absolute',
@@ -234,7 +296,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     backgroundColor: colors.border,
   },
   title: {
-    ...typography.displayMd,
+    ...typography.displaySm,
   },
   message: {
     ...typography.bodyMd,

@@ -72,6 +72,18 @@ export function createTypography(colors: ColorTokens) {
       color: colors.text,
       ...numericVariant,
     },
+    /**
+     * Bottom-sheet titles (02 §12). Measured at 20/28 on the destructive sheet
+     * and 18 on the currency sheet; those are two drifted styles, so both
+     * normalize to the larger, as 02 §2 does for the form fields.
+     */
+    displaySm: {
+      fontFamily: fontFamily.display,
+      fontSize: 20,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      color: colors.text,
+    },
     /** Screen and section titles. */
     displayMd: {
       fontFamily: fontFamily.display,
@@ -134,15 +146,41 @@ export function createTypography(colors: ColorTokens) {
       color: colors.text,
     },
     /**
-     * Section headers (02 §14). 02 asks for 11px; it is 12 because 01 §4 allows
-     * no new text below the 12pt floor.
+     * Section headers (02 §14). Bold 12 with +0.5 tracking, measured on the
+     * Analytics group headers and the Detail price-history label. 02's earlier
+     * 11px SemiBold was a misread, and 11 would have broken 01 §4's 12pt floor
+     * for new text anyway.
      */
     sectionLabel: {
-      fontFamily: fontFamily.bodySemiBold,
+      fontFamily: fontFamily.bodyBold,
       fontSize: 12,
       letterSpacing: 0.5,
       textTransform: 'uppercase',
       color: colors.textMuted,
+    },
+    /** An AlertCard's first line — 02 §20 measures Bold 14/20 on node 4:2968. */
+    alertTitle: {
+      fontFamily: fontFamily.bodyBold,
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.text,
+    },
+    /**
+     * An AlertCard's body — Medium 12/16. `text`, not `textMuted`: muted grey on
+     * the flattened warning tint is 4.22:1, an AA failure at 12px (01 §1).
+     */
+    alertBody: {
+      fontFamily: fontFamily.bodyMedium,
+      fontSize: 12,
+      lineHeight: 16,
+      color: colors.text,
+    },
+    /** The value between a Stepper's − and + (02 §16). */
+    stepperValue: {
+      fontFamily: fontFamily.bodyMedium,
+      fontSize: 16,
+      color: colors.text,
+      ...numericVariant,
     },
     /** Toast message — Figma node 3:955, DM Sans SemiBold 15 in `success`. */
     toast: {
@@ -151,19 +189,21 @@ export function createTypography(colors: ColorTokens) {
       color: colors.success,
     },
 
-    // --- Below the 12pt floor: deliberate, and never the sole carrier --------
+    // --- Below the 12pt floor: one role, and never the sole carrier ----------
 
-    /** Tab bar labels. Allowed at 11 only because a 20px icon carries the meaning. */
+    /**
+     * Tab bar labels, and the only size under 12 in the app. Allowed at 11 only
+     * because a 20px icon directly above it carries the meaning.
+     *
+     * There is no `micro` role. 01 §4 retires it and forbids building a 9 or
+     * 10px style at all: both sub-12 sizes the prototype used carried
+     * information of their own (the billing cycle, the active count), so both
+     * were raised to `caption`.
+     */
     tab: {
       fontFamily: fontFamily.bodySemiBold,
       fontSize: 11,
       color: colors.textMuted,
-    },
-    /** The `/mo` suffix. Allowed at 10 only beside the 16px figure it qualifies. */
-    micro: {
-      fontFamily: fontFamily.bodyRegular,
-      fontSize: 10,
-      color: colors.textSubtle,
     },
   } satisfies Record<string, TextStyle>;
 }

@@ -45,10 +45,13 @@ export interface ColorTokens {
 
   /** Primary text. */
   text: string;
-  /** Secondary text, inactive tab labels. */
+  /**
+   * Secondary text, inactive tab labels, and every qualifier that used to be
+   * `textSubtle` — the `/mo` price suffix included. There is no third text
+   * tier: 01 §1 bans Figma's `#78817b` for text (4.02:1), and a darkened
+   * stand-in only invited the same misuse, so the token is gone.
+   */
   textMuted: string;
-  /** The `/mo` suffix on price badges. Darkened from Figma's #78817b (4.02:1). */
-  textSubtle: string;
 
   /** Primary buttons, active tab, links, prices. */
   accent: string;
@@ -74,15 +77,30 @@ export interface ColorTokens {
   dangerSurface: string;
 
   /**
-   * The backdrop behind a bottom sheet: black at 40% (02 §12). A colour string,
-   * not a hex — the one translucent token — so components never spell `rgba(`.
+   * The backdrop behind a bottom sheet: black at 70% — the value measured on
+   * both sheets, confirm and destructive alike (02 §12). A colour string, not a
+   * hex, like the `warning` fills below: translucency lives in tokens so
+   * components never spell `rgba(` themselves.
    */
   scrim: string;
 
-  /** Notice banner: background, border, text. Used for price changes. */
-  noticeSurface: string;
-  noticeBorder: string;
-  noticeText: string;
+  /**
+   * The warning family (01 §1), promoted from values hardcoded in Figma at the
+   * Home price-change alert, node `4:2968`. `warning` is the icon itself; the
+   * other three are the alert card's fill, its 1px border, and the 40px circle
+   * behind the icon.
+   *
+   * They stay translucent at the alphas Figma draws, so one set of values
+   * deepens correctly over `bg` and over a `surface` card. The dark theme keeps
+   * those alphas over a lightened amber — see the note where it is declared.
+   *
+   * Text on `warningSurface` is `colors.text`, never `textMuted`: muted grey
+   * measures 4.22:1 on the tint, a 12px AA failure (01 §1).
+   */
+  warning: string;
+  warningSurface: string;
+  warningBorder: string;
+  warningIconBg: string;
 
   /** Bottom tab bar and sticky footers. */
   tabBar: string;
@@ -102,7 +120,6 @@ export const lightColors: ColorTokens = {
 
   text: '#18272b',
   textMuted: '#626f6c',
-  textSubtle: '#66706a',
 
   accent: '#105b5d',
   onAccent: '#ffffff',
@@ -118,15 +135,17 @@ export const lightColors: ColorTokens = {
   dangerPressed: '#a64131',
   dangerSurface: '#f9ece8',
 
-  scrim: 'rgba(0, 0, 0, 0.4)',
+  scrim: 'rgba(0, 0, 0, 0.7)',
 
-  noticeSurface: '#f8ebcb',
-  noticeBorder: '#e6cf98',
-  noticeText: '#4e3703',
+  // Measured at Home node 4:2968, with the alphas Figma draws.
+  warning: '#996b13',
+  warningSurface: 'rgba(153, 107, 19, 0.10)',
+  warningBorder: 'rgba(153, 107, 19, 0.20)',
+  warningIconBg: 'rgba(153, 107, 19, 0.13)',
 
   // The Figma tab bar is plain surface.
   tabBar: '#ffffff',
-  toggleOff: '#8b877d',
+  toggleOff: '#76817d',
 };
 
 /**
@@ -143,7 +162,6 @@ export const darkColors: ColorTokens = {
 
   text: '#ece8de',
   textMuted: '#a7b0ad',
-  textSubtle: '#959e99',
 
   accent: '#62b5ae',
   onAccent: '#0f1a1b',
@@ -158,11 +176,16 @@ export const darkColors: ColorTokens = {
   dangerPressed: '#d37f6d',
   dangerSurface: '#3b2420',
 
-  scrim: 'rgba(0, 0, 0, 0.4)',
+  scrim: 'rgba(0, 0, 0, 0.7)',
 
-  noticeSurface: '#3a3020',
-  noticeBorder: '#6b5a33',
-  noticeText: '#f0d9a0',
+  // Figma's #996b13 lightened, like accent/danger/success are: at the same
+  // alphas over a dark ground the amber fills drift *towards* the ink, and the
+  // icon on its own circle fell to 2.66:1. The alphas are Figma's; the hue is
+  // this theme's. Every pair is asserted in tokens.test.ts.
+  warning: '#d9ab4e',
+  warningSurface: 'rgba(217, 171, 78, 0.10)',
+  warningBorder: 'rgba(217, 171, 78, 0.20)',
+  warningIconBg: 'rgba(217, 171, 78, 0.13)',
 
   tabBar: '#172123',
   toggleOff: '#76827f',
@@ -342,14 +365,22 @@ export const radius = {
   card: 6,
   /** Buttons. */
   button: 6,
-  /** Progress bars, chips, badges. */
+  /**
+   * Status badges, count badges and filter chips. Measured at 4 in Figma, and
+   * 01 §5 says measured wins over the pill this file first assumed.
+   */
+  badge: 4,
+  /**
+   * Anything that must read as fully round: bar tracks and progress fills, the
+   * toggle track and thumb, the sheet grabber, the 8px category dot.
+   */
   pill: 999,
   /** 40px service logo circles. */
   avatar: 20,
   /** 48px centre add button. */
   fab: 24,
-  /** Top corners of a bottom sheet (02 §12). */
-  sheet: 16,
+  /** Top corners of a bottom sheet — measured at 24 on both sheets (02 §12). */
+  sheet: 24,
 } as const;
 
 /** The floor for anything tappable. Graded, and enforced by component tests. */
@@ -383,8 +414,16 @@ export const sizes = {
   /** Settings rows — Figma node 3:1819 (02 §11). */
   rowSettings: 46,
   rowSettingsToggle: 52,
-  /** Settings-row stepper buttons (02 §11). */
+  /** Settings-row stepper buttons (02 §11) — 28 visible, 44 to the finger. */
   stepper: 28,
+  /** Standalone Stepper control, beside a Select of the same height (02 §16). */
+  stepperControl: 44,
+  /** The − and + glyphs inside a standalone Stepper (02 §16). */
+  iconStepper: 14,
+  /** Search field (02 §18) — 44, not the 52 of a form field. */
+  search: 44,
+  /** FilterChip: 28 drawn, 44 to the finger via hitSlop (02 §17). */
+  chipVisual: 28,
   /** Toggle track and thumb (02 §7). */
   toggleWidth: 40,
   toggleHeight: 24,
@@ -394,9 +433,17 @@ export const sizes = {
   hairline: 1,
   /** Focused or errored field border (02 §2). */
   borderFocus: 2,
-  /** Service logo circle in a list row, and the larger one on a detail screen. */
-  tile: 40,
-  tileLarge: 72,
+  /** The circle behind a warning banner's icon — 01 §1 `warningIconBg`. */
+  warningIcon: 40,
+  /**
+   * ServiceMark diameters (02 §21). The four the design draws, plus the 28
+   * square used by the dense member-subscription rows on Member detail.
+   */
+  markSquare: 28,
+  markCompact: 36,
+  mark: 40,
+  markMedium: 44,
+  markLarge: 72,
   /** Height of a stacked bar and of a single category bar (Figma bar track: 12). */
   barStacked: 12,
   barRow: 12,
@@ -421,6 +468,14 @@ export const sizes = {
   /** Bottom-sheet grabber (02 §12). */
   grabberWidth: 40,
   grabberHeight: 4,
+  /**
+   * The destructive sheet's header (02 §12, measured on the Delete sheet
+   * `4:4330`): a 48px `dangerSurface` circle holding a 24px alert triangle, and
+   * a 34pt bottom padding that the safe-area inset is added to.
+   */
+  sheetIconCircle: 48,
+  iconAlert: 24,
+  sheetBottomDestructive: 34,
   /** Toast minimum height (02 §13). */
   toast: 44,
   /** Readable measure for centred prose (EmptyState). */

@@ -14,7 +14,9 @@
  * Deviations from handoff 02 visible here (each explained in its component):
  *   - Field and secondary-button outlines use `borderControl`, not `border`
  *     (1.51:1 fails WCAG 1.4.11).
- *   - SectionHeader is 12px, not 11px (01's 12pt floor).
+ *   - SectionHeader is Bold 12, not 02's first 11px SemiBold (01's 12pt floor).
+ *   - FilterChip is a `radio`, not a `button`: the row is single-choice.
+ *   - Badge `neutral`/`warning` text is `text`, not `textMuted` (both fail AA).
  *   - Unselected segments use `text`, not `textMuted` (muted on surface2 is 4.28:1).
  *   - Toast follows the Figma symbol (radius 6, 18px icon, SemiBold 15).
  *   - CurrencyField emits a decimal string, never minor units (no client money math).
@@ -26,6 +28,10 @@ import { useState, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import {
+  AlertCard,
+  Amount,
+  Badge,
+  BarRow,
   BillingCycleField,
   BottomSheet,
   Button,
@@ -35,23 +41,32 @@ import {
   CurrencyField,
   DateField,
   EmptyState,
+  ErrorState,
+  FilterChip,
   GroupedList,
   Header,
   invalidPriceMessage,
   isValidPrice,
   ListRow,
   Screen,
+  SearchField,
   SectionHeader,
   SegmentedControl,
   Select,
+  ServiceMark,
   SettingsRow,
   Skeleton,
   SkeletonGroup,
   SkeletonRow,
+  StackedBar,
+  Stepper,
   TextField,
+  Toggle,
   useToast,
+  type BadgeTone,
   type BillingCycleOption,
   type ButtonVariant,
+  type ServiceMarkSize,
 } from '@/components';
 import {
   CATEGORY_LABELS,
@@ -70,6 +85,12 @@ const VARIANTS: readonly ButtonVariant[] = [
   'ghost',
 ];
 
+const BADGE_TONES: readonly BadgeTone[] = ['success', 'neutral', 'warning'];
+
+const MARK_SIZES: readonly ServiceMarkSize[] = ['compact', 'row', 'medium', 'large'];
+
+const FILTERS = ['All', 'Entertainment', 'Productivity', 'Utilities'] as const;
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const styles = useStyles();
   return (
@@ -83,7 +104,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function GalleryScreen() {
   const styles = useStyles();
   const navigation = useNavigation();
-  const { preference, setPreference, reduceMotion } = useTheme();
+  const { preference, setPreference, reduceMotion, categoryColors } = useTheme();
   const toast = useToast();
 
   const [name, setName] = useState('');
@@ -97,6 +118,9 @@ export function GalleryScreen() {
   const [leadDays, setLeadDays] = useState(3);
   const [sheet, setSheet] = useState(false);
   const [confirm, setConfirm] = useState<'plain' | 'destructive' | null>(null);
+  const [filter, setFilter] = useState<string>('All');
+  const [search, setSearch] = useState('');
+  const [every, setEvery] = useState(2);
 
   return (
     <Screen scroll edges={['top', 'bottom']}>
@@ -319,6 +343,181 @@ export function GalleryScreen() {
         />
       </Section>
 
+      <Section title="ListRow - compact (02 S9)">
+        <Text style={styles.note}>
+          Home&apos;s upcoming renewals: 36pt mark, relative date, amount in text rather
+          than accent.
+        </Text>
+        <ListRow
+          name="Netflix"
+          price="15.49"
+          currency="USD"
+          cycle={{ unit: 'month', count: 1 }}
+          nextBillOn="2026-10-21"
+          compact
+          today="2026-10-19"
+          onPress={() => {}}
+        />
+        <ListRow
+          name="iCloud+"
+          mark="iC"
+          price="2.99"
+          currency="USD"
+          cycle={{ unit: 'month', count: 1 }}
+          nextBillOn="2026-10-20"
+          compact
+          today="2026-10-19"
+          onPress={() => {}}
+        />
+        <ListRow
+          name="Spotify"
+          price="11.99"
+          currency="USD"
+          cycle={{ unit: 'month', count: 1 }}
+          nextBillOn="2026-10-19"
+          compact
+          today="2026-10-19"
+          onPress={() => {}}
+        />
+      </Section>
+
+      <Section title="ServiceMark (02 S21)">
+        <View style={styles.markRow}>
+          {MARK_SIZES.map((size) => (
+            <ServiceMark key={size} name="Netflix" size={size} />
+          ))}
+        </View>
+        <View style={styles.markRow}>
+          <ServiceMark name="iCloud+" mark="iC" />
+          <ServiceMark name="Google Play" mark="GP" />
+          <ServiceMark name="Northside Gym" />
+          <ServiceMark name="Movie Club" />
+          <ServiceMark name="Netflix" shape="square" />
+        </View>
+        <Text style={styles.note}>
+          Catalog marks, a derived tint, and the 28pt square used by Member detail.
+        </Text>
+      </Section>
+
+      <Section title="Stepper (02 S16)">
+        <View style={styles.row}>
+          <View style={styles.grow}>
+            <Stepper value={every} onChange={setEvery} label="Every" />
+          </View>
+          <View style={styles.grow}>
+            <Select
+              label="Unit"
+              value="months"
+              options={[
+                { value: 'weeks', label: 'Weeks' },
+                { value: 'months', label: 'Months' },
+                { value: 'years', label: 'Years' },
+              ]}
+              onChange={() => {}}
+            />
+          </View>
+        </View>
+        <Text style={styles.note}>
+          Hold minus or plus to repeat. At 1 and 99 that side mutes and stops.
+        </Text>
+        <Stepper value={1} onChange={() => {}} label="At the minimum" />
+        <Stepper value={99} onChange={() => {}} label="At the maximum" />
+      </Section>
+
+      <Section title="SearchField (02 S18)">
+        <SearchField
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search subscriptions"
+        />
+        <Text style={styles.note}>
+          44 tall, not 52. The clear button appears once there is something to clear.
+        </Text>
+      </Section>
+
+      <Section title="FilterChip (02 S17)">
+        <View style={styles.chipRow}>
+          {FILTERS.map((label) => (
+            <FilterChip
+              key={label}
+              label={label}
+              selected={filter === label}
+              onPress={() => setFilter(label)}
+              accessibilityLabel={label === 'All' ? 'All categories' : undefined}
+            />
+          ))}
+        </View>
+        <Text style={styles.note}>
+          Drawn at 28, tappable at 44. The row scrolls rather than wrapping.
+        </Text>
+      </Section>
+
+      <Section title="Badge (02 S19)">
+        <View style={styles.chipRow}>
+          {BADGE_TONES.map((tone) => (
+            <Badge key={tone} label={tone} tone={tone} />
+          ))}
+          <Badge label="12 active" tone="success" />
+          <Badge label="Cancelled" />
+        </View>
+      </Section>
+
+      <Section title="AlertCard (02 S20)">
+        <AlertCard message="Streamly Plus is going up to $17.99 on Oct 3." />
+        <AlertCard
+          title="Price increase"
+          message="Streamly Plus is going up to $17.99 on Oct 3."
+          onPress={() => {}}
+          accessibilityHint="Opens the subscription"
+        />
+      </Section>
+
+      <Section title="Toggle (02 S7)">
+        <View style={styles.row}>
+          <Toggle value={false} />
+          <Toggle value />
+          <Toggle value={false} disabled />
+          <Toggle value disabled />
+        </View>
+        <Text style={styles.note}>
+          Drawn, not driven: Toggle takes no handler on purpose. It is 24pt tall, below
+          the 44pt floor, so the SettingsRow above is the switch and this is only the
+          indicator. Here to check the thumb travel and the off colour in both themes.
+        </Text>
+      </Section>
+
+      <Section title="Amount">
+        <Amount value="1284.50" currency="USD" size="hero" />
+        <Amount value="1284.50" currency="USD" size="large" />
+        <Amount value="15.49" currency="USD" size="row" />
+        <Amount value="15.49" currency="USD" size="compact" />
+        <Amount value="2400" currency="JPY" size="large" />
+        <Amount value="15.49" currency="GBP" size="row" unconverted />
+      </Section>
+
+      <Section title="StackedBar + BarRow">
+        <StackedBar
+          segments={[
+            { category: 'entertainment', percent: 45 },
+            { category: 'productivity', percent: 30 },
+            { category: 'cloud-storage', percent: 25 },
+          ]}
+        />
+        <BarRow category="entertainment" amount="124.50" currency="USD" percent={45} />
+        <BarRow category={null} amount="18.00" currency="USD" percent={7} />
+      </Section>
+
+      <Section title="SectionHeader - with a category square">
+        <SectionHeader title="Entertainment" color={categoryColors.entertainment} />
+        <SectionHeader title="Productivity" color={categoryColors.productivity} />
+      </Section>
+
+      <Section title="ErrorState">
+        <ErrorState variant="offline" onRetry={() => {}} />
+        <ErrorState variant="error" onRetry={() => {}} />
+        <ErrorState variant="notFound" />
+      </Section>
+
       <Section title="CategoryBadge">
         {CATEGORY_SLUGS.map((slug) => (
           <CategoryBadge key={slug} category={slug} />
@@ -331,7 +530,7 @@ export function GalleryScreen() {
         <Button label="Confirm" variant="secondary" onPress={() => setConfirm('plain')} />
         <Button
           label="Destructive confirm"
-          variant="destructive"
+          variant="destructiveOutline"
           onPress={() => setConfirm('destructive')}
         />
         <Button
@@ -392,6 +591,18 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   },
   row: {
     flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  markRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   grow: {

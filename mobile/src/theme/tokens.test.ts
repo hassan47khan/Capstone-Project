@@ -62,6 +62,31 @@ function expectContrast(
   });
 }
 
+/**
+ * What an `rgba(…)` token actually renders as over an opaque ground.
+ *
+ * The warning family (01 §1) is translucent on purpose, so one set of values
+ * works over `bg`, over a `surface` card and over the dark theme's ground. A
+ * ratio can only be computed against the flattened result, and layers nest:
+ * `warningIconBg` sits on `warningSurface`, which sits on the page.
+ */
+function flatten(rgba: string, ground: string): string {
+  const parts = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/.exec(
+    rgba,
+  );
+  if (!parts) throw new Error(`Not an rgba colour: "${rgba}"`);
+
+  const [r, g, b] = [parts[1], parts[2], parts[3]].map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const alpha = parts[4] === undefined ? 1 : Number(parts[4]);
+  const hex = `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+
+  return composite(hex, ground, alpha);
+}
+
 /** The colour a translucent layer actually renders as, over an opaque ground. */
 function composite(foreground: string, background: string, alpha: number): string {
   const channels = (hex: string) =>
@@ -150,9 +175,6 @@ describe.each(THEMES)('$name theme', ({ name, colors, categories, services }) =>
       ['textMuted on bg', 'textMuted', 'bg'],
       ['textMuted on surface', 'textMuted', 'surface'],
       ['textMuted on tabBar', 'textMuted', 'tabBar'],
-      // The `/mo` suffix. Figma's #78817b was 4.02:1 here; darkened to pass.
-      ['textSubtle on surface', 'textSubtle', 'surface'],
-      ['textSubtle on bg', 'textSubtle', 'bg'],
       ['accent on surface', 'accent', 'surface'],
       ['accent on bg', 'accent', 'bg'],
       ['accent on accentSurface', 'accent', 'accentSurface'],
@@ -170,9 +192,44 @@ describe.each(THEMES)('$name theme', ({ name, colors, categories, services }) =>
       ['danger on bg', 'danger', 'bg'],
       ['danger on dangerSurface', 'danger', 'dangerSurface'],
       ['success on successSurface', 'success', 'successSurface'],
-      ['noticeText on noticeSurface', 'noticeText', 'noticeSurface'],
     ] as const)('%s meets 4.5:1', (label, fg, bg) => {
       expectContrast(`${name}: ${label}`, colors[fg], colors[bg], CONTRAST_TEXT);
+    });
+  });
+
+  describe('the warning family (01 §1)', () => {
+    // The banner sits on the page on Home and inside a card elsewhere, and the
+    // tint is translucent, so every pair is checked against both grounds.
+    const grounds = ['bg', 'surface'] as const;
+
+    it.each(grounds)('text on the warning tint over %s meets 4.5:1', (ground) => {
+      expectContrast(
+        `${name}: text on warningSurface over ${ground}`,
+        colors.text,
+        flatten(colors.warningSurface, colors[ground]),
+        CONTRAST_TEXT,
+      );
+    });
+
+    it.each(grounds)('the alert icon over %s meets 3:1', (ground) => {
+      // A graphic, not text — 01 §1 measures it at 3.79:1 and calls it OK.
+      expectContrast(
+        `${name}: warning icon on warningSurface over ${ground}`,
+        colors.warning,
+        flatten(colors.warningSurface, colors[ground]),
+        CONTRAST_LARGE_TEXT_AND_GRAPHICS,
+      );
+    });
+
+    it.each(grounds)('the icon on its own circle over %s meets 3:1', (ground) => {
+      // Two translucent layers: the 40px circle over the card fill over the page.
+      const fill = flatten(colors.warningSurface, colors[ground]);
+      expectContrast(
+        `${name}: warning icon on warningIconBg over ${ground}`,
+        colors.warning,
+        flatten(colors.warningIconBg, fill),
+        CONTRAST_LARGE_TEXT_AND_GRAPHICS,
+      );
     });
   });
 
@@ -315,7 +372,19 @@ describe('serviceTint', () => {
   });
 });
 
-describe('convention: no muted text on surface2', () => {
+describe('convention: no muted text on a tint', () => {
+  it('documents why muted text never goes on the warning fill', () => {
+    // 01 §1: the prototype set the alert subtitle in textMuted, which measures
+    // ~4.22:1 on the tint — a 12px AA failure. The banner uses `text` instead.
+    // Light only: in the dark theme muted grey on the dark tint passes easily.
+    expect(
+      contrastRatio(
+        lightColors.textMuted,
+        flatten(lightColors.warningSurface, lightColors.bg),
+      ),
+    ).toBeLessThan(CONTRAST_TEXT);
+  });
+
   it('documents why — the pair is below AA in the light theme', () => {
     // textMuted on surface2 is 4.28:1. Rather than darken the muted grey for
     // every screen, muted text is never placed on a surface2 fill. If this test
