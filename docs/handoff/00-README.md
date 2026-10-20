@@ -1,4 +1,4 @@
-# SubTrak — Developer Handoff -- Completed
+# SubTrak — Developer Handoff
 
 **Project:** SubTrak (CSC 325 capstone) · `hassan47khan/Capstone-Project`
 **Stack:** React Native (Expo) · Django + DRF · MongoDB Atlas
@@ -50,6 +50,21 @@ Phase 8  Calendar + polish ... 11 §1, §3
 ```
 
 **Minimum demo-able slice:** Phases 0 → 1 → 2 → 3. Everything after is additive.
+
+---
+
+## Stack decisions (settled)
+
+| Area | Choice | Why |
+|---|---|---|
+| Navigation | **React Navigation 7** (already built in Phase 0; 38 navigation tests pass) | Switching to expo-router now would be a rewrite for no gain. Deep links via the `linking` config |
+| Styling | React Native `StyleSheet`, values only from `src/theme` | No extra dependency; enforces rule 6 |
+| Server state | TanStack Query over the generated TS client | Loading / error / stale states, cache, refetch after writes |
+| Language | TypeScript, `strict` | Generated client types catch wrong fields at build time |
+| Auth (backend) | `djangorestframework-simplejwt`, rotating refresh | Login / refresh handled; register, verify, reset built on top (`04 §5`) |
+
+Still open: paywall, Family in/out, email provider, target platforms, instructor
+scope, designer sign-offs (below).
 
 ---
 
@@ -155,7 +170,7 @@ override each before the screens that use them are built.
 
 ### Still open (blocks Phase 0 and 2)
 
-Router (expo-router vs React Navigation) · styling approach · server-state library ·
+Styling approach · server-state library ·
 TypeScript on or off · auth library (simplejwt / dj-rest-auth / custom) · real paywall
 or not · Family in or out · primary AI feature · email delivery provider · an existing
 API contract from the backend spike · target platforms · instructor scope sign-off.

@@ -65,3 +65,5 @@ holds: TanStack Query, TypeScript strict, simplejwt, and tokens through
       `GalleryScreen.tsx` or [[2026-10-19]]. Either switch to 20 or record it as
       a deliberate deviation.
 - [ ] Device pass is still open (see [[2026-10-19]] next steps).
+
+Stack is React Navigation 7, not expo-router; 03-navigation.md and CLAUDE.md corrected.

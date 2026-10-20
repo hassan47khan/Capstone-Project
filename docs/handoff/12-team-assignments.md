@@ -31,7 +31,7 @@ Phase 6 (AI) is the graded requirement; Family (`10`) is cut first.
    3. `02` batch A (below), then batch B.
    4. Real endpoints behind the same contract.
 2. **Chris's `03` needs Hassan's `01` and the TabBar from `02`.** `03` is "skeleton
-   with placeholders" — Chris can start with plain React Navigation / expo-router
+   with placeholders" — Chris can start with the React Navigation setup that already exists
    routes once `01` lands, and swap in `TabBar` when `02` batch A merges.
 3. **Rafi holds the graded requirement and a stretch goal.** Do AI first (`11 §2`),
    Calendar second (`11 §1`), the system-state verification pass (`11 §3`) at the
@@ -43,7 +43,7 @@ Phase 6 (AI) is the graded requirement; Family (`10`) is cut first.
 | Seam | Producer | Consumer | Contract |
 |---|---|---|---|
 | Tokens, components | Hassan | everyone | `src/theme`, `src/components`; no one edits these without Hassan's review |
-| Route tree | Chris | everyone | `03 §1`; others register screens by adding a file, not by editing the navigator |
+| Route tree | Chris | everyone | `03 §1`; others register screens in their tab's stack file, not by editing the root navigator |
 | API client | Hassan | everyone | generated TS client; no `fetch()` in screens |
 | Settings rows for Shared plans / Connected email | Ankit builds the rows | Rafi builds the destinations | route names `SharedPlans`, `ConnectEmail`; stubs until Rafi merges |
 | Trial AlertCard on Home | Chris builds the card | Rafi supplies `GET /trials` and TrialShield | `06 §2.4`, `11 §2.5`; hidden until the endpoint exists |

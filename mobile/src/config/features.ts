@@ -9,26 +9,15 @@
  *
  * Why these are `const` booleans and not runtime config
  *   Metro's bundler drops `false &&` branches, so a disabled feature is not just
- *   hidden — its screens never register, never appear in deep links, and are not
- *   reachable by any route. That matters for FEATURE_SHARING in particular: a
- *   merely hidden tab is still a navigable route, which would leak a half-built
- *   Family screen to anyone who guessed the link.
+ *   hidden — its code paths are gone from the bundle. A merely hidden screen is
+ *   still a navigable route, which would leak a half-built feature to anyone who
+ *   guessed the link.
  *
  * How to turn one on
  *   Flip the constant to `true`, then build the feature behind it. Every flag
  *   below names the epic that owns it, so nobody has to guess what enabling it
  *   would require.
  */
-
-/**
- * Epic F — Shared Plan Cost Splitter (US-14, US-15).
- *
- * Gates the "Family" bottom tab. The prototype draws this screen, but the splitter,
- * invitations and the participant's `/shared-with-me` view are all out of scope
- * until Epic F. Consumed by src/navigation/TabNavigator.tsx, which registers the
- * tab only when this is true.
- */
-export const FEATURE_SHARING = false;
 
 /**
  * Epic D — AI-Powered Extraction (US-9 to US-11).

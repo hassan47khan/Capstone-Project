@@ -1,0 +1,28 @@
+# SubTrak — CLAUDE.md (starter; keep this short)
+
+**What:** mobile subscription tracker. Expo (React Native, TypeScript strict) + Django/DRF + MongoDB Atlas.
+**Specs:** the file(s) for your task live in `docs/handoff/` (numbered `01`–`12`; only the ones assigned to you are present). Read your file plus the prerequisites it lists. If a spec points at a file that is not in `docs/handoff/`, stop and say so instead of guessing. Spec > Figma > screenshots.
+
+## Stack (settled)
+React Navigation 7 · React Native StyleSheet with tokens from `src/theme` · TanStack Query over the generated TS client · TypeScript strict · simplejwt (rotating refresh in `expo-secure-store`).
+
+## The six rules
+1. Never store or hand-write a total; the server computes it (money engine, `04`). The client never sums.
+2. Money is Decimal end to end; round only at presentation.
+3. `color.danger` is for errors and destructive actions only.
+4. The FAB is the only add affordance.
+5. No blank screens: every list/data view has loading, empty and error states.
+6. No hardcoded colors, sizes or spacing outside `01` tokens.
+
+## Ownership
+Hassan: `src/theme`, `src/components`, `src/api`, `backend/` (04) · Chris: `src/navigation`, auth screens, Home · Ankit: subscriptions, analytics, settings · Rafi: ai, calendar, family, `04 §6a` backend.
+Need a change in someone else's folder? Stop and ask.
+
+## Commands
+(fill in: install, start, typecheck, lint, test, regenerate API client, seed DB)
+
+## Decisions log
+(add here: chart library, Decimal storage strategy, AI input path and retention window, Family privacy option)
+
+## Figma
+Newer file `IKYivyJtmBYzJNQ7g8qPGc` for everything except Home. Home = `4:2901` in the original file `kyUS7F8bg4x7GpcPEF4UDN`. Never build `113:641` or `113:765`.

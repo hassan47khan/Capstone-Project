@@ -1,4 +1,4 @@
-# 01 — Design Tokens & Theme -- Comppleted
+# 01 — Design Tokens & Theme
 
 **Prerequisites:** none. This is the first file to implement.
 **Deliverable:** a typed token module + light/dark theme provider for the Expo app.
