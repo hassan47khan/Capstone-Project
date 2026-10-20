@@ -25,9 +25,10 @@ Run lint and typecheck before declaring any task done.
 
 ## Navigation & Routing
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+- Use **React Navigation 7** (`@react-navigation/native`, `native-stack`, `bottom-tabs`). This project does not use Expo Router; do not add it or create `src/app/`.
+- Navigators live in `src/navigation/`: `RootNavigator` (auth gate), `AuthNavigator`, `AppNavigator` (tabs + modal group), `TabNavigator` (tabs and the Calendar/Settings stacks). Screens live in `src/features/` and are registered in those files.
+- Every route's params are typed in `src/navigation/types.ts`; deep links are in `src/navigation/linking.ts`.
+- Spec: `docs/handoff/03-navigation.md`. Docs: https://reactnavigation.org/docs/7.x/getting-started
 
 ## Building with EAS
 
