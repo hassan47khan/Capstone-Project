@@ -6,7 +6,7 @@ updated: 2026-10-20
 
 # Repo State
 
-Snapshot of the repository as of 2026-10-20, `main` at `4c1d8fb` (#85). Written
+Snapshot of the repository as of 2026-10-20, `main` at `9df066b` (#86). Written
 so a sprint review does not have to be reconstructed from git log. This note is
 rewritten rather than appended to, on `main` only, by whoever merged the last
 PR; history is in git log and PR descriptions.
@@ -23,7 +23,7 @@ Test counts below are copied from commit messages and PR descriptions, not re-ru
 | CI | `mobile-ci` (`ff8cefd`, pushed without a PR) and `backend-ci` (#70) on `main`. Required-check status not re-checked since 2026-10-09; see [[Backend CI]]. |
 | Protection | Ruleset `main-protection` as of 2026-10-09: PR + 1 approval, squash only, linear history, threads resolved. No CI gate then; not re-checked. |
 | Docs | Spec and design critique in `docs/design/`; Figma is the appearance source (#82). Developer handoffs `00`–`12` in `docs/handoff/` (#85). Root `CLAUDE.md` added in #85. |
-| Vault | This vault is committed at `Capstone_CSC325/` and shared (`41ca1a2`–`80ffa05`). |
+| Vault | This vault is committed at `Capstone_CSC325/` and shared (`41ca1a2`–`80ffa05`). Since #86, root `CLAUDE.md` and `AGENTS.md` tell every AI to read it first; session logs in `04 - Logs/` are local-only and gitignored, and the merger of each PR updates this note. |
 | Stories | Not re-counted. US-5 has backend helpers (#71); no story is finished end to end. |
 
 ## Layout
@@ -43,6 +43,7 @@ Capstone_CSC325/  this Obsidian vault, shared team notes
 docker-compose.yml  single-node Mongo replica set, used locally and by CI
 .github/workflows/  mobile-ci.yml, backend-ci.yml
 CLAUDE.md    root rules for every AI session
+AGENTS.md    same rules for Codex, Copilot and Cursor; points to CLAUDE.md
 ```
 
 ## What is actually verified
