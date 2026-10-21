@@ -24,10 +24,10 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 
 | Area | State |
 | --- | --- |
-| Backend | Sprint 0 spike merged. MongoDB, custom user model, JWT wiring, `GET /health/` and `GET /me/`. 17 tests, 93% coverage, green in CI. No story endpoints yet. |
-| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links), 412 tests. Every screen is still a placeholder. |
-| CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. They are **not yet required checks** — see [Continuous Integration](#continuous-integration). |
-| Docs | System design specification and visual prototype are done. |
+| Backend | Sprint 0 spike merged. MongoDB, custom user model, JWT wiring, `GET /health/` and `GET /me/`, plus DST-safe time zone helpers for US-5. 26 tests, 94% coverage, green in CI. No story endpoints yet. |
+| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. 419 tests. Every screen is still a placeholder. |
+| CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. `verify` and `backend-verify` are required checks — see [Continuous Integration](#continuous-integration). |
+| Docs | System design specification is done. Developer handoff specs `00`–`12` are in `docs/handoff/`. Team notes live in the `Capstone_CSC325/` Obsidian vault. |
 
 ## Repository Structure
 
@@ -46,9 +46,13 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 │   └── .env.example  # Template for local backend environment variables
 ├── mobile/           # React Native (Expo SDK 57) client
 │   └── src/          # api/ components/ features/ navigation/ session/ theme/ test/
-├── docs/design/      # System design specification, prototype PDF, design notes
+├── docs/design/      # System design specification, design notes, retired prototype PDF
+├── docs/handoff/     # Developer handoff specs 00–12, one per task area
+├── Capstone_CSC325/  # Obsidian vault: shared team notes (see Contributing)
 ├── docker-compose.yml  # Local MongoDB (single-node replica set); CI uses it too
-└── .github/workflows # CI pipelines
+├── .github/workflows # CI pipelines
+├── CLAUDE.md         # Rules for AI coding sessions (Claude Code)
+└── AGENTS.md         # Same rules for other AI agents; points to CLAUDE.md
 ```
 
 ## Documentation
@@ -56,12 +60,16 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 | Document | Location |
 | --- | --- |
 | System Design Specification | [docs/design/SubTrak — System Design Specification.md](docs/design/SubTrak%20%E2%80%94%20System%20Design%20Specification.md) |
-| Visual design (source of truth) | Figma file `kyUS7F8bg4x7GpcPEF4UDN`, page "Full Integrated Prototype Epic A, B, C" |
+| Developer handoff specs (per task) | [docs/handoff/](docs/handoff/) — start at [00-README.md](docs/handoff/00-README.md); team assignments in [12-team-assignments.md](docs/handoff/12-team-assignments.md) |
+| Visual design (source of truth) | Figma file `IKYivyJtmBYzJNQ7g8qPGc`, page "Full Integrated Prototype Epic A, B, C". Home is the exception: frame `4:2901` exists only in the original file `kyUS7F8bg4x7GpcPEF4UDN` |
 | Earlier visual prototype (retired) | `docs/design/SubTrak prototype.pdf` |
 | Colour contrast report | [mobile/src/theme/CONTRAST.md](mobile/src/theme/CONTRAST.md) |
 | Design notes, page map and state critique | [docs/design/README.md](docs/design/README.md) |
 | Mobile client conventions | [mobile/CLAUDE.md](mobile/CLAUDE.md) |
+| Rules for AI coding sessions | [CLAUDE.md](CLAUDE.md), [AGENTS.md](AGENTS.md) |
+| Team notes (Obsidian vault) | [Capstone_CSC325/SubTrak.md](Capstone_CSC325/SubTrak.md), then [Repo State](Capstone_CSC325/00%20-%20Project/Repo%20State.md) |
 
+Where documents disagree, the handoff spec for the task wins, then Figma, then screenshots.
 The specification is the source of truth for the data model (section 4), the API (section 5), auth
 (section 6), CI (section 13) and the sprint mapping (section 14). Code comments cite it by section
 number.
@@ -196,7 +204,8 @@ lives in `backend/schema.yml` and is also served at runtime.
 Sprint 0's spike is merged. It moved the backend off SQLite onto MongoDB and proved the pieces the
 specification depends on: the custom email-keyed user model, an embedded model with an
 `EmbeddedFieldIndex`, DRF with simplejwt defaulting to `IsAuthenticated`, a committed OpenAPI
-schema, and pytest against a real replica set — 17 tests, 93.46% coverage, green in `backend-ci`.
+schema, and pytest against a real replica set. Time zone helpers with DST-safe local-to-UTC
+conversion for US-5 followed (#71). The suite is 26 tests at 94.41% coverage, green in `backend-ci`.
 
 Not built yet: registration, email verification, login, lockout and password reset (Epic A), the
 subscription CRUD and dashboard endpoints (Epic C), Celery and Redis for reminders (Epic E), the
@@ -265,8 +274,8 @@ All run from `mobile/`.
 
 Phase 0 is complete: the Expo scaffold, design tokens, 20 UI primitives with
 tests, the API layer, the mock backend, session handling and the navigation
-shell. **Every screen is still a placeholder** — Epic A is Phase 1, Epic C is
-Phase 2, Epic B is Phase 3. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
+shell, including the AI-epic routes from handoff 11. **Every screen is still a
+placeholder** — Epic A is Phase 1, Epic C is Phase 2, Epic B is Phase 3. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
 
 The tokens follow the Figma design: DM Serif Display and DM Sans, with light and
 dark themes that follow the phone's setting. Components read colours through
@@ -282,9 +291,9 @@ development build, **Settings → Component gallery** shows every component in
 every state, with a light/dark switch.
 
 There is no device or simulator on the development machine. What is verified is
-`tsc`, ESLint, Prettier and Jest (412 tests). Layout, font scaling, the live
-light/dark switch and native modules are **not** verified. Run the app in Expo
-Go on a phone to check those.
+`tsc`, ESLint, Prettier and Jest (419 tests, re-run 2026-10-20). Layout, font
+scaling, the live light/dark switch and native modules are **not** verified. Run
+the app in Expo Go on a phone to check those.
 
 ## Continuous Integration
 
@@ -300,17 +309,15 @@ each can be made a required check.
 | `backend-ci.yml` | `backend-audit` | `pip-audit` on `requirements.txt`, reporting only — `continue-on-error`, so an advisory in an unrelated package never blocks a pull request. Do not make it a required check. |
 
 Both are green on `main`. The most recent backend run: ruff clean, no missing migrations, schema
-current, 17 tests passed, 93.46% coverage, no known vulnerabilities.
+current, 26 tests passed, 94.41% coverage, no known vulnerabilities (run on `9df066b`, 2026-10-20).
 
 `backend-ci` brings up MongoDB from the repository's `docker-compose.yml` rather than a service
 container, because the compose healthcheck is what initiates the replica set — so CI tests the same
 database a teammate gets locally.
 
-> **Required checks — Pending.** The `main-protection` ruleset requires a pull request with one
-> approval, squash merges, linear history and resolved review threads, but it does **not** list
-> `verify` and `backend-verify` as required status checks. A pull request with a red CI run can
-> still be merged today. Adding them to the ruleset closes this, and is what the capstone
-> guidelines' Week 10 pipeline milestone asks for.
+**Required checks.** The `main-protection` ruleset lists `verify` and `backend-verify` as
+required status checks (checked 2026-10-20), so a pull request with a red CI run cannot merge.
+`backend-audit` is deliberately not required.
 
 ### Keeping the OpenAPI schema current
 
@@ -342,9 +349,25 @@ an AI-use note (tool, task, what you changed or verified) wherever AI wrote non-
 - A pull request with **one approving review**. A push to the branch dismisses stale approvals.
 - All review threads resolved before merge.
 - **Squash merges only**, keeping history linear. Force-pushes and branch deletion are blocked.
+- `verify` (mobile) and `backend-verify` must pass.
 
 Run the checks locally before pushing — `npm run verify` in `mobile/`, and `ruff check . && pytest`
 in `backend/` — rather than using CI as the first check.
+
+### Team notes and AI sessions
+
+The `Capstone_CSC325/` folder is an Obsidian vault of shared team notes. It is not authoritative:
+the handoff specs, the specification, this README and `mobile/CLAUDE.md` outrank it, and a note that
+disagrees with them gets fixed. [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) tell every AI
+session the same rules:
+
+- **Read first:** `SubTrak.md`, then `00 - Project/Repo State.md`.
+- **Session logs are local-only.** Each session writes a log to `04 - Logs/`, named by date and
+  branch (e.g. `2026-10-21 hassan-feature-x.md`). The folder is gitignored. Anything others need,
+  such as a decision or an open follow-up, goes in a tracked note or the PR description. Decisions
+  are recorded in `01 - Planning/Open Decisions.md`.
+- **Repo State describes only `main`.** Nobody edits it on a feature branch. Whoever merges a pull
+  request updates it right after, in a small follow-up pull request.
 
 ## Prototype
 
@@ -527,6 +550,6 @@ Tool: Maestro (or Detox with an Expo development build); run manually at each sp
 
 ### Execution and exit criteria
 
-- Unit and integration tests run automatically in **GitHub Actions** on every pull request. Once `verify` and `backend-verify` are added as required checks (see [Continuous Integration](#continuous-integration)), a PR cannot merge if they fail.
+- Unit and integration tests run automatically in **GitHub Actions** on every pull request. `verify` and `backend-verify` are required checks (see [Continuous Integration](#continuous-integration)), so a PR cannot merge if they fail.
 - Each user story's acceptance criteria are checked against the matching E2E or manual test before the story moves to Done on the Kanban board.
 - **Exit criteria per sprint:** all tests pass, no open high-severity bugs, and the sprint demo flow (Maya's journey) works end to end.
