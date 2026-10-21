@@ -7,7 +7,7 @@ the specification, and what it does not cover.
 
 | Document | Where | What it governs |
 | --- | --- | --- |
-| **Figma prototype** | Figma `kyUS7F8bg4x7GpcPEF4UDN`, page "Full Integrated Prototype Epic A, B, C" | Layout, hierarchy, copy tone, spacing, colour, type |
+| **Figma prototype** | Figma `IKYivyJtmBYzJNQ7g8qPGc`, page "Full Integrated Prototype Epic A, B, C". Home (`4:2901`) is only in the original file `kyUS7F8bg4x7GpcPEF4UDN` | Layout, hierarchy, copy tone, spacing, colour, type |
 | **SubTrak — System Design Specification** | `docs/design/SubTrak — System Design Specification.md` | Architecture, data model, API contract, business rules |
 
 Where they disagree: the specification wins on **behaviour**, Figma wins on
