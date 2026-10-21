@@ -29,8 +29,8 @@ Two jobs:
 - [x] Confirm the run is green on GitHub's runners
 - [x] Merge to `main`
 - [x] Turn on branch protection for `main` — ruleset `main-protection`
-- [ ] **Add `verify` and `backend-verify` as required status checks** — see below
-- [ ] Pin the runner image before 2026-10-19 — see below
+- [x] **Add `verify` and `backend-verify` as required status checks** — confirmed 2026-10-20, see below
+- [ ] Pin the runner image, or migrate on purpose — see below
 - [ ] Delete `infra/backend-ci-workflow` and the five other dead remote branches
 
 ## Verified run
@@ -58,29 +58,31 @@ pushed deliberately to make `backend-verify` fail, and it did — `mobile-ci`
 stayed green on the same commit, so the two really are independent. Do this
 again whenever a step is added.
 
-## Remaining gap — CI does not gate merges
+## Merge gate
 
-The `main-protection` ruleset is active on the default branch and enforces:
+The `main-protection` ruleset is active on the default branch. Read from the
+GitHub API on 2026-10-20, it enforces:
 
 - pull request with 1 approving review, stale approvals dismissed on push
 - review threads must be resolved
 - squash merges only, linear history required
 - deletion and force-push blocked
+- **required status checks `verify` and `backend-verify`**, so a pull request
+  with a red CI run cannot merge
 
-It has **no `required_status_checks` rule**. A pull request with a red
-`backend-verify` can be approved and merged today. Adding `verify` and
-`backend-verify` to the ruleset is the last step of the Week 10 pipeline
-milestone — leave `backend-audit` out, it is `continue-on-error` by design.
+That closes the Week 10 pipeline milestone. `backend-audit` is deliberately
+left out, because it is `continue-on-error` by design.
 
-Also note the ruleset grants `hassan47khan` an `always` bypass, so the owner's
-own pushes skip review entirely. Fine for a solo fix, worth being deliberate
-about.
+The ruleset still grants `hassan47khan` an `always` bypass (checked
+2026-10-20), so the owner's own pushes skip review and the required checks.
+Fine for a solo fix, worth being deliberate about.
 
 ## Two things to watch
 
-**`ubuntu-latest` migrates to Ubuntu 26 on 2026-10-19.** Both workflows carry
-GitHub's annotation about it. Ten days out. Either pin `ubuntu-24.04` now and
-migrate on purpose, or expect a surprise.
+**`ubuntu-latest` migrates to Ubuntu 26.** GitHub announced it for 2026-10-19,
+but the `backend-ci` run on `9df066b` (2026-10-20) still got `ubuntu-24.04`, so
+the switch has not reached this repo yet. Either pin `ubuntu-24.04` and migrate
+on purpose, or expect a surprise.
 
 **`InsecureKeyLengthWarning`, 10 times per run.** The workflow's dummy
 `DJANGO_SECRET_KEY: ci-only-not-a-secret` is 20 bytes; PyJWT wants 32 or more

@@ -19,18 +19,18 @@ artefacts; anything here that contradicts them is out of date.
 | Note | Area | Status |
 | --- | --- | --- |
 | [[Sprint 0 — Backend Spike]] | Backend | done, merged (PR #68) |
-| [[Backend CI]] | Backend / infra | merged and green (PR #70); one ruleset step left |
+| [[Backend CI]] | Backend / infra | merged and green (PR #70); `verify` and `backend-verify` are required checks |
 | [[Phase 0 — Mobile Scaffold]] | Frontend | done, merged |
 | Handoffs 01–03 (tokens, components, navigation) | Frontend | merged (#82, #83, #85); see [[Repo State]] |
 | [[Phase 1 — Epic A Screens]] | Frontend | not started; screens are still placeholders |
 
 ## Where Sprint 0 stands
 
-As of 2026-10-20. Infrastructure is done: both CI workflows are on `main`
-(green as of 2026-10-09, not re-checked), MongoDB is proven, and the mobile
-foundations from handoffs 01–03 (Figma tokens, component library, navigation
-tree) are merged. What is left before Sprint 1 is not code — it is **required
-status checks on the ruleset**, **team roles**, and the answers in
+As of 2026-10-20. Infrastructure is done: both CI workflows are on `main` and
+green, and `verify` and `backend-verify` are required checks, so a red run
+cannot merge. MongoDB is proven, and the mobile foundations from handoffs 01–03
+(Figma tokens, component library, navigation tree) are merged. What is left
+before Sprint 1 is not code — it is **team roles** and the answers in
 [[Open Decisions]]. No story is finished end to end; US-5 has backend helpers
 (#71). [[Repo State]] has the per-area detail.
 

@@ -11,17 +11,17 @@ so a sprint review does not have to be reconstructed from git log. This note is
 rewritten rather than appended to, on `main` only, by whoever merged the last
 PR; history is in git log and PR descriptions.
 
-Test counts below are copied from commit messages and PR descriptions, not re-run on
-2026-10-20.
+Test counts and the ruleset below were measured on 2026-10-20; each figure
+names its source. Anything not re-measured says so.
 
 ## One line per area
 
 | Area | State |
 | --- | --- |
-| Backend | Sprint 0 spike merged (#68): MongoDB, custom user, JWT wiring, `/health/`, `/me/`. Time zone helpers with DST-safe local-to-UTC conversion for US-5 (#71). No story endpoints yet. |
-| Mobile | Handoffs 01–03 merged: Figma tokens with light/dark (#82), component library with dev gallery and the 03 navigation tree (#83), AI-epic routes and 20pt header titles (#85). 370 tests at the time of the 03 PR. Screens are still placeholders. |
-| CI | `mobile-ci` (`ff8cefd`, pushed without a PR) and `backend-ci` (#70) on `main`. Required-check status not re-checked since 2026-10-09; see [[Backend CI]]. |
-| Protection | Ruleset `main-protection` as of 2026-10-09: PR + 1 approval, squash only, linear history, threads resolved. No CI gate then; not re-checked. |
+| Backend | Sprint 0 spike merged (#68): MongoDB, custom user, JWT wiring, `/health/`, `/me/`. Time zone helpers with DST-safe local-to-UTC conversion for US-5 (#71). No story endpoints yet. 26 tests, 94.41% coverage (`backend-ci` run `39512709670` on `9df066b`, 2026-10-20). |
+| Mobile | Handoffs 01–03 merged: Figma tokens with light/dark (#82), component library with dev gallery and the 03 navigation tree (#83), AI-epic routes and 20pt header titles (#85). 419 Jest tests, all passing (run locally on `9df066b`, 2026-10-20). Screens are still placeholders. |
+| CI | `mobile-ci` (`ff8cefd`, pushed without a PR) and `backend-ci` (#70) on `main`, both green on `9df066b` (2026-10-20). `verify` and `backend-verify` are required checks; see [[Backend CI]]. |
+| Protection | Ruleset `main-protection`, read from the GitHub API on 2026-10-20: PR + 1 approval (stale approvals dismissed), squash only, linear history, threads resolved, and required status checks `verify` and `backend-verify`. `hassan47khan` has an `always` bypass. |
 | Docs | Spec and design critique in `docs/design/`; Figma is the appearance source (#82). Developer handoffs `00`–`12` in `docs/handoff/` (#85). Root `CLAUDE.md` added in #85. |
 | Vault | This vault is committed at `Capstone_CSC325/` and shared (`41ca1a2`–`80ffa05`). Since #86, root `CLAUDE.md` and `AGENTS.md` tell every AI to read it first; session logs in `04 - Logs/` are local-only and gitignored, and the merger of each PR updates this note. |
 | Stories | Not re-counted. US-5 has backend helpers (#71); no story is finished end to end. |
@@ -48,15 +48,14 @@ AGENTS.md    same rules for Codex, Copilot and Cursor; points to CLAUDE.md
 
 ## What is actually verified
 
-As of 2026-10-09; not re-run for this snapshot.
+**Backend — verified on GitHub's runners**, not just locally. Run `39512709670`
+on `9df066b`, 2026-10-20: ruff clean, 26 tests passed, 94.41% coverage against a
+90% floor, no known vulnerabilities. Details in [[Backend CI]].
 
-**Backend — verified on GitHub's runners**, not just locally. Run `38009241217`:
-ruff clean, no missing migrations, `schema.yml` current, 17 tests passed,
-93.46% coverage against a 90% floor, no known vulnerabilities. Details in
-[[Backend CI]].
-
-**Mobile** — `tsc`, ESLint, Prettier, Jest (204 tests, re-counted 2026-10-09)
-and a Metro export for both platforms. **Not** verified: layout, real contrast,
+**Mobile** — Jest, 419 tests in 12 suites, all passing (run locally on
+`9df066b`, 2026-10-20). `tsc`, ESLint, Prettier and the Metro export were not
+re-run locally for this snapshot; `verify` runs the first three in CI and was
+green on `9df066b`. **Not** verified: layout, real contrast,
 font scaling, SecureStore, keyboard behaviour — there is still no device or
 simulator on the development machine. See [[Phase 0 — Mobile Scaffold]].
 
@@ -64,11 +63,9 @@ simulator on the development machine. See [[Phase 0 — Mobile Scaffold]].
 
 Carried over from the 2026-10-09 snapshot and not re-checked, except where noted.
 
-- **CI does not gate merges.** `main-protection` has no required status checks,
-  so a pull request with a red `backend-verify` can still be merged. One
-  ruleset change away from done — [[Backend CI]].
-- **`ubuntu-latest` moved to Ubuntu 26 on 2026-10-19.** Both workflows were on
-  it as of 2026-10-09. Check that they still pass, or pin on purpose.
+- **`ubuntu-latest` is not pinned.** GitHub announced the move to Ubuntu 26 for
+  2026-10-19, but the `backend-ci` run on `9df066b` (2026-10-20) still got
+  `ubuntu-24.04`. The switch may still arrive; pin on purpose or expect it.
 - No `seed_demo` command. Specification section 13 asks for one; Sprint 3's AI
   work and every demo need it.
 - Team roles (Scrum Master, Product Owner, slice owners) still unassigned in the
