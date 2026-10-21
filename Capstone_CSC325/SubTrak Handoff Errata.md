@@ -64,7 +64,7 @@ holds: TanStack Query, TypeScript strict, simplejwt, and tokens through
       documented as the bottom-sheet title. This isn't in the deviation list in
       `GalleryScreen.tsx` or the [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]]. Either switch to 20 or record it as
       a deliberate deviation.
-- [ ] Device pass is still open (see the checklist in the [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]]).
+- [x] Device pass done 2026-10-19, all passed (see the [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]]).
 
 Stack is React Navigation 7, not expo-router; 03-navigation.md and CLAUDE.md corrected.
 
@@ -77,4 +77,4 @@ These are code-read checks, not a re-run of the tests.
 - `ReviewExtraction` is registered in the modal group in `AppNavigator.tsx`.
 - `Header` titles use `typography.displaySm` (20/28).
 
-The device pass is still open.
+The device pass for handoffs 01–03 was done on 2026-10-19 and passed.

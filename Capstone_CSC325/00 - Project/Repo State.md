@@ -55,9 +55,11 @@ on `9df066b`, 2026-10-20: ruff clean, 26 tests passed, 94.41% coverage against a
 **Mobile** — Jest, 419 tests in 12 suites, all passing (run locally on
 `9df066b`, 2026-10-20). `tsc`, ESLint, Prettier and the Metro export were not
 re-run locally for this snapshot; `verify` runs the first three in CI and was
-green on `9df066b`. **Not** verified: layout, real contrast,
-font scaling, SecureStore, keyboard behaviour — there is still no device or
-simulator on the development machine. See [[Phase 0 — Mobile Scaffold]].
+green on `9df066b`. The Expo Go device pass for handoffs 01–03 passed on
+2026-10-19 (reported by Hassan; checklist in [[Open Decisions]]): themes, Reduce
+Motion, the largest text size, the modal flow and deep links. **Not** verified:
+measured on-device contrast, SecureStore, keyboard behaviour. See
+[[Phase 0 — Mobile Scaffold]].
 
 ## Known gaps in the repo itself
 
