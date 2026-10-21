@@ -25,10 +25,21 @@ Hassan: `src/theme`, `src/components`, `src/api`, `backend/` (04) · Chris: `src
 Need a change in someone else's folder? Stop and ask.
 
 ## Commands
-(fill in: install, start, typecheck, lint, test, regenerate API client, seed DB)
+(fill in: install, start, typecheck, lint, test, regenerate API client)
+
+Backend, from `backend/` with MongoDB up (`docker compose up -d --wait` at the repo root):
+- Install: `pip install -r requirements-dev.txt`
+- Lint: `ruff check .` and `ruff format --check .`
+- Test: `pytest --cov --cov-fail-under=90`
+- Migrations: `python manage.py makemigrations --check --dry-run`
+- OpenAPI: `python manage.py spectacular --file schema.yml --validate`
+- Seed DB: `python manage.py seed_demo [--today YYYY-MM-DD]` (resets and reloads the 04 §4 dataset)
+- Trials: `python manage.py convert_trials` (the 04 §6a conversion job)
 
 ## Decisions log
-(add here: chart library, Decimal storage strategy, AI input path and retention window, Family privacy option)
+- **Decimal storage:** money is `DecimalField`, stored as BSON Decimal128, never a float or scaled integers. The round trip is asserted in `subscriptions/tests/test_models.py`. Money is rounded half-up only at presentation, via `round_money` (`round_to_total` when lines are shown next to their total).
+
+(add here: chart library, AI input path and retention window, Family privacy option)
 
 ## Figma
 Newer file `IKYivyJtmBYzJNQ7g8qPGc` for everything except Home. Home = `4:2901` in the original file `kyUS7F8bg4x7GpcPEF4UDN`. Never build `113:641` or `113:765`.

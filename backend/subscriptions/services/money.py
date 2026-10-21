@@ -3,14 +3,14 @@
 The invariant: no total is ever stored. Every total is derived here from the
 subscription set at read time, in `Decimal`, and rounded only by `round_money`
 at presentation. Never round an intermediate sum: Headspace's $6.495/month
-rounded early turns Alex's $129.20 into $129.21.
+rounded early is $6.50, so three of them would show $19.50 instead of $19.49.
 """
 
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 from .cycles import Cycle, CycleChange, bill_dates
 
@@ -34,6 +34,28 @@ def minor_unit(currency: str) -> Decimal:
 def round_money(amount: Decimal, currency: str = BASE_CURRENCY) -> Decimal:
     """Presentation rounding, half up to the currency's minor unit. Call it last."""
     return amount.quantize(minor_unit(currency), rounding=ROUND_HALF_UP)
+
+
+def round_to_total(amounts: Sequence[Decimal], currency: str = BASE_CURRENCY) -> list[Decimal]:
+    """Presentation rounding for line items shown next to their total.
+
+    Rounding each line on its own can drift from the rounded total by up to
+    half a minor unit per line (eight lines that each round down by 0.4 cents
+    lose 3 cents). Instead every line is rounded down, and the minor units
+    still missing from `round_money(sum(amounts))` go one each to the lines
+    with the largest remainders (handoff 04 §4.6). The lines then sum to the
+    total exactly, and each is within one minor unit of its exact value.
+    """
+    unit = minor_unit(currency)
+    floors = [amount.quantize(unit, rounding=ROUND_FLOOR) for amount in amounts]
+    missing = int(
+        (round_money(sum(amounts, Decimal(0)), currency) - sum(floors, Decimal(0))) / unit
+    )
+    # Largest remainder first; ties keep their original order.
+    by_remainder = sorted(range(len(amounts)), key=lambda i: amounts[i] - floors[i], reverse=True)
+    for i in by_remainder[:missing]:
+        floors[i] += unit
+    return floors
 
 
 # 3.1 -----------------------------------------------------------------------

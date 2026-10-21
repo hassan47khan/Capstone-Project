@@ -150,9 +150,12 @@ class Subscription(models.Model):
     # Embedded: participants are always read with their plan and are bounded.
     sharing = EmbeddedModelField(Sharing, null=True, blank=True)
 
+    # The first manager is Django's default, so the filtered one goes first.
     objects = VisibleSubscriptionManager()
     # Includes soft-deleted rows. Only Restore, purge and history should use it.
-    all_objects = models.Manager()
+    # DJ012 is a false positive: ruff reads VisibleSubscriptionManager() above
+    # as a field, not a manager.
+    all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
         db_table = "subscriptions"

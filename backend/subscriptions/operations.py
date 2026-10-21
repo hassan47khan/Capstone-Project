@@ -40,7 +40,7 @@ def _category_value(sub: Subscription) -> str | None:
     return sub.category.slug if sub.category_id else None
 
 
-def _at(day: date) -> datetime:
+def at_start_of(day: date) -> datetime:
     """A calendar date as a UTC instant, for events recorded "on" a day."""
     return datetime.combine(day, time.min, tzinfo=timezone.UTC)
 
