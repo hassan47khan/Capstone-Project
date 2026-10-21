@@ -1,3 +1,5 @@
+from datetime import time
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -59,3 +61,61 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def email_verified(self):
         return self.email_verified_at is not None
+
+
+class UserSettings(models.Model):
+    """One per user (handoff 04 §1). Created on first read by settings_for()."""
+
+    class Theme(models.TextChoices):
+        LIGHT = "light"
+        DARK = "dark"
+        SYSTEM = "system"
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="settings")
+    display_currency = models.CharField(max_length=3, default="USD")
+    # IANA name; empty means "not set", which US-5 shows as UTC with a flag.
+    timezone = models.CharField(max_length=64, blank=True, default="")
+    date_format = models.CharField(max_length=20, default="MMM d, yyyy")
+    theme = models.CharField(max_length=10, choices=Theme.choices, default=Theme.SYSTEM)
+    locale = models.CharField(max_length=20, default="en-US")
+    has_completed_first_run = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "user_settings"
+
+    def __str__(self):
+        return f"settings for {self.user}"
+
+
+class NotificationRule(models.Model):
+    """One per user (handoff 04 §1). Created on first read by rules_for()."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="notification_rule")
+    days_before_reminder = models.PositiveSmallIntegerField(default=3)
+    reminder_time = models.TimeField(default=time(9, 0))
+    send_push = models.BooleanField(default=True)
+    send_email = models.BooleanField(default=False)
+    alert_on_any_price_change = models.BooleanField(default=True)
+    # Only alert when a price rises by at least this amount; null means any rise.
+    price_alert_threshold = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    weekly_summary_enabled = models.BooleanField(default=False)
+    monthly_report_enabled = models.BooleanField(default=False)
+    # Day of the month the monthly report goes out, 1-28 so every month has it.
+    report_delivery_day = models.PositiveSmallIntegerField(default=1)
+    trial_alert_days_before = models.PositiveSmallIntegerField(default=2)
+
+    class Meta:
+        db_table = "notification_rules"
+
+    def __str__(self):
+        return f"notification rules for {self.user}"
+
+
+def settings_for(user) -> UserSettings:
+    return UserSettings.objects.get_or_create(user=user)[0]
+
+
+def rules_for(user) -> NotificationRule:
+    return NotificationRule.objects.get_or_create(user=user)[0]
