@@ -53,6 +53,6 @@ as the subscription endpoints exist, without waiting on the rest of Sprint 1.
 
 Sprint 0, nothing from the story list finished. Infrastructure only, and that
 part is done: [[Sprint 0 — Backend Spike]], [[Phase 0 — Mobile Scaffold]] and
-[[Backend CI]] are all merged and green. What still blocks Sprint 1 is not code
-— required status checks on the ruleset, team roles, and the answers in
-[[Open Decisions]]. See [[Repo State]].
+[[Backend CI]] are all merged and green, and CI gates merges to `main` (checked
+2026-10-20). What still blocks Sprint 1 is not code — team roles and the
+answers in [[Open Decisions]]. See [[Repo State]].

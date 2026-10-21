@@ -87,11 +87,12 @@ Moved here from that day's session log, which is now local-only.
   unselected segments use `text`; the toast follows the Figma symbol;
   CurrencyField emits a decimal string, not minor units; DateField uses a fixed
   format until `date_format` exists.
-- **Still open: device pass in Expo Go.** Nothing below was verified on
-  2026-10-19: fonts before first paint, the live light/dark flip, Reduce
-  Motion, the largest text size (including the segmented → Select fallback),
-  FAB → modal → X, the discard prompt, and deep links on cold start and from
-  the background.
+- **Done 2026-10-19: device pass in Expo Go. Result: all passed.** Covered
+  fonts before first paint, the gallery in both themes and the live light/dark
+  flip, Reduce Motion, the largest text size (including the segmented → Select
+  fallback), FAB → modal → X, the discard prompt, and deep links on cold start
+  and from the background. Result reported by Hassan on 2026-10-20; no
+  screenshots or device details were recorded.
 
 ## Links
 
