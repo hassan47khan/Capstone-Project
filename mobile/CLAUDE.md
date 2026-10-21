@@ -4,10 +4,10 @@ The React Native client. Read this before changing anything in `mobile/`.
 
 ## Sources of truth
 
-| Document                    | Where                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| Visual design               | Figma `kyUS7F8bg4x7GpcPEF4UDN`, page "Full Integrated Prototype Epic A, B, C" |
-| System Design Specification | `docs/design/SubTrak — System Design Specification.md`                        |
+| Document                    | Where                                                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Visual design               | Figma `IKYivyJtmBYzJNQ7g8qPGc`, page "Full Integrated Prototype Epic A, B, C". Home (`4:2901`) is only in the original file `kyUS7F8bg4x7GpcPEF4UDN` |
+| System Design Specification | `docs/design/SubTrak — System Design Specification.md`                                                                                               |
 
 Where they disagree, the specification wins on behaviour and Figma wins on
 appearance. The earlier PDF prototype (`docs/design/SubTrak prototype.pdf`) is
