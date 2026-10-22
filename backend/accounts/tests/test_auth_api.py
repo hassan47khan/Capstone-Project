@@ -59,6 +59,30 @@ def test_login_gives_tokens_that_open_the_api(anon, contract):
     assert signed_in(tokens).get("/api/v1/analytics/summary").status_code == 200
 
 
+@pytest.mark.parametrize("email", ["nobody@example.com", "jordan.doe@example.org"])
+def test_login_with_an_unknown_email_is_invalid_credentials(anon, contract, email):
+    response = anon.post("/api/v1/auth/login", {"email": email, "password": "x"})
+
+    assert response.status_code == 401
+    assert contract(response, "/auth/login")["error"] == {
+        "code": "invalid_credentials",
+        "message": "Email or password is incorrect.",
+    }
+
+
+def test_login_for_an_unverified_email_is_403(anon, contract):
+    response = anon.post("/api/v1/auth/login", {"email": mocks.UNVERIFIED_EMAIL, "password": "x"})
+
+    assert response.status_code == 403
+    assert contract(response, "/auth/login")["error"]["code"] == "email_not_verified"
+
+
+def test_any_demo_user_can_log_in(anon):
+    response = anon.post("/api/v1/auth/login", {"email": "sam@example.com", "password": "x"})
+
+    assert response.status_code == 200
+
+
 def test_login_needs_a_password(anon, contract):
     response = anon.post("/api/v1/auth/login", {"email": "alex.kim@example.com"})
 
@@ -91,7 +115,9 @@ def test_resend_endpoints_return_the_cooldown(anon, contract, path):
 
 
 def test_refresh_rotates_the_pair(anon, contract):
-    tokens = anon.post("/api/v1/auth/login", {"email": "a@example.com", "password": "x"}).json()
+    tokens = anon.post(
+        "/api/v1/auth/login", {"email": "alex.kim@example.com", "password": "x"}
+    ).json()
 
     response = anon.post("/api/v1/auth/refresh", {"refresh": tokens["refresh"]})
     fresh = contract(response, "/auth/refresh")
@@ -111,7 +137,9 @@ def test_refresh_with_a_bad_token_is_401(anon, contract):
 
 
 def test_refresh_for_a_user_who_is_gone_is_401(anon):
-    tokens = anon.post("/api/v1/auth/login", {"email": "a@example.com", "password": "x"}).json()
+    tokens = anon.post(
+        "/api/v1/auth/login", {"email": "alex.kim@example.com", "password": "x"}
+    ).json()
     mocks.demo_user().delete()
 
     assert anon.post("/api/v1/auth/refresh", {"refresh": tokens["refresh"]}).status_code == 401

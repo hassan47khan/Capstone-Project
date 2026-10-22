@@ -15,8 +15,11 @@ How the mock answers
   - Writes run the real operation, read the result, then put the data back as
     it was (`_discarded`), so a mock create or edit returns exactly what the
     real one will, and the dataset never drifts between calls.
-  - Login, register and verify accept any well-formed input and sign in as
-    Alex with a real JWT. There is no password check, rate limit or email yet.
+  - Register and verify accept any well-formed input. Login accepts any
+    password for a demo email (Alex, Jordan or Sam) and signs in as Alex with
+    a real JWT; any other email is wrong credentials, and UNVERIFIED_EMAIL
+    answers 403 email_not_verified so the client's route to Verify Email Sent
+    can be exercised. No password check, rate limit or email yet.
   - Extractions, shared plans and Gmail have no models yet (they are the 11
     owner's, §6a). Their payloads are fixed here, dated from SEED_TODAY, with
     money computed by the engine.
@@ -40,6 +43,8 @@ from subscriptions.services import trials as trial_math
 from subscriptions.services.cycles import Cycle, add_months, schedule
 
 TODAY = seed.SEED_TODAY
+# Logs in as an account whose email is not verified yet (mock only).
+UNVERIFIED_EMAIL = "unverified@example.com"
 # How long the client keeps Resend disabled after a send (05 §4).
 RESEND_COOLDOWN_SECONDS = 60
 REMINDER_INTERVAL = timedelta(hours=24)
@@ -162,6 +167,11 @@ def resend_verification(email: str) -> dict:
 
 
 def login(email: str, password: str) -> dict:
+    if email == UNVERIFIED_EMAIL:
+        raise ApiError(403, "email_not_verified", "Verify your email address before you log in.")
+    if email not in {user.email for user in seed.DEMO_USERS}:
+        # One message whether the email or the password was wrong (05 §5).
+        raise ApiError(401, "invalid_credentials", "Email or password is incorrect.")
     return _tokens(demo_user())
 
 
