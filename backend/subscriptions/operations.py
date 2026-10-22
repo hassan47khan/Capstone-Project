@@ -50,7 +50,7 @@ def refresh_next_bill_date(sub: Subscription, *, today: date) -> None:
     if sub.status != Status.ACTIVE:
         sub.next_bill_date = None
         return
-    initial, changes = _cycle_timeline(sub)
+    initial, changes = cycle_timeline(sub)
     sub.next_bill_date = next_bill_date(sub.start_date, initial, changes, today=today)
 
 
@@ -161,7 +161,7 @@ def _history(sub: Subscription) -> list[PriceHistoryEvent]:
     return list(PriceHistoryEvent.objects.filter(subscription=sub).order_by("occurred_at"))
 
 
-def _cycle_timeline(
+def cycle_timeline(
     sub: Subscription, history: list[PriceHistoryEvent] | None = None
 ) -> tuple[Cycle, list[CycleChange]]:
     if sub.pk is None:
@@ -175,16 +175,23 @@ def _cycle_timeline(
     return initial, [CycleChange(e.occurred_at.date(), _cycle_from(e.new_value)) for e in changes]
 
 
+def price_timeline(
+    sub: Subscription, history: list[PriceHistoryEvent] | None = None
+) -> tuple[Decimal, list[money.PriceChange]]:
+    """The price the subscription started at, and every change since."""
+    if history is None:
+        history = _history(sub)
+    changes = [e for e in history if e.event_type == Event.PRICE_CHANGE]
+    initial = Decimal(changes[0].old_value["price"]) if changes else sub.billing_price
+    return initial, [
+        money.PriceChange(e.occurred_at.date(), Decimal(e.new_value["price"])) for e in changes
+    ]
+
+
 def total_spent_to_date(sub: Subscription, *, today: date) -> Decimal:
     history = _history(sub)
-    price_changes = [
-        money.PriceChange(e.occurred_at.date(), Decimal(e.new_value["price"]))
-        for e in history
-        if e.event_type == Event.PRICE_CHANGE
-    ]
-    first = next((e for e in history if e.event_type == Event.PRICE_CHANGE), None)
-    initial_price = Decimal(first.old_value["price"]) if first else sub.billing_price
-    initial_cycle, cycle_changes = _cycle_timeline(sub, history)
+    initial_price, price_changes = price_timeline(sub, history)
+    initial_cycle, cycle_changes = cycle_timeline(sub, history)
     return money.total_spent(
         sub.start_date,
         initial_cycle,
