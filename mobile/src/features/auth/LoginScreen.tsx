@@ -19,8 +19,9 @@
  * The countdown is RATE_LIMIT_FALLBACK_SECONDS: the client does not surface
  * Retry-After yet, so the screen cannot know the server's real wait.
  *
- * Not here yet: biometric unlock (05 §5) needs expo-local-authentication,
- * which is a new dependency and lands in its own change.
+ * Biometric unlock (05 §5): once a session has existed on this device, Face
+ * ID / Touch ID is offered here and prompts by itself when the screen comes
+ * into focus. Cancelling leaves the form as it is. See useBiometricUnlock.
  */
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -37,6 +38,7 @@ import { makeStyles, spacing } from '@/theme';
 
 import { AuthShell, FormError } from './AuthShell';
 import { formErrorsFrom } from './formErrors';
+import { useBiometricUnlock } from './useBiometricUnlock';
 import {
   formatCountdown,
   RATE_LIMIT_FALLBACK_SECONDS,
@@ -62,6 +64,7 @@ export function LoginScreen() {
   const { signIn } = useSession();
   const toast = useToast();
   const cooldown = useCountdown();
+  const biometric = useBiometricUnlock();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -193,6 +196,18 @@ export function LoginScreen() {
         style={styles.primary}
         testID="login-submit"
       />
+
+      {biometric.kind ? (
+        <Button
+          label={`Log in with ${biometric.kind}`}
+          variant="secondary"
+          onPress={biometric.unlock}
+          loading={biometric.busy}
+          loadingLabel={`Waiting for ${biometric.kind}`}
+          fullWidth
+          testID="login-biometric"
+        />
+      ) : null}
     </AuthShell>
   );
 }

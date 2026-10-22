@@ -39,6 +39,7 @@ import { authApi } from '@/api/endpoints';
 import { ApiError } from '@/api/errors';
 import type { TokenPair } from '@/api/types';
 
+import { biometricStore } from './biometricStore';
 import { tokenStore } from './tokenStore';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
@@ -59,11 +60,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SessionStatus>('loading');
 
   /**
-   * Lets the token hooks call the latest `signOut` without being reinstalled on
+   * Lets the token hooks call the latest `endDeadSession` without being reinstalled on
    * every render. Reinstalling them mid-flight would be a race: a request could
    * read one version of the hooks and its retry another.
    */
-  const signOutRef = useRef<() => Promise<void>>(async () => {});
+  const endDeadSessionRef = useRef<() => Promise<void>>(async () => {});
 
   // Both start by abandoning any in-flight refresh, synchronously and before
   // touching storage, so a refresh from the previous session cannot resolve
@@ -71,25 +72,39 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (tokens: TokenPair) => {
     invalidateRefresh();
     await tokenStore.setTokens(tokens);
+    // Biometric unlock is offered once a session has existed here (05 §5).
+    await biometricStore.markEstablished();
     setStatus('authenticated');
   }, []);
 
+  // Signing out parks the refresh token for biometric unlock on Log In
+  // (biometricStore). A dead session, below, discards it instead.
   const signOut = useCallback(async () => {
     invalidateRefresh();
+    const refresh = await tokenStore.getRefreshToken();
+    if (refresh) await biometricStore.park(refresh);
     await tokenStore.clear();
     setStatus('unauthenticated');
   }, []);
 
+  /** The refresh token was rejected: nothing is worth keeping for biometrics. */
+  const endDeadSession = useCallback(async () => {
+    invalidateRefresh();
+    await tokenStore.clear();
+    await biometricStore.forget();
+    setStatus('unauthenticated');
+  }, []);
+
   /**
-   * Keeps the ref pointing at the current `signOut`.
+   * Keeps the ref pointing at the current `endDeadSession`.
    *
    * In an effect, not inline during render: writing a ref while rendering is a
    * React rule violation, and in a concurrent render it can be executed twice or
    * discarded entirely, leaving the hook holding a stale closure.
    */
   useEffect(() => {
-    signOutRef.current = signOut;
-  }, [signOut]);
+    endDeadSessionRef.current = endDeadSession;
+  }, [endDeadSession]);
 
   /**
    * Installs the HTTP client's token hooks once, on mount.
@@ -103,7 +118,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       getAccessToken: () => tokenStore.getAccessToken(),
       getRefreshToken: () => tokenStore.getRefreshToken(),
       onTokensRefreshed: (tokens) => tokenStore.setTokens(tokens),
-      onRefreshFailed: () => signOutRef.current(),
+      onRefreshFailed: () => endDeadSessionRef.current(),
     });
   }, []);
 
