@@ -98,6 +98,23 @@ def test_cycle_change_mid_life_re_anchors_on_the_last_bill():
     )
 
 
+def test_shortening_the_cycle_skips_new_cycle_bills_before_the_change():
+    # Monthly from Jan 1, weekly from Feb 15. Feb 8 is a weekly date counted
+    # from Feb 1, but weekly billing had not started, so it is not a bill.
+    changes = [CycleChange(date(2026, 2, 15), Cycle("weekly"))]
+    assert list(bill_dates(date(2026, 1, 1), MONTHLY, changes, before=date(2026, 3, 15))) == [
+        date(2026, 1, 1),
+        date(2026, 2, 1),
+        date(2026, 2, 15),
+        date(2026, 2, 22),
+        date(2026, 3, 1),
+        date(2026, 3, 8),
+    ]
+    assert next_bill_date(date(2026, 1, 1), MONTHLY, changes, today=date(2026, 2, 2)) == date(
+        2026, 2, 15
+    )
+
+
 def test_cycle_change_on_a_bill_day_keeps_that_bill_on_the_old_cycle():
     changes = [CycleChange(date(2026, 3, 10), Cycle("yearly"))]
     assert first(4, date(2026, 1, 10), MONTHLY, changes) == [
@@ -119,9 +136,10 @@ def test_two_cycle_changes_apply_in_date_order():
         CycleChange(date(2026, 1, 15), Cycle("weekly")),
     ]
     dates = first(12, date(2026, 1, 1), MONTHLY, changes)
-    # Monthly until Jan 15, then weekly from the Jan 1 bill, then monthly
+    # Monthly until Jan 15, then weekly counted from the Jan 1 bill but only
+    # from Jan 15 on (no Jan 8: weekly was not in effect yet), then monthly
     # again from the last weekly bill before Mar 15 (Mar 12).
-    assert dates[:3] == [date(2026, 1, 1), date(2026, 1, 8), date(2026, 1, 15)]
+    assert dates[:3] == [date(2026, 1, 1), date(2026, 1, 15), date(2026, 1, 22)]
     assert date(2026, 3, 12) in dates
     assert dates[dates.index(date(2026, 3, 12)) + 1] == date(2026, 4, 12)
 

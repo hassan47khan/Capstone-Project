@@ -1,8 +1,8 @@
-from datetime import time
-
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+
+from .services.timezones import DEFAULT_SEND_TIME
 
 
 class UserManager(BaseUserManager):
@@ -92,7 +92,7 @@ class NotificationRule(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="notification_rule")
     days_before_reminder = models.PositiveSmallIntegerField(default=3)
-    reminder_time = models.TimeField(default=time(9, 0))
+    reminder_time = models.TimeField(default=DEFAULT_SEND_TIME)
     send_push = models.BooleanField(default=True)
     send_email = models.BooleanField(default=False)
     alert_on_any_price_change = models.BooleanField(default=True)

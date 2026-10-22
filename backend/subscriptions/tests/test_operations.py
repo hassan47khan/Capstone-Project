@@ -180,6 +180,23 @@ def test_cycle_change_mid_life_recomputes_next_bill_date(make):
     assert operations.total_spent_to_date(sub, today=date(2026, 10, 13)) == 6 * D("13.99")
 
 
+def test_shortening_the_cycle_mid_life_counts_only_real_bills(make):
+    # Monthly from Jan 1, switched to weekly on Feb 15: billed Jan 1, Feb 1,
+    # then weekly from Feb 15. No Feb 8 charge.
+    sub = make(start_date=date(2026, 1, 1), billing_price=D("10.00"))
+    operations.update_subscription(
+        sub,
+        today=date(2026, 2, 15),
+        at=operations.at_start_of(date(2026, 2, 15)),
+        billing_cycle="weekly",
+    )
+    assert sub.next_bill_date == date(2026, 2, 15)
+
+    assert operations.total_spent_to_date(sub, today=date(2026, 3, 15)) == D("60.00")
+    operations.refresh_next_bill_date(sub, today=date(2026, 3, 9))
+    assert sub.next_bill_date == date(2026, 3, 15)
+
+
 # Cancel, delete, restore -----------------------------------------------------
 
 
@@ -223,7 +240,9 @@ def test_soft_delete_lowers_the_total_by_exactly_its_amount_and_restore_puts_it_
 
     assert before - total(headspace.owner) == D("6.495")
     assert not Subscription.objects.filter(pk=headspace.pk).exists()
-    assert Subscription.all_objects.get(pk=headspace.pk).status == Subscription.Status.DELETED
+    deleted = Subscription.all_objects.get(pk=headspace.pk)
+    assert deleted.status == Subscription.Status.DELETED
+    assert deleted.next_bill_date is None  # cleared like cancel; restore recomputes it
     assert len(history(headspace)) == 1  # history is kept
 
     operations.restore(Subscription.all_objects.get(pk=headspace.pk), today=TODAY)

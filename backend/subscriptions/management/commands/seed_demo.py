@@ -21,11 +21,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, today, **options):
         users = load_demo(today=today)
+        rates = operations.fx_rates()
         self.stdout.write(f"Seeded the demo dataset anchored on {today}.")
         for user in users.values():
             subs = Subscription.objects.filter(owner=user)
             total = money.monthly_total(
-                operations.line_items(subs, today=today), money.BASE_CURRENCY, {}
+                operations.line_items(subs, today=today), money.BASE_CURRENCY, rates
             )
             self.stdout.write(
                 f"  {user.name} <{user.email}>: {subs.count()} subscriptions "

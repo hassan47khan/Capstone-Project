@@ -85,8 +85,10 @@ def schedule(start: date, cycle: Cycle, changes: Sequence[CycleChange] = ()) -> 
     """Every bill date from `start` (the first charge) onward, without end.
 
     `cycle` is the cycle the subscription started on. A cycle change re-anchors
-    the schedule on the last bill on or before the change, so the next bill is
-    that bill plus one new cycle.
+    the schedule on the last bill on or before the change and counts whole new
+    cycles from there, skipping any that fall before the change: monthly from
+    Jan 1 switched to weekly on Feb 15 bills Jan 1, Feb 1, Feb 15, Feb 22, ...,
+    never Feb 8, when the weekly cycle was not in effect yet.
     """
     pending = sorted(changes, key=lambda c: c.on)
     anchor, k = start, 0
@@ -98,6 +100,8 @@ def schedule(start: date, cycle: Cycle, changes: Sequence[CycleChange] = ()) -> 
                 anchor = nth_bill(anchor, cycle, k - 1)
                 k = 1
             cycle = change.cycle
+            while nth_bill(anchor, cycle, k) < change.on:
+                k += 1
             continue
         yield due
         k += 1

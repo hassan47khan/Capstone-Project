@@ -12,7 +12,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from .models import PriceHistoryEvent, Subscription
+from .models import FxRate, PriceHistoryEvent, Subscription
 from .services import money
 from .services.cycles import Cycle, CycleChange, next_bill_date
 
@@ -125,10 +125,14 @@ def cancel_subscription(sub: Subscription, *, today: date) -> Subscription:
 
 
 def soft_delete(sub: Subscription) -> Subscription:
-    """Delete is soft: status=deleted, history kept (handoff 04 §2)."""
+    """Delete is soft: status=deleted, history kept (handoff 04 §2).
+
+    Like cancel, it clears next_bill_date; restore recomputes it.
+    """
     if sub.status != Status.DELETED:
         sub.status_before_delete = sub.status
         sub.status = Status.DELETED
+        sub.next_bill_date = None
         sub.save()
     return sub
 
@@ -157,10 +161,14 @@ def _history(sub: Subscription) -> list[PriceHistoryEvent]:
     return list(PriceHistoryEvent.objects.filter(subscription=sub).order_by("occurred_at"))
 
 
-def _cycle_timeline(sub: Subscription) -> tuple[Cycle, list[CycleChange]]:
+def _cycle_timeline(
+    sub: Subscription, history: list[PriceHistoryEvent] | None = None
+) -> tuple[Cycle, list[CycleChange]]:
     if sub.pk is None:
         return sub.cycle, []
-    changes = [e for e in _history(sub) if e.event_type == Event.CYCLE_CHANGE]
+    if history is None:
+        history = _history(sub)
+    changes = [e for e in history if e.event_type == Event.CYCLE_CHANGE]
     if not changes:
         return sub.cycle, []
     initial = _cycle_from(changes[0].old_value)
@@ -176,7 +184,7 @@ def total_spent_to_date(sub: Subscription, *, today: date) -> Decimal:
     ]
     first = next((e for e in history if e.event_type == Event.PRICE_CHANGE), None)
     initial_price = Decimal(first.old_value["price"]) if first else sub.billing_price
-    initial_cycle, cycle_changes = _cycle_timeline(sub)
+    initial_cycle, cycle_changes = _cycle_timeline(sub, history)
     return money.total_spent(
         sub.start_date,
         initial_cycle,
@@ -203,6 +211,4 @@ def line_items(subs, *, today: date) -> list[money.LineItem]:
 
 
 def fx_rates() -> dict[str, Decimal]:
-    from .models import FxRate
-
     return {money.BASE_CURRENCY: Decimal(1), **{r.currency: r.rate for r in FxRate.objects.all()}}

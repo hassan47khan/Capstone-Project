@@ -36,26 +36,41 @@ def round_money(amount: Decimal, currency: str = BASE_CURRENCY) -> Decimal:
     return amount.quantize(minor_unit(currency), rounding=ROUND_HALF_UP)
 
 
+def _largest_remainder(amounts: Sequence[Decimal], unit: Decimal) -> list[Decimal]:
+    """Round each amount to `unit` so they sum to their total rounded half-up to `unit`.
+
+    Every amount is rounded down, and the units still missing go one each to
+    the amounts with the largest remainders; ties keep their original order.
+    """
+    floors = [amount.quantize(unit, rounding=ROUND_FLOOR) for amount in amounts]
+    target = sum(amounts, Decimal(0)).quantize(unit, rounding=ROUND_HALF_UP)
+    missing = int((target - sum(floors, Decimal(0))) / unit)
+    by_remainder = sorted(range(len(amounts)), key=lambda i: amounts[i] - floors[i], reverse=True)
+    for i in by_remainder[:missing]:
+        floors[i] += unit
+    return floors
+
+
 def round_to_total(amounts: Sequence[Decimal], currency: str = BASE_CURRENCY) -> list[Decimal]:
     """Presentation rounding for line items shown next to their total.
 
     Rounding each line on its own can drift from the rounded total by up to
     half a minor unit per line (eight lines that each round down by 0.4 cents
-    lose 3 cents). Instead every line is rounded down, and the minor units
-    still missing from `round_money(sum(amounts))` go one each to the lines
-    with the largest remainders (handoff 04 §4.6). The lines then sum to the
-    total exactly, and each is within one minor unit of its exact value.
+    lose 3 cents). Largest remainder instead (handoff 04 §4.6): the lines sum
+    to `round_money(sum(amounts))` exactly, and each is within one minor unit
+    of its exact value.
     """
-    unit = minor_unit(currency)
-    floors = [amount.quantize(unit, rounding=ROUND_FLOOR) for amount in amounts]
-    missing = int(
-        (round_money(sum(amounts, Decimal(0)), currency) - sum(floors, Decimal(0))) / unit
-    )
-    # Largest remainder first; ties keep their original order.
-    by_remainder = sorted(range(len(amounts)), key=lambda i: amounts[i] - floors[i], reverse=True)
-    for i in by_remainder[:missing]:
-        floors[i] += unit
-    return floors
+    return _largest_remainder(amounts, minor_unit(currency))
+
+
+def round_to_whole_total(amounts: Sequence[Decimal]) -> list[int]:
+    """Whole numbers that sum to the rounded total, by largest remainder.
+
+    What screens show for category percentages: integers that add to exactly
+    100 (handoff 04 §4.3, 06 §2.3, 08 §3). Alex's exact shares 42.56 / 31.32 /
+    15.48 / 5.03 / 3.29 / 2.31 display as 43 / 31 / 16 / 5 / 3 / 2.
+    """
+    return [int(amount) for amount in _largest_remainder(amounts, Decimal(1))]
 
 
 # 3.1 -----------------------------------------------------------------------

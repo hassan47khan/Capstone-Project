@@ -21,6 +21,7 @@ from subscriptions.services.money import (
     normalize_to_monthly,
     round_money,
     round_to_total,
+    round_to_whole_total,
     split_shares,
     total_spent,
 )
@@ -120,16 +121,30 @@ def test_category_rollup_matches_the_spec_and_sums_to_the_total():
     assert sum(round_money(r.monthly) for r in rollup) == D("129.20")
 
 
-def test_category_shares_match_the_spec():
+def test_exact_category_shares_match_the_spec():
+    # §4.3's exact column: what category_rollup returns, shown to two places.
     rollup = category_rollup(items(ALEX), "USD", RATES)
-    shares = [round_money(r.percent) for r in rollup]
 
-    assert shares == [D("42.56"), D("31.32"), D("15.48"), D("5.03"), D("3.29"), D("2.31")]
-    # These are §4.3's figures, and they sum to 99.99, not 100. Kept as the
-    # spec gives them; see the PR description.
-    assert sum(shares) == D("99.99")
+    assert [round_money(r.percent) for r in rollup] == [
+        D("42.56"),
+        D("31.32"),
+        D("15.48"),
+        D("5.03"),
+        D("3.29"),
+        D("2.31"),
+    ]
     # Unrounded, they are 100 to Decimal's 28 significant digits.
     assert abs(sum(r.percent for r in rollup) - 100) < D("1e-20")
+
+
+def test_displayed_category_percentages_are_integers_summing_to_100():
+    # §4.3's displayed column (06 §2.3, 08 §3): what Home and Analytics show.
+    rollup = category_rollup(items(ALEX), "USD", RATES)
+
+    displayed = round_to_whole_total([r.percent for r in rollup])
+
+    assert displayed == [43, 31, 16, 5, 3, 2]
+    assert sum(displayed) == 100
 
 
 def test_empty_rollup_has_no_rows_and_no_division_by_zero():
@@ -224,6 +239,26 @@ def test_converted_total_never_drifts_from_the_converted_line_items(seed):
         assert abs(shown - value) < unit
 
 
+@pytest.mark.parametrize("seed", range(200))
+def test_displayed_percentages_always_sum_to_100(seed):
+    rng = random.Random(seed)
+    amounts = [D(rng.randint(1, 100_000)) / 100 for _ in range(rng.randint(1, 12))]
+    rollup = category_rollup(
+        [LineItem(a, "USD", f"c{i}") for i, a in enumerate(amounts)], "USD", RATES
+    )
+
+    displayed = round_to_whole_total([r.percent for r in rollup])
+
+    assert sum(displayed) == 100
+    for shown, row in zip(displayed, rollup, strict=True):
+        assert abs(shown - row.percent) < 1
+
+
+def test_round_to_whole_total_of_nothing_is_nothing():
+    assert round_to_whole_total([]) == []
+    assert round_to_whole_total([D(0), D(0)]) == [0, 0]
+
+
 @pytest.mark.parametrize(
     ("currency", "amount", "expected"),
     [
@@ -281,6 +316,18 @@ def test_total_spent_uses_the_new_price_from_the_first_bill_after_the_change():
         price_changes=[PriceChange(date(2026, 10, 1), D("15.49"))],
     )
     assert spent == D("433.69") + D("15.49")
+
+
+def test_total_spent_after_shortening_the_cycle_counts_only_real_bills():
+    spent = total_spent(
+        date(2026, 1, 1),
+        MONTHLY,
+        D(10),
+        today=date(2026, 3, 15),
+        cycle_changes=[CycleChange(date(2026, 2, 15), Cycle("weekly"))],
+    )
+    # Jan 1, Feb 1, then weekly Feb 15, Feb 22, Mar 1, Mar 8: six, not seven.
+    assert spent == D(60)
 
 
 def test_total_spent_stops_at_cancellation_and_skips_trial_bills():
