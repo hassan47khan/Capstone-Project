@@ -41,7 +41,9 @@ Backend, from `backend/` with MongoDB up (`docker compose up -d --wait` at the r
 - **Decimal storage:** money is `DecimalField`, stored as BSON Decimal128, never a float or scaled integers. The round trip is asserted in `subscriptions/tests/test_models.py`. Money is rounded half-up only at presentation, via `round_money` (`round_to_total` when lines are shown next to their total).
 - **API contract (04 slice 2):** `backend/schema.yml` (OpenAPI 3.1) is frozen. Paths have no trailing slash; errors are `{"error": {"code", "message", "fields"}}` (`core/contract.py`); computed money is `{amount, currency}` in the display currency. Until slice 3, every view answers from `backend/mocks.py` (Alex at SEED_TODAY, figures computed through the money engine); replace those functions, not the shapes.
 
-(add here: chart library, AI input path and retention window, Family privacy option)
+- **Charts:** drawn with `react-native-svg` directly, no chart library. It is already a dependency, works in Expo Go, and the charts are simple shapes (Home's donut first; Analytics' bars and the price-history step line follow).
+
+(add here: AI input path and retention window, Family privacy option)
 
 ## Figma
 Newer file `IKYivyJtmBYzJNQ7g8qPGc` for everything except Home. Home = `4:2901` in the original file `kyUS7F8bg4x7GpcPEF4UDN`. Never build `113:641` or `113:765`.
