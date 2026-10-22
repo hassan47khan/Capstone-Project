@@ -34,7 +34,8 @@ export type AuthStackParamList = {
    * optional and the screen treats a missing token as an invalid link.
    */
   EmailConfirmed: { token?: string } | undefined;
-  ForgotPassword: undefined;
+  /** `email` prefills the form, from Reset Link Sent's "Wrong email?". */
+  ForgotPassword: { email?: string } | undefined;
   ResetLinkSent: { email: string };
   /** `token` arrives from the emailed link: subtrak://reset-password?token=… */
   CreateNewPassword: { token: string };
