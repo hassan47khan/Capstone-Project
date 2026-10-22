@@ -172,6 +172,8 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # One error shape for every endpoint: {"error": {"code", "message", "fields"}}.
+    "EXCEPTION_HANDLER": "core.contract.handle_exception",
 }
 
 # Lifetimes from spec section 6. The token_version ("tv") claim check is a
@@ -185,4 +187,15 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "SubTrak API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Handoff 04 §5 asks for OpenAPI 3.1.
+    "OAS_VERSION": "3.1.0",
+    # Separate request and response components, so the generated client does
+    # not mark response-only fields as things it has to send.
+    "COMPONENT_SPLIT_REQUEST": True,
+    # Stable names for choice sets used under more than one field name.
+    "ENUM_NAME_OVERRIDES": {
+        "SubscriptionStatusEnum": ["active", "cancelled"],
+        "TrialDecisionEnum": ["none", "keep", "remind"],
+        "PaymentStatusEnum": ["paid", "pending"],
+    },
 }

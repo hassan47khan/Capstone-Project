@@ -15,6 +15,8 @@ api_v1 = [
     # the schema so the operation is documented once.
     path("me", MeView.as_view(schema=None)),
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("", include("accounts.urls")),
+    path("", include("subscriptions.urls")),
 ]
 
 urlpatterns = [

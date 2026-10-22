@@ -1,8 +1,693 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: SubTrak API
   version: 1.0.0
 paths:
+  /api/v1/analytics/price-changes:
+    get:
+      operationId: analytics_price_changes
+      description: |-
+        Price changes, newest first. The Detail chart uses months=12&subscription={id};
+        Home's Urgent attention uses since=-30d&include_upcoming=true.
+      parameters:
+      - in: query
+        name: include_upcoming
+        schema:
+          type: boolean
+          default: false
+        description: Also future changes, and trials about to convert.
+      - in: query
+        name: months
+        schema:
+          type: integer
+          maximum: 120
+          minimum: 1
+        description: Look back this many months (default 12).
+      - in: query
+        name: since
+        schema:
+          type: string
+          minLength: 1
+          pattern: ^-\d{1,4}d$
+        description: Look back this many days instead, e.g. `-30d`.
+      - in: query
+        name: subscription
+        schema:
+          type: string
+          minLength: 1
+        description: Only this subscription.
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceChanges'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/analytics/spend-over-time:
+    get:
+      operationId: analytics_spend_over_time
+      description: |-
+        Monthly recurring spend per month, ending with this month, and the change
+        from last month. Home calls it with months=2.
+      parameters:
+      - in: query
+        name: months
+        schema:
+          type: integer
+          maximum: 24
+          minimum: 1
+          default: 12
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpendOverTime'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/analytics/summary:
+    get:
+      operationId: analytics_summary
+      description: |-
+        Monthly and annual totals and the category breakdown. The one source for
+        Home's donut and Analytics' bars (08 §3).
+      parameters:
+      - in: query
+        name: period
+        schema:
+          enum:
+          - current_month
+          type: string
+          default: current_month
+          minLength: 1
+        description: '* `current_month` - current_month'
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/analytics/upcoming:
+    get:
+      operationId: analytics_upcoming
+      description: |-
+        Every bill in a window, soonest first, at the price in effect on its date.
+        Past dates show what was charged; future dates what will be (Calendar, 11 §1).
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          maximum: 366
+          minimum: 0
+          default: 30
+        description: From today, inclusive.
+      - in: query
+        name: end
+        schema:
+          type: string
+          format: date
+        description: Inclusive.
+      - in: query
+        name: start
+        schema:
+          type: string
+          format: date
+        description: With `end`, a date range instead.
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Upcoming'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/auth/login:
+    post:
+      operationId: auth_login
+      description: |-
+        Exchange email and password for tokens.
+
+        401 `invalid_credentials`: "Email or password is incorrect." (never says which).
+        403 `email_not_verified`: route to VerifyEmailSent. 423 `account_locked`.
+        429 `throttled`: "Too many attempts. Try again in {n} minutes."
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '423':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Account temporarily locked.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Throttled. Retry after the `Retry-After` header.
+  /api/v1/auth/logout:
+    post:
+      operationId: auth_logout
+      description: Revoke this device's refresh token. Works with an expired access
+        token.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '204':
+          description: Done; no body.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+  /api/v1/auth/me:
+    get:
+      operationId: auth_me
+      description: The signed-in user's profile.
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/auth/password-reset/confirm:
+    post:
+      operationId: auth_password_reset_confirm
+      description: |-
+        Set a new password from the emailed token, then sign in again.
+
+        400 `token_expired` ("This link has expired.") or `token_invalid`
+        ("This link has already been used.").
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '204':
+          description: Done; no body.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+  /api/v1/auth/password-reset/request:
+    post:
+      operationId: auth_password_reset_request
+      description: 'Email a reset link if the account exists. Always 200: no account
+        enumeration.'
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cooldown'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Throttled. Retry after the `Retry-After` header.
+  /api/v1/auth/refresh:
+    post:
+      operationId: auth_refresh
+      description: Exchange a refresh token for a new pair. The old refresh token
+        stops working.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/auth/register:
+    post:
+      operationId: auth_register
+      description: |-
+        Create an unverified account and email a verification link. Returns no tokens.
+
+        409 `duplicate_email`: "An account with this email already exists."
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Throttled. Retry after the `Retry-After` header.
+  /api/v1/auth/resend-verification:
+    post:
+      operationId: auth_resend_verification
+      description: |-
+        Send a new verification link. Always 200 for a well-formed email, so it
+        cannot be used to discover accounts.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cooldown'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Throttled. Retry after the `Retry-After` header.
+  /api/v1/auth/verify-email:
+    post:
+      operationId: auth_verify_email
+      description: |-
+        Verify the email from the link and sign the user in.
+
+        400 `token_expired` ("This link has expired.") or `token_invalid`.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+  /api/v1/extractions/{extraction_id}:
+    delete:
+      operationId: extractions_discard
+      description: Discard a pending extraction and its snippet.
+      parameters:
+      - in: path
+        name: extraction_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - extractions
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/extractions/{extraction_id}/confirm:
+    post:
+      operationId: extractions_confirm
+      description: |-
+        Create the subscription from the reviewed fields ("Confirm and track") and
+        delete the pending record. The body is the same as POST /subscriptions.
+      parameters:
+      - in: path
+        name: extraction_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - extractions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetail'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/extractions/pending:
+    get:
+      operationId: extractions_pending
+      description: Extractions waiting for review. Nothing is a subscription until
+        confirmed.
+      tags:
+      - extractions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingExtractionList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/extractions/scan:
+    post:
+      operationId: extractions_scan
+      description: |-
+        Start scanning the connected inbox. Results arrive in GET /extractions/pending.
+
+        409 `gmail_not_connected`. 503 `extraction_unavailable`: route to manual entry.
+      tags:
+      - extractions
+      security:
+      - jwtAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scan'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Throttled. Retry after the `Retry-After` header.
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: A dependency is down.
   /api/v1/health/:
     get:
       operationId: health_retrieve
@@ -20,6 +705,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/Health'
           description: ''
+  /api/v1/integrations/gmail:
+    delete:
+      operationId: gmail_disconnect
+      description: Revoke Gmail access and delete every pending extraction.
+      tags:
+      - integrations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/integrations/gmail/connect:
+    post:
+      operationId: gmail_connect
+      description: |-
+        Exchange the OAuth code for read-only Gmail access.
+
+        400 `gmail_denied`: "Access was denied or timed out."
+      tags:
+      - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GmailConnectInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GmailConnectInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GmailConnectInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GmailConnection'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
   /api/v1/me/:
     get:
       operationId: me_retrieve
@@ -35,8 +779,841 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserProfile'
           description: ''
+  /api/v1/shared-plans:
+    get:
+      operationId: shared_plans_list
+      description: The caller's shared plans and what others still owe them. Never
+        changes totals.
+      tags:
+      - shared-plans
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedPlanList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+    post:
+      operationId: shared_plans_create
+      description: |-
+        Split one of the caller's subscriptions equally. The caller is added first
+        and absorbs any extra cent. 409 `already_shared`.
+      tags:
+      - shared-plans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SharedPlanInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SharedPlanInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SharedPlanInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedPlan'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+  /api/v1/shared-plans/{plan_id}/payments/{payment_id}/remind:
+    post:
+      operationId: shared_plans_remind
+      description: |-
+        Remind a participant about a pending share: by email when there is an
+        address, otherwise the client opens the share sheet with `message`.
+
+        409 `already_paid`. 429 `throttled`: one reminder per 24 hours.
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: plan_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - shared-plans
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Throttled. Retry after the `Retry-After` header.
+  /api/v1/subscriptions:
+    get:
+      operationId: subscriptions_list
+      description: |-
+        The caller's subscriptions, soonest bill first; cancelled ones last.
+        Deleted subscriptions never appear.
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+          minLength: 1
+        description: Category slug.
+      - in: query
+        name: status
+        schema:
+          enum:
+          - active
+          - cancelled
+          type: string
+          minLength: 1
+        description: |-
+          Default: both active and cancelled.
+
+          * `active` - active
+          * `cancelled` - cancelled
+      tags:
+      - subscriptions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+    post:
+      operationId: subscriptions_create
+      description: |-
+        Add a subscription. next_bill_date is computed from start_date and the cycle.
+
+        400 `price_invalid`: "Enter a valid price greater than $0."
+      tags:
+      - subscriptions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetail'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/subscriptions/{subscription_id}:
+    get:
+      operationId: subscriptions_retrieve
+      description: One subscription with its monthly equivalent, total spent and history.
+      parameters:
+      - in: path
+        name: subscription_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - subscriptions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetail'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+    patch:
+      operationId: subscriptions_update
+      description: Change any fields. A price, category or cycle change writes one
+        history event each.
+      parameters:
+      - in: path
+        name: subscription_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - subscriptions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSubscriptionInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSubscriptionInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSubscriptionInputRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetail'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+    delete:
+      operationId: subscriptions_delete
+      description: |-
+        Soft delete: it leaves every list and total, its history is kept, and
+        POST .../restore undoes it.
+      parameters:
+      - in: path
+        name: subscription_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - subscriptions
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/subscriptions/{subscription_id}/cancel:
+    post:
+      operationId: subscriptions_cancel
+      description: |-
+        Mark as cancelled: out of totals, history kept, saved_per_year set.
+
+        409 `already_cancelled`.
+      parameters:
+      - in: path
+        name: subscription_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - subscriptions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetail'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+  /api/v1/subscriptions/{subscription_id}/history:
+    get:
+      operationId: subscriptions_history
+      description: Every recorded change, newest first.
+      parameters:
+      - in: path
+        name: subscription_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - subscriptions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryEvent'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/subscriptions/{subscription_id}/restore:
+    post:
+      operationId: subscriptions_restore
+      description: 'Undo a delete: puts back the status it had before. Powers the
+        Undo toast.'
+      parameters:
+      - in: path
+        name: subscription_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - subscriptions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetail'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/trials:
+    get:
+      operationId: trials_list
+      description: |-
+        Trials that have not converted, fewest days left first, with progress
+        computed server-side (TrialShield, 11 §2.5).
+      tags:
+      - trials
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrialList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/trials/{subscription_id}/decision:
+    post:
+      operationId: trials_decision
+      description: Keep it (stop nagging; it converts on its end date) or Remind me.
+      parameters:
+      - in: path
+        name: subscription_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - trials
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrialDecisionInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TrialDecisionInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TrialDecisionInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trial'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
 components:
   schemas:
+    AtRisk:
+      type: object
+      properties:
+        count:
+          type: integer
+        amount:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: What the at-risk trials will charge, display currency.
+      required:
+      - amount
+      - count
+    BillingCycleEnum:
+      enum:
+      - weekly
+      - monthly
+      - quarterly
+      - yearly
+      - custom
+      type: string
+      description: |-
+        * `weekly` - weekly
+        * `monthly` - monthly
+        * `quarterly` - quarterly
+        * `yearly` - yearly
+        * `custom` - custom
+    CategoryRef:
+      type: object
+      properties:
+        slug:
+          type: string
+        display_name:
+          type: string
+        color_token_key:
+          type: string
+          description: Key into the mobile theme's category colours.
+      required:
+      - color_token_key
+      - display_name
+      - slug
+    CategorySpend:
+      type: object
+      properties:
+        category:
+          oneOf:
+          - $ref: '#/components/schemas/CategoryRef'
+          - type: 'null'
+        amount:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: Rounded so the rows sum to monthly_total exactly.
+        percent:
+          type: integer
+          description: Whole percent; the rows sum to exactly 100.
+        share:
+          type: string
+          description: Exact share to two places, e.g. '42.56'.
+      required:
+      - amount
+      - category
+      - percent
+      - share
+    ChannelEnum:
+      enum:
+      - email
+      - share_sheet
+      type: string
+      description: |-
+        * `email` - email
+        * `share_sheet` - share_sheet
+    Cooldown:
+      type: object
+      properties:
+        cooldown_seconds:
+          type: integer
+          description: Keep Resend disabled for this long, with a visible countdown.
+      required:
+      - cooldown_seconds
+    CustomCycleUnitEnum:
+      enum:
+      - days
+      - weeks
+      - months
+      - years
+      type: string
+      description: |-
+        * `days` - days
+        * `weeks` - weeks
+        * `months` - months
+        * `years` - years
+    EmailRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
+    EmailTokenRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: The token from the emailed link.
+      required:
+      - token
+    Error:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+      required:
+      - error
+    ErrorDetail:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: 'Present on 400s: form field name to its messages.'
+      required:
+      - code
+      - message
+    EventTypeEnum:
+      enum:
+      - created
+      - price_change
+      - category_change
+      - cycle_change
+      - cancelled
+      type: string
+      description: |-
+        * `created` - created
+        * `price_change` - price_change
+        * `category_change` - category_change
+        * `cycle_change` - cycle_change
+        * `cancelled` - cancelled
+    ExtractedFields:
+      type: object
+      description: Every value is null when it was not found in the email (the grounding
+        rule).
+      properties:
+        service_name:
+          type:
+          - string
+          - 'null'
+        plan_name:
+          type:
+          - string
+          - 'null'
+        price:
+          type:
+          - string
+          - 'null'
+          description: Decimal string.
+        currency:
+          type:
+          - string
+          - 'null'
+        billing_cycle:
+          oneOf:
+          - $ref: '#/components/schemas/BillingCycleEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        subscription_type:
+          oneOf:
+          - $ref: '#/components/schemas/SubscriptionTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        trial_ends_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        start_date:
+          type:
+          - string
+          - 'null'
+          format: date
+        category:
+          type:
+          - string
+          - 'null'
+          description: Category slug.
+      required:
+      - billing_cycle
+      - category
+      - currency
+      - custom_cycle_count
+      - custom_cycle_unit
+      - plan_name
+      - price
+      - service_name
+      - start_date
+      - subscription_type
+      - trial_ends_on
+    ExtractionConfidence:
+      type: object
+      description: Computed from checks, not self-reported, 0 to 1; null where the
+        field is null.
+      properties:
+        service_name:
+          type:
+          - number
+          - 'null'
+          format: double
+        plan_name:
+          type:
+          - number
+          - 'null'
+          format: double
+        price:
+          type:
+          - number
+          - 'null'
+          format: double
+        currency:
+          type:
+          - number
+          - 'null'
+          format: double
+        billing_cycle:
+          type:
+          - number
+          - 'null'
+          format: double
+        subscription_type:
+          type:
+          - number
+          - 'null'
+          format: double
+        trial_ends_on:
+          type:
+          - number
+          - 'null'
+          format: double
+        start_date:
+          type:
+          - number
+          - 'null'
+          format: double
+        category:
+          type:
+          - number
+          - 'null'
+          format: double
+      required:
+      - billing_cycle
+      - category
+      - currency
+      - plan_name
+      - price
+      - service_name
+      - start_date
+      - subscription_type
+      - trial_ends_on
+    ExtractionSource:
+      type: object
+      properties:
+        sender:
+          type: string
+        subject:
+          type: string
+        snippet:
+          type: string
+          description: At most 300 characters; deleted with the record.
+      required:
+      - sender
+      - snippet
+      - subject
+    GmailConnectInputRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: OAuth authorization code from the consent screen.
+        code_verifier:
+          type: string
+          minLength: 1
+          description: PKCE verifier.
+        redirect_uri:
+          type: string
+          minLength: 1
+      required:
+      - code
+      - redirect_uri
+    GmailConnection:
+      type: object
+      properties:
+        provider:
+          $ref: '#/components/schemas/ProviderEnum'
+        email:
+          type: string
+          format: email
+        connected_at:
+          type: string
+          format: date-time
+      required:
+      - connected_at
+      - email
+      - provider
     Health:
       type: object
       properties:
@@ -47,6 +1624,1223 @@ components:
       required:
       - database
       - status
+    HistoryEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        occurred_at:
+          type: string
+          format: date-time
+        old_value:
+          oneOf:
+          - $ref: '#/components/schemas/HistoryValue'
+          - type: 'null'
+        new_value:
+          oneOf:
+          - $ref: '#/components/schemas/HistoryValue'
+          - type: 'null'
+      required:
+      - event_type
+      - id
+      - new_value
+      - occurred_at
+      - old_value
+    HistoryValue:
+      type: object
+      description: The fields an event changed. Only the keys the event touched are
+        present.
+      properties:
+        price:
+          type: string
+          description: Decimal string.
+        currency:
+          type: string
+        category:
+          type:
+          - string
+          - 'null'
+          description: Category slug.
+        billing_cycle:
+          $ref: '#/components/schemas/BillingCycleEnum'
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        cancelled_on:
+          type: string
+          format: date
+    KindEnum:
+      enum:
+      - price_change
+      - trial_ending
+      type: string
+      description: |-
+        * `price_change` - price_change
+        * `trial_ending` - trial_ending
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+      - email
+      - password
+    Money:
+      type: object
+      description: 'An amount always travels with its currency, e.g. {"amount": "129.20",
+        "currency": "USD"}.'
+      properties:
+        amount:
+          type: string
+          description: Decimal string, rounded to the currency's minor unit.
+        currency:
+          type: string
+          description: ISO 4217 code.
+      required:
+      - amount
+      - currency
+    MonthSpend:
+      type: object
+      properties:
+        month:
+          type: string
+          description: YYYY-MM.
+        amount:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: Monthly recurring spend as it stood at the end of the month.
+      required:
+      - amount
+      - month
+    NewParticipantRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        email:
+          type:
+          - string
+          - 'null'
+          format: email
+          minLength: 1
+      required:
+      - display_name
+    NullEnum:
+      type: 'null'
+    Participant:
+      type: object
+      properties:
+        id:
+          type: string
+        payment_id:
+          type: string
+          description: This period's payment; used by the remind route.
+        display_name:
+          type: string
+        email:
+          type:
+          - string
+          - 'null'
+          format: email
+        position:
+          type: integer
+          description: 0 is the owner.
+        is_owner:
+          type: boolean
+        share:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: Largest-remainder split; shares sum to the price exactly.
+        status:
+          $ref: '#/components/schemas/PaymentStatusEnum'
+        paid_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        last_reminded_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - display_name
+      - email
+      - id
+      - is_owner
+      - last_reminded_at
+      - paid_at
+      - payment_id
+      - position
+      - share
+      - status
+    PasswordResetConfirmRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: The token from the emailed link.
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required:
+      - password
+      - token
+    PatchedSubscriptionInputRequest:
+      type: object
+      description: POST /subscriptions, PATCH /subscriptions/{id} (partial), POST
+        /extractions/{id}/confirm.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        billing_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        billing_currency:
+          type: string
+          minLength: 1
+          default: USD
+          description: ISO 4217 code the subscription is billed in.
+          pattern: ^[A-Z]{3}$
+        billing_cycle:
+          allOf:
+          - $ref: '#/components/schemas/BillingCycleEnum'
+          default: monthly
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+          maximum: 365
+          minimum: 1
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        start_date:
+          type: string
+          format: date
+          description: The first charge. next_bill_date is derived from it, never
+            sent.
+        category:
+          type: string
+          minLength: 1
+          description: Category slug, e.g. `entertainment`.
+        notes:
+          type: string
+          default: ''
+          maxLength: 280
+        payment_label:
+          type: string
+          default: ''
+          description: Display only, e.g. 'Visa ••4242'. A card number is rejected.
+          maxLength: 30
+        is_trial:
+          type: boolean
+          default: false
+        trial_ends_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        trial_length_days:
+          type:
+          - integer
+          - 'null'
+          maximum: 366
+          minimum: 1
+        trial_reminder_enabled:
+          type: boolean
+          default: true
+    PaymentStatusEnum:
+      enum:
+      - paid
+      - pending
+      type: string
+      description: |-
+        * `paid` - paid
+        * `pending` - pending
+    PendingExtraction:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          $ref: '#/components/schemas/ExtractionSource'
+        fields:
+          $ref: '#/components/schemas/ExtractedFields'
+        confidence:
+          $ref: '#/components/schemas/ExtractionConfidence'
+        flagged:
+          type: array
+          items:
+            type: string
+          description: Fields under 60% confidence or not grounded; must be resolved
+            before confirm.
+        duplicate_of:
+          type:
+          - string
+          - 'null'
+          description: Id of an existing subscription this matches; offer Update.
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - confidence
+      - created_at
+      - duplicate_of
+      - expires_at
+      - fields
+      - flagged
+      - id
+      - source
+    PendingExtractionList:
+      type: object
+      properties:
+        scanning:
+          type: boolean
+          description: True while a scan is still running.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingExtraction'
+      required:
+      - results
+      - scanning
+    PeriodEnum:
+      enum:
+      - current_month
+      type: string
+      description: '* `current_month` - current_month'
+    PriceChange:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        subscription_id:
+          type: string
+        name:
+          type: string
+        service_mark:
+          oneOf:
+          - $ref: '#/components/schemas/ServiceMark'
+          - type: 'null'
+        effective_on:
+          type: string
+          format: date
+        is_upcoming:
+          type: boolean
+        old_price:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Billing currency. Null for a trial.
+        new_price:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: Billing currency. For a trial, the price it converts to.
+        monthly_change:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Signed, display currency. Null for a trial.
+        annual_change:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Signed, display currency, e.g. '18.00'. Null for a trial.
+        direction:
+          oneOf:
+          - $ref: '#/components/schemas/PriceChangeDirectionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        days_left:
+          type:
+          - integer
+          - 'null'
+          description: Trials only.
+      required:
+      - annual_change
+      - days_left
+      - direction
+      - effective_on
+      - is_upcoming
+      - kind
+      - monthly_change
+      - name
+      - new_price
+      - old_price
+      - service_mark
+      - subscription_id
+    PriceChangeDirectionEnum:
+      enum:
+      - up
+      - down
+      type: string
+      description: |-
+        * `up` - up
+        * `down` - down
+    PriceChanges:
+      type: object
+      properties:
+        display_currency:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriceChange'
+          description: Newest effective date first.
+      required:
+      - display_currency
+      - items
+    ProviderEnum:
+      enum:
+      - gmail
+      type: string
+      description: '* `gmail` - gmail'
+    RefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required:
+      - email
+      - password
+    RegisterResponse:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        verification_sent:
+          type: boolean
+      required:
+      - email
+      - verification_sent
+    Reminder:
+      type: object
+      properties:
+        payment_id:
+          type: string
+        channel:
+          allOf:
+          - $ref: '#/components/schemas/ChannelEnum'
+          description: |-
+            email: sent by the server. share_sheet: open the OS share sheet with `message`.
+
+            * `email` - email
+            * `share_sheet` - share_sheet
+        message:
+          type: string
+        last_reminded_at:
+          type: string
+          format: date-time
+        next_reminder_available_at:
+          type: string
+          format: date-time
+          description: One reminder per 24 hours.
+      required:
+      - channel
+      - last_reminded_at
+      - message
+      - next_reminder_available_at
+      - payment_id
+    Scan:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ScanStatusEnum'
+      required:
+      - status
+    ScanStatusEnum:
+      enum:
+      - scanning
+      type: string
+      description: '* `scanning` - scanning'
+    ServiceMark:
+      type: object
+      description: The tile drawn for a known service (04 §4.7). Null for services
+        not in the catalog.
+      properties:
+        mark:
+          type: string
+        brand_hex:
+          type: string
+        tint_hex:
+          type: string
+      required:
+      - brand_hex
+      - mark
+      - tint_hex
+    SharedPlan:
+      type: object
+      properties:
+        billing_cycle:
+          $ref: '#/components/schemas/BillingCycleEnum'
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        id:
+          type: string
+        subscription_id:
+          type: string
+        name:
+          type: string
+        service_mark:
+          oneOf:
+          - $ref: '#/components/schemas/ServiceMark'
+          - type: 'null'
+        price:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: The full bill, in the billing currency.
+        split_mode:
+          $ref: '#/components/schemas/SplitModeEnum'
+        period:
+          type: string
+          description: Billing period the payments are for, YYYY-MM.
+        participant_count:
+          type: integer
+        paid_count:
+          type: integer
+        your_share:
+          $ref: '#/components/schemas/Money'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participant'
+          description: By position, owner first.
+      required:
+      - billing_cycle
+      - custom_cycle_count
+      - custom_cycle_unit
+      - id
+      - name
+      - paid_count
+      - participant_count
+      - participants
+      - period
+      - price
+      - service_mark
+      - split_mode
+      - subscription_id
+      - your_share
+    SharedPlanInputRequest:
+      type: object
+      properties:
+        subscription_id:
+          type: string
+          minLength: 1
+        split_mode:
+          allOf:
+          - $ref: '#/components/schemas/SplitModeEnum'
+          default: equal
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewParticipantRequest'
+          description: Everyone but you; you are added first.
+      required:
+      - participants
+      - subscription_id
+    SharedPlanList:
+      type: object
+      properties:
+        display_currency:
+          type: string
+        outstanding:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: Other participants' pending shares, owed to you. Display currency.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedPlan'
+      required:
+      - display_currency
+      - outstanding
+      - results
+    SpendOverTime:
+      type: object
+      properties:
+        display_currency:
+          type: string
+        months:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonthSpend'
+          description: Oldest first; the last is the current month.
+        current:
+          $ref: '#/components/schemas/Money'
+        previous:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+        delta_percent:
+          type:
+          - string
+          - 'null'
+          description: Change from the previous month to one place, e.g. '1.2'.
+        direction:
+          oneOf:
+          - $ref: '#/components/schemas/SpendOverTimeDirectionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        enough_history:
+          type: boolean
+          description: 'False under two months of tracking: show the placeholder,
+            not a chart.'
+      required:
+      - current
+      - delta_percent
+      - direction
+      - display_currency
+      - enough_history
+      - months
+      - previous
+    SpendOverTimeDirectionEnum:
+      enum:
+      - up
+      - down
+      - flat
+      type: string
+      description: |-
+        * `up` - up
+        * `down` - down
+        * `flat` - flat
+    SplitModeEnum:
+      enum:
+      - equal
+      type: string
+      description: '* `equal` - equal'
+    Subscription:
+      type: object
+      description: One row of the subscription list.
+      properties:
+        billing_cycle:
+          $ref: '#/components/schemas/BillingCycleEnum'
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        id:
+          type: string
+        name:
+          type: string
+        billing_price:
+          type: string
+          description: As billed, in billing_currency. Decimal string.
+        billing_currency:
+          type: string
+        start_date:
+          type: string
+          format: date
+        next_bill_date:
+          type:
+          - string
+          - 'null'
+          format: date
+          description: Derived from start_date and the cycle. Null once cancelled.
+        category:
+          oneOf:
+          - $ref: '#/components/schemas/CategoryRef'
+          - type: 'null'
+        notes:
+          type: string
+        payment_label:
+          type: string
+        status:
+          $ref: '#/components/schemas/SubscriptionStatusEnum'
+        cancelled_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        is_trial:
+          type: boolean
+        trial_ends_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        trial_length_days:
+          type:
+          - integer
+          - 'null'
+        trial_reminder_enabled:
+          type: boolean
+        trial_decision:
+          $ref: '#/components/schemas/TrialDecisionEnum'
+        counts_toward_totals:
+          type: boolean
+          description: False for cancelled subscriptions and trials that have not
+            converted.
+        normalized_monthly:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Monthly equivalent in the display currency. Null when no FX
+            rate exists.
+        service_mark:
+          oneOf:
+          - $ref: '#/components/schemas/ServiceMark'
+          - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - billing_currency
+      - billing_cycle
+      - billing_price
+      - cancelled_on
+      - category
+      - counts_toward_totals
+      - created_at
+      - custom_cycle_count
+      - custom_cycle_unit
+      - id
+      - is_trial
+      - name
+      - next_bill_date
+      - normalized_monthly
+      - notes
+      - payment_label
+      - service_mark
+      - start_date
+      - status
+      - trial_decision
+      - trial_ends_on
+      - trial_length_days
+      - trial_reminder_enabled
+      - updated_at
+    SubscriptionDetail:
+      type: object
+      description: One row of the subscription list.
+      properties:
+        billing_cycle:
+          $ref: '#/components/schemas/BillingCycleEnum'
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        id:
+          type: string
+        name:
+          type: string
+        billing_price:
+          type: string
+          description: As billed, in billing_currency. Decimal string.
+        billing_currency:
+          type: string
+        start_date:
+          type: string
+          format: date
+        next_bill_date:
+          type:
+          - string
+          - 'null'
+          format: date
+          description: Derived from start_date and the cycle. Null once cancelled.
+        category:
+          oneOf:
+          - $ref: '#/components/schemas/CategoryRef'
+          - type: 'null'
+        notes:
+          type: string
+        payment_label:
+          type: string
+        status:
+          $ref: '#/components/schemas/SubscriptionStatusEnum'
+        cancelled_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        is_trial:
+          type: boolean
+        trial_ends_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        trial_length_days:
+          type:
+          - integer
+          - 'null'
+        trial_reminder_enabled:
+          type: boolean
+        trial_decision:
+          $ref: '#/components/schemas/TrialDecisionEnum'
+        counts_toward_totals:
+          type: boolean
+          description: False for cancelled subscriptions and trials that have not
+            converted.
+        normalized_monthly:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Monthly equivalent in the display currency. Null when no FX
+            rate exists.
+        service_mark:
+          oneOf:
+          - $ref: '#/components/schemas/ServiceMark'
+          - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        total_spent_to_date:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Everything charged before today, in the display currency.
+        saved_per_year:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Annual equivalent no longer paid. Set only when cancelled.
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryEvent'
+          description: Newest first.
+      required:
+      - billing_currency
+      - billing_cycle
+      - billing_price
+      - cancelled_on
+      - category
+      - counts_toward_totals
+      - created_at
+      - custom_cycle_count
+      - custom_cycle_unit
+      - history
+      - id
+      - is_trial
+      - name
+      - next_bill_date
+      - normalized_monthly
+      - notes
+      - payment_label
+      - saved_per_year
+      - service_mark
+      - start_date
+      - status
+      - total_spent_to_date
+      - trial_decision
+      - trial_ends_on
+      - trial_length_days
+      - trial_reminder_enabled
+      - updated_at
+    SubscriptionInputRequest:
+      type: object
+      description: POST /subscriptions, PATCH /subscriptions/{id} (partial), POST
+        /extractions/{id}/confirm.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        billing_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        billing_currency:
+          type: string
+          minLength: 1
+          default: USD
+          description: ISO 4217 code the subscription is billed in.
+          pattern: ^[A-Z]{3}$
+        billing_cycle:
+          allOf:
+          - $ref: '#/components/schemas/BillingCycleEnum'
+          default: monthly
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+          maximum: 365
+          minimum: 1
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        start_date:
+          type: string
+          format: date
+          description: The first charge. next_bill_date is derived from it, never
+            sent.
+        category:
+          type: string
+          minLength: 1
+          description: Category slug, e.g. `entertainment`.
+        notes:
+          type: string
+          default: ''
+          maxLength: 280
+        payment_label:
+          type: string
+          default: ''
+          description: Display only, e.g. 'Visa ••4242'. A card number is rejected.
+          maxLength: 30
+        is_trial:
+          type: boolean
+          default: false
+        trial_ends_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        trial_length_days:
+          type:
+          - integer
+          - 'null'
+          maximum: 366
+          minimum: 1
+        trial_reminder_enabled:
+          type: boolean
+          default: true
+      required:
+      - billing_price
+      - category
+      - name
+      - start_date
+    SubscriptionList:
+      type: object
+      properties:
+        count:
+          type: integer
+        next:
+          type:
+          - string
+          - 'null'
+          description: Cursor for the next page; null on the last.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subscription'
+      required:
+      - count
+      - next
+      - results
+    SubscriptionStatusEnum:
+      enum:
+      - active
+      - cancelled
+      type: string
+      description: |-
+        * `active` - active
+        * `cancelled` - cancelled
+    SubscriptionTypeEnum:
+      enum:
+      - paid
+      - trial
+      type: string
+      description: |-
+        * `paid` - paid
+        * `trial` - trial
+    Summary:
+      type: object
+      properties:
+        period:
+          $ref: '#/components/schemas/PeriodEnum'
+        display_currency:
+          type: string
+        monthly_total:
+          $ref: '#/components/schemas/Money'
+        annual_total:
+          $ref: '#/components/schemas/Money'
+        active_count:
+          type: integer
+          description: Subscriptions counted in the totals.
+        trial_count:
+          type: integer
+          description: Trials not yet converted; never in the totals.
+        pending_trials_monthly:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: What the trials would add per month if they all converted.
+            Shown apart.
+        unconverted_count:
+          type: integer
+          description: Subscriptions left out because their currency has no FX rate.
+        rates_as_of:
+          type:
+          - string
+          - 'null'
+          format: date
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategorySpend'
+          description: Largest first.
+      required:
+      - active_count
+      - annual_total
+      - categories
+      - display_currency
+      - monthly_total
+      - pending_trials_monthly
+      - period
+      - rates_as_of
+      - trial_count
+      - unconverted_count
+    TokenPair:
+      type: object
+      properties:
+        access:
+          type: string
+          description: Short-lived access token (15 minutes).
+        refresh:
+          type: string
+          description: Refresh token (7 days). Rotated on every refresh; keep it in
+            secure storage.
+      required:
+      - access
+      - refresh
+    Trial:
+      type: object
+      properties:
+        billing_cycle:
+          $ref: '#/components/schemas/BillingCycleEnum'
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        subscription_id:
+          type: string
+        name:
+          type: string
+        category:
+          oneOf:
+          - $ref: '#/components/schemas/CategoryRef'
+          - type: 'null'
+        service_mark:
+          oneOf:
+          - $ref: '#/components/schemas/ServiceMark'
+          - type: 'null'
+        price:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: The price after the trial, in the billing currency.
+        trial_ends_on:
+          type: string
+          format: date
+        trial_length_days:
+          type: integer
+        days_left:
+          type: integer
+        elapsed_days:
+          type: integer
+        progress:
+          type: number
+          format: double
+          description: elapsed_days / trial_length_days, 0 to 1.
+        urgency:
+          allOf:
+          - $ref: '#/components/schemas/UrgencyEnum'
+          description: |-
+            soon: inside alert_days_before; later: within 14 days; far: beyond.
+
+            * `soon` - soon
+            * `later` - later
+            * `far` - far
+        at_risk:
+          type: boolean
+          description: Inside the alert window and not marked Keep.
+        decision:
+          $ref: '#/components/schemas/TrialDecisionEnum'
+        reminder_enabled:
+          type: boolean
+        reminder_on:
+          type: string
+          format: date
+          description: trial_ends_on minus alert_days_before.
+      required:
+      - at_risk
+      - billing_cycle
+      - category
+      - custom_cycle_count
+      - custom_cycle_unit
+      - days_left
+      - decision
+      - elapsed_days
+      - name
+      - price
+      - progress
+      - reminder_enabled
+      - reminder_on
+      - service_mark
+      - subscription_id
+      - trial_ends_on
+      - trial_length_days
+      - urgency
+    TrialDecisionEnum:
+      enum:
+      - none
+      - keep
+      - remind
+      type: string
+      description: |-
+        * `none` - none
+        * `keep` - keep
+        * `remind` - remind
+    TrialDecisionInputRequest:
+      type: object
+      properties:
+        decision:
+          $ref: '#/components/schemas/TrialDecisionEnum'
+      required:
+      - decision
+    TrialList:
+      type: object
+      properties:
+        display_currency:
+          type: string
+        alert_days_before:
+          type: integer
+        at_risk:
+          $ref: '#/components/schemas/AtRisk'
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trial'
+          description: Fewest days left first.
+      required:
+      - alert_days_before
+      - at_risk
+      - display_currency
+      - results
+    Upcoming:
+      type: object
+      properties:
+        display_currency:
+          type: string
+        start:
+          type: string
+          format: date
+        end:
+          type: string
+          format: date
+          description: Inclusive.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpcomingBill'
+          description: By date, soonest first.
+      required:
+      - display_currency
+      - end
+      - items
+      - start
+    UpcomingBill:
+      type: object
+      properties:
+        subscription_id:
+          type: string
+        name:
+          type: string
+        category:
+          oneOf:
+          - $ref: '#/components/schemas/CategoryRef'
+          - type: 'null'
+        service_mark:
+          oneOf:
+          - $ref: '#/components/schemas/ServiceMark'
+          - type: 'null'
+        bill_date:
+          type: string
+          format: date
+        days_until:
+          type: integer
+          description: 0 is today; negative is in the past.
+        amount:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: What is charged, in the display currency.
+        billing_amount:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: What is charged, in the billing currency.
+        is_trial:
+          type: boolean
+          description: True when this bill is a trial converting.
+      required:
+      - amount
+      - bill_date
+      - billing_amount
+      - category
+      - days_until
+      - is_trial
+      - name
+      - service_mark
+      - subscription_id
+    UrgencyEnum:
+      enum:
+      - soon
+      - later
+      - far
+      type: string
+      description: |-
+        * `soon` - soon
+        * `later` - later
+        * `far` - far
     UserProfile:
       type: object
       description: Matches `UserProfile` in mobile/src/api/types.ts.
@@ -59,9 +2853,10 @@ components:
           format: email
           readOnly: true
         name:
-          type: string
+          type:
+          - string
+          - 'null'
           readOnly: true
-          nullable: true
         email_verified:
           type: boolean
           readOnly: true
