@@ -21,7 +21,8 @@ React Navigation 7 · React Native StyleSheet with tokens from `src/theme` · Ta
 6. No hardcoded colors, sizes or spacing outside `01` tokens.
 
 ## Ownership
-Hassan: `src/theme`, `src/components`, `src/api`, `backend/` (04) · Chris: `src/navigation`, auth screens, Home · Ankit: subscriptions, analytics, settings · Rafi: ai, calendar, family, `04 §6a` backend.
+Hassan: `src/theme`, `src/components`, `src/api` · Chris: `src/navigation`, auth screens, Home, `backend/` (04) · Ankit: subscriptions, analytics, settings · Rafi: ai, calendar, family, `04 §6a` backend.
+Changed 2026-10-22: `04` moved to Chris; nothing else moved (`12 §1`, and the decision record in `Capstone_CSC325/01 - Planning/Open Decisions.md`).
 Need a change in someone else's folder? Stop and ask.
 
 ## Commands

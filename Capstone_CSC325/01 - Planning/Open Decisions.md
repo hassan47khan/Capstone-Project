@@ -1,7 +1,7 @@
 ---
 status: open
 owner: Hassan
-updated: 2026-10-20
+updated: 2026-10-22
 ---
 
 # Open Decisions
@@ -18,13 +18,14 @@ itself the first thing to fix.
 | Django ↔ `django-mongodb-backend` pairing | Holds on 6.1. No fallback to 6.0 needed. See [[Sprint 0 — Backend Spike]]. |
 | Local and CI MongoDB topology | Single-node replica set via `docker-compose.yml`, both places. |
 | Category taxonomy (2026-10-19) | Handoff 04's seven: entertainment, productivity, ai-tools, cloud-storage, news-media, health-wellness, other. Spec enum amended. See [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]]. |
+| Slice owners (2026-10-22) | `04` to Chris. `04 §6a` still Rafi, `src/api` still Hassan, and `05`–`11` unchanged: Chris `05`–`06`, Ankit `07`–`09`, Rafi `10`–`11`. See the [[Open Decisions#2026-10-22 Slice owner for 04|2026-10-22 decision record]]. |
 | Appearance source (2026-10-19) | The Figma file `kyUS7F8bg4x7GpcPEF4UDN` replaces the PDF prototype. |
 
 ## Still open
 
 | Decision | Recommendation in the spec | Owner | Needed by |
 | --- | --- | --- | --- |
-| Team roles — Scrum Master, Product Owner, per-sprint slice owners | — | Team | **Now.** Blocks every Product Owner row below |
+| Team roles — Scrum Master and Product Owner | — | Team | **Now.** Blocks every Product Owner row below. *Per-sprint slice owners are settled; see the table above.* |
 | Does SubTrak clear the guidelines' "expense organizer" exclusion? | Ask the instructor, framing the LLM extraction, splitter and reminder pipeline as the substance; get it in writing | Product Owner | Before Sprint 1 planning |
 | How Sprint 0 counts against the five-sprint requirement | Ask the instructor | Scrum Master | Sprint 0 |
 | Named real users for the Week 3 requirements work | Name three actual people matching the personas, schedule the questions | Product Owner | Sprint 0 |
@@ -57,6 +58,42 @@ From `docs/design/README.md`:
   handoff agree and only the Sprint Map uses the older epic letters.
 
 ## Decision records
+
+### 2026-10-22 Slice owner for 04
+
+From reviewing [#90](https://github.com/hassan47khan/Capstone-Project/pull/90),
+which delivered `04`'s models, money engine, seed and money tests. Chris built
+it; `12 §1` and the root `CLAUDE.md` both still said `04` was Hassan's.
+
+- **`04` moves to Chris.** *Why:* he has already built slice 1, and with `01`–`03`
+  merged the backend was all that remained of Hassan's critical path. Taking it
+  back would mean either rewriting working code or rubber-stamping it. `04 §6a`
+  stays with Rafi. `src/api` stays with Hassan, generated from Chris's schema —
+  so the seam is the OpenAPI file, not the client.
+- **`06` (Home) stays with Chris**, and `07`–`09` with Ankit, `10`–`11` with
+  Rafi — the original split, unchanged. Moving `06` to Ankit was considered and
+  rejected by Hassan on 2026-10-22: `04` plus `03`, `05` and `06` does put the
+  backend, the contract everyone mocks against and Home on one person, and
+  `06`/`08` sharing one chart contract (`08 §3`) stays a cross-person seam. Both
+  are accepted. The mitigations are the contract-freeze-first order below, and
+  agreeing the chart library on day one — Ankit reuses Chris's CategoryCard
+  rather than building a second one.
+- **The contract freeze comes before the endpoints.** *Why:* `05`–`11` all
+  list `04` as a prerequisite. Frozen OpenAPI shapes plus a mock let three
+  people start; working endpoints behind an unfrozen contract unblock nobody.
+  `12 §2.1` is rewritten to put it first, which is the order that section
+  always had — #90 did the money engine first instead.
+- **Category percentages.** `04 §4.3`'s six shares add to 99.99, and #90's tests
+  asserted that. `06 §2.3`, `06 §2.4` defect 4, `08 §3` and the system design's
+  "Category breakdown (US-8)" all require integers summing to exactly 100 by
+  largest remainder. *Outcome:* `04 §4.3` now states both — the exact shares and
+  the displayed integers (43/31/16/5/3/2) — and the engine supplies the integers
+  so no screen rounds its own. The prototype's legend summing to 88 is what that
+  duplication produces.
+- **Two spec errors fixed in the same pass**, both found by #90: `04 §4.2` said
+  Headspace's next bill is 2026-12-15, which no every-2-months schedule on the
+  15th can produce at `SEED_TODAY` (it is 2026-10-15); and `04 §3.4`'s example
+  claimed early rounding turns Alex's total into $129.21, which it does not.
 
 ### 2026-10-19 Figma retheme and handoffs 01-03
 

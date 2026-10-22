@@ -3,7 +3,11 @@
 **Project:** SubTrak (CSC 325 capstone) · `hassan47khan/Capstone-Project`
 **Stack:** React Native (Expo) · Django + DRF · MongoDB Atlas
 **Design source:** Figma `IKYivyJtmBYzJNQ7g8qPGc` (newer; adds the AI-epic frames) — page "Full Integrated Prototype Epic A, B, C". **Home (`4:2901`) exists only in the original file `kyUS7F8bg4x7GpcPEF4UDN`.**
-**Status:** Mobile Phase 0 complete (runs in Expo Go). None of these screens exist in code yet.
+**Status:** `00`–`03` complete (Hassan): tokens, the 21 components with their
+gallery, and the navigation tree are on `main`. `04` is in progress (Chris):
+models, money engine, seed and the money tests are in review in #90; the
+contract freeze is next. `05`–`11` not started — their screens are still
+placeholders. Last updated 2026-10-22.
 
 ---
 
@@ -20,20 +24,24 @@ contained.
 
 ### File map
 
-| File | Covers | Prereqs | Phase |
-|---|---|---|---|
-| `01-design-tokens.md` | Colors, type, spacing, themes, contrast | none | 0 |
-| `02-component-library.md` | 21 shared components with real measurements | 01 | 0 |
-| `03-navigation.md` | Tab/stack/modal structure, nav rules | 01, 02 | 0 |
-| `04-data-and-money.md` | Domain model, money engine, canonical dataset, API | none | 1 |
-| `05-auth-onboarding.md` | Epic A — register, verify, login, reset, first-run | 01–04 | 2 |
-| `06-home-dashboard.md` | Epic B — the canonical Home screen | 01–04 | 3 |
-| `07-subscriptions.md` | Epic C — add, detail, edit, history, cancel/delete | 01–04 | 3 |
-| `08-analytics.md` | Epic D — spend over time, category breakdown | 01–04, 06 | 4 |
-| `09-settings.md` | Epic E — settings, currency, timezone, notifications | 01–04 | 5 |
-| `10-family.md` | Epic F — multi-user (**stretch; cut if behind**) | 01–04, 09 | 7 |
-| `11-missing-screens.md` | Calendar, AI epic, empty/loading/error states | 01–04 | 6, 8 |
-| `12-team-assignments.md` | Who builds what, Claude Code prompts, cross-person seams | all | — |
+| File | Covers | Prereqs | Phase | Status |
+|---|---|---|---|---|
+| `01-design-tokens.md` | Colors, type, spacing, themes, contrast | none | 0 | ✅ Hassan (#82) |
+| `02-component-library.md` | 21 shared components with real measurements | 01 | 0 | ✅ Hassan (#83) |
+| `03-navigation.md` | Tab/stack/modal structure, nav rules | 01, 02 | 0 | ✅ Hassan (#83, #85) |
+| `04-data-and-money.md` | Domain model, money engine, canonical dataset, API | none | 1 | 🔄 Chris (#90) |
+| `05-auth-onboarding.md` | Epic A — register, verify, login, reset, first-run | 01–04 | 2 | Chris |
+| `06-home-dashboard.md` | Epic B — the canonical Home screen | 01–04 | 3 | Chris |
+| `07-subscriptions.md` | Epic C — add, detail, edit, history, cancel/delete | 01–04 | 3 | Ankit |
+| `08-analytics.md` | Epic D — spend over time, category breakdown | 01–04, 06 | 4 | Ankit |
+| `09-settings.md` | Epic E — settings, currency, timezone, notifications | 01–04 | 5 | Ankit |
+| `10-family.md` | Epic F — multi-user (**stretch; cut if behind**) | 01–04, 09 | 7 | Rafi |
+| `11-missing-screens.md` | Calendar, AI epic, empty/loading/error states | 01–04 | 6, 8 | Rafi |
+| `12-team-assignments.md` | Who builds what, Claude Code prompts, cross-person seams | all | — | — |
+
+Owners are `12 §1`; `04` moved to Chris on 2026-10-22. A ticked Definition of
+done at the foot of `01`, `02` and `03` lists the evidence for each line rather
+than just the tick.
 
 ### Build order
 

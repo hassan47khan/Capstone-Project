@@ -122,8 +122,14 @@ test and seed mode.
 **Round only at presentation. Never round intermediate sums.**
 
 This is not pedantry — it is load-bearing. Headspace at $12.99 every two months
-normalizes to $6.495/month. Round it early and Alex's total becomes $129.21
-instead of $129.20, and the category rollup stops summing to the total.
+normalizes to $6.495/month. Round that to $6.50 first and three of them show
+$19.50 where the rule gives $19.49; round a category subtotal first and the
+rollup stops summing to the total.
+
+> ⚠️ **Corrected 2026-10-22.** An earlier draft of this paragraph said rounding
+> Headspace early turns Alex's total into $129.21. It does not — $129.195 and
+> $129.20 both display as $129.20, so Alex's set does not demonstrate the rule.
+> The rule itself stands; use the three-Headspaces case above.
 
 ---
 
@@ -154,9 +160,15 @@ reproducible from no start date at all.
 | New York Times | 4.25 | monthly | news-media | 2026-10-08 | 4.25 |
 | ChatGPT Plus | 20.00 | monthly | ai-tools | 2026-10-20 | 20.00 |
 | YouTube Premium | 13.99 | monthly | entertainment | 2026-10-15 | 13.99 |
-| Headspace | 12.99 | every 2 months | health-wellness | 2026-12-15 | 6.495 |
+| Headspace | 12.99 | every 2 months | health-wellness | 2026-10-15 | 6.495 |
 
 **Raw total: 129.195 → displayed $129.20** ✅ (matches the prototype's Home screen)
+
+> ⚠️ **Headspace corrected 2026-10-22.** This table said `2026-12-15`. No
+> every-2-months schedule on the 15th can have that as its *next* bill at
+> `SEED_TODAY`: the bill before it, 2026-10-15, is itself after the anchor, so
+> Oct 15 is the next bill and Dec 15 is the one after. The normalized 6.495 and
+> the $129.20 total are unaffected.
 
 ### 4.3 Category rollup — derived, asserted
 
@@ -170,6 +182,30 @@ reproducible from no start date at all.
 | Cloud Storage | 2.99 | 2.31% |
 
 Sum of rounded category values = **129.20** ✅ — matches the displayed total.
+
+**The Share column is the exact share, shown to two places for reading.** It is
+what `category_rollup` returns, unrounded. These six add to 99.99, not 100,
+which is an artefact of rounding each one on its own and **must not reach a
+screen**.
+
+What a screen displays is different: percentages are **integers that sum to
+exactly 100**, by the largest-remainder method (`06 §2.3`, `08 §3`, system
+design "Category breakdown (US-8)"). For Alex that is:
+
+| Category | Exact | Displayed |
+|---|---|---|
+| Productivity | 42.56% | **43%** |
+| Entertainment | 31.32% | **31%** |
+| AI Tools | 15.48% | **16%** |
+| Health & Wellness | 5.03% | **5%** |
+| News & Media | 3.29% | **3%** |
+| Cloud Storage | 2.31% | **2%** |
+
+Sum = **100** ✅. The money engine supplies these integers, so Home's legend and
+the Analytics breakdown cannot disagree and neither screen reimplements the
+rounding — the prototype's legend summing to 88 (`06 §2.4`, defect 4) is exactly
+what that duplication produces. Assert both: the exact shares, and that the
+displayed integers sum to 100.
 
 ### 4.4 Netflix history — drives the chart, Edit History, and price alerts
 
@@ -311,6 +347,7 @@ Wrap it with auth-token injection and a 401 → refresh → retry-once policy.
 ✓ Alex's 8 subscriptions          → 129.20
 ✓ Category rollup                 → 54.99 / 40.47 / 20.00 / 6.50 / 4.25 / 2.99
 ✓ Rounded categories sum          → 129.20
+✓ Displayed category percentages  → integers summing to exactly 100 (43/31/16/5/3/2)
 ✓ Jordan → 45.98 · Sam → 22.98 · Family → 198.16
 ✓ Netflix total_spent at SEED_TODAY → 433.69
 ✓ EUR total @ 0.9177              → 118.56, agreeing with summed line items

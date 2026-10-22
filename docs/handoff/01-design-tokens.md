@@ -3,6 +3,7 @@
 **Prerequisites:** none. This is the first file to implement.
 **Deliverable:** a typed token module + light/dark theme provider for the Expo app.
 **Source:** Figma `kyUS7F8bg4x7GpcPEF4UDN`, variable collection `color/*`.
+**Status:** ✅ **Complete.** Built by Hassan, merged in #82. Ticked 2026-10-22.
 
 > Values below were pulled live from the Figma file. Use them exactly. Do not
 > re-pick colors by eye from a screenshot.
@@ -265,10 +266,21 @@ finishing.
 
 ## 8. Definition of done
 
-- [ ] Every value above exists as a named, typed token.
-- [ ] Light and dark themes both complete, same semantic names.
-- [ ] DM Serif Display + DM Sans bundled and loading before first paint.
-- [ ] Contrast report produced for all new pairs; no failures remain.
-- [ ] `radius.button` normalized to 6 and the change noted.
-- [ ] The three missing category colors pulled from Figma or justified.
-- [ ] Zero hardcoded color/size/spacing values anywhere else in the codebase.
+- [x] Every value above exists as a named, typed token.
+- [x] Light and dark themes both complete, same semantic names.
+- [x] DM Serif Display + DM Sans bundled and loading before first paint.
+- [x] Contrast report produced for all new pairs; no failures remain.
+- [x] `radius.button` normalized to 6 and the change noted.
+- [x] The three missing category colors pulled from Figma or justified.
+- [x] Zero hardcoded color/size/spacing values anywhere else in the codebase.
+
+**Ticked 2026-10-22, with the evidence for each:** tokens and both themes live in
+`mobile/src/theme/` with `tokens.test.ts` and `ThemeProvider.test.tsx`; the
+contrast report is committed at `mobile/src/theme/CONTRAST.md` and its suite runs
+for both themes; the three category colours with no Figma fill are marked
+`// Derived` in `tokens.ts` and justified in §3's decision note; rule 6 is
+enforced by the `no-restricted-syntax` rule in `mobile/eslint.config.js`, which
+cites this section. Fonts before first paint, the live light/dark flip and the
+largest text size were checked on a device in Expo Go on 2026-10-19 — reported
+by Hassan, with no screenshots or device details recorded. On-device *measured*
+contrast is still unverified; the committed report is computed.
