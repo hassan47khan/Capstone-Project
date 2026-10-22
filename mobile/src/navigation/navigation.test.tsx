@@ -118,7 +118,7 @@ describe('auth gate (03 §5)', () => {
   it('case 2: no session opens the Auth stack at Log in', async () => {
     await renderApp();
 
-    await waitFor(() => expect(title()).toBe('Log in'));
+    await waitFor(() => expect(title()).toBe('Log In'));
   });
 
   it('case 3: a session with an unverified email opens Verify Email Sent', async () => {
@@ -566,7 +566,7 @@ describe('deep links (03 §6)', () => {
   it('backgrounded, signed out: reset-password still opens', async () => {
     const deliver = captureUrlListener();
     await renderApp();
-    await waitFor(() => expect(title()).toBe('Log in'));
+    await waitFor(() => expect(title()).toBe('Log In'));
 
     await deliver('subtrak://reset-password?token=abc');
 
@@ -580,11 +580,11 @@ describe('deep links (03 §6)', () => {
   it('backgrounded, signed out: a subscription link waits for sign-in, then opens', async () => {
     const deliver = captureUrlListener();
     await renderApp(<SignInForTest />);
-    await waitFor(() => expect(title()).toBe('Log in'));
+    await waitFor(() => expect(title()).toBe('Log In'));
 
     await deliver('subtrak://subscription/sub_1');
     // Parked, not dropped and not opened: the user is still signed out.
-    expect(title()).toBe('Log in');
+    expect(title()).toBe('Log In');
 
     await fireEvent.press(screen.getByText('test-sign-in'));
 
