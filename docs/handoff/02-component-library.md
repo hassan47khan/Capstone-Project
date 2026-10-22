@@ -3,6 +3,7 @@
 **Prerequisites:** `01-design-tokens.md` implemented.
 **Deliverable:** 21 shared components + a dev-only gallery screen.
 **Source:** measurements pulled live from Figma `kyUS7F8bg4x7GpcPEF4UDN`.
+**Status:** ✅ **Complete.** Built by Hassan, merged in #83. Ticked 2026-10-22.
 
 > **Context that matters:** the Figma file contains only **three** reusable
 > components in total (the Add Subscription button and two toasts). Everything
@@ -431,12 +432,23 @@ beside it. Tint/brand pairs and their (low) contrast are in `01 §3`.
 
 ## 22. Definition of done
 
-- [ ] All 21 components built, consuming tokens only.
-- [ ] Every component has TypeScript props, an `accessibilityRole`, and a label.
-- [ ] Every component has a rendering test.
-- [ ] Secondary vs disabled Button states verified visually distinct.
-- [ ] Every toggle's full row is the touch target.
-- [ ] SegmentedControl renders 5 segments without truncation at 402px.
-- [ ] Stepper hit areas, FilterChip hit slop and ListRow `compact` variant verified.
-- [ ] Dev-only gallery screen renders every component in every state, both themes.
-- [ ] Reduced-motion verified on all 8 animations.
+- [x] All 21 components built, consuming tokens only.
+- [x] Every component has TypeScript props, an `accessibilityRole`, and a label.
+- [x] Every component has a rendering test.
+- [x] Secondary vs disabled Button states verified visually distinct.
+- [x] Every toggle's full row is the touch target.
+- [x] SegmentedControl renders 5 segments without truncation at 402px.
+- [x] Stepper hit areas, FilterChip hit slop and ListRow `compact` variant verified.
+- [x] Dev-only gallery screen renders every component in every state, both themes.
+- [x] Reduced-motion verified on all 8 animations.
+
+**Ticked 2026-10-22, with the evidence for each:** the components are in
+`mobile/src/components/`, covered by `library.test.tsx`, `primitives.test.tsx`,
+`Button.test.tsx` and `TextField.test.tsx`. The measured rules each have their
+own assertion rather than an eye check — five segments inside the 402pt budget,
+44pt targets on the Stepper sides and SearchField, FilterChip hit slop, the
+disabled states, and `reduceMotion` render paths. `GalleryScreen.test.tsx`
+asserts a section for every component in both the light and dark themes, so a
+new component missing from the gallery fails CI. The visual pass over the
+gallery was done on a device in Expo Go on 2026-10-19 — reported by Hassan, with
+no screenshots or device details recorded.

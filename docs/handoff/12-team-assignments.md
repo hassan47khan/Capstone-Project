@@ -10,8 +10,8 @@ disagree, follow the spec — every disagreement is already explained in the spe
 
 | Person | Files | Screens | Backend |
 |---|---|---|---|
-| **Hassan** | `00`, `01`, `02` | none (gallery only) | none — reviews `04`, owns the generated TS client in `src/api` |
-| **Chris** | `03`, `04`, `05`, `06` | Navigation shell · 8 auth screens · first-run · Home | **All of `04`:** models, money engine, seed, auth / subscription / analytics endpoints, OpenAPI schema |
+| **Hassan** | `00`–`03` ✅ **done** | navigation shell (built) · gallery | none — reviews `04`, owns the generated TS client in `src/api` |
+| **Chris** | `04`, `05`, `06` | 8 auth screens · first-run · Home | **All of `04`:** models, money engine, seed, auth / subscription / analytics endpoints, OpenAPI schema |
 | **Ankit** | `07`, `08`, `09` | Add / Detail / Edit / History / Delete · Analytics · Settings, Currency, Confirm, Timezone, Notifications, Profile | none — consumes Chris's API |
 | **Rafi** | `10`, `11` | AI epic (ConnectEmail, ReviewExtraction, TrialShield, SharedPlans) · Calendar · system states · Family (stretch) | **`04 §6a`:** extraction pipeline, Gmail OAuth, trials, shared plans, eval harness |
 
@@ -26,6 +26,14 @@ disagree, follow the spec — every disagreement is already explained in the spe
 > mock against, the auth screens and Home. That makes the contract-freeze-first
 > order in §2.1 load-bearing rather than a preference, and it keeps the `06`/`08`
 > chart seam below — agree the chart library on day one.
+
+`00`–`03` were all built by Hassan and are on `main`: tokens (#82), the 21
+components and their gallery (#83), and the navigation tree (#83) with the
+AI-epic routes and 20pt headers (#85). Each file's Definition of done is ticked
+with its evidence. `03` was originally Chris's and ended up Hassan's; the route
+tree stays Chris's to own going forward, per the seam table below, so others
+still register screens in their tab's stack file rather than editing the root
+navigator.
 
 Phase order from `00` still applies: 0 → 1 → 2 → 3 is the minimum demo.
 Phase 6 (AI) is the graded requirement; Family (`10`) is cut first.
@@ -45,9 +53,9 @@ Phase 6 (AI) is the graded requirement; Family (`10`) is cut first.
       money engine is already merged, and endpoints unblock nobody new.
    2. Real endpoints behind the same contract.
    3. `02` batch B when the screens that need it arrive.
-2. **Chris's `03` needs Hassan's `01` and the TabBar from `02`.** `03` is "skeleton
-   with placeholders" — Chris can start with the React Navigation setup that already exists
-   routes once `01` lands, and swap in `TabBar` when `02` batch A merges.
+2. ~~**Chris's `03` needs Hassan's `01` and the TabBar from `02`.**~~ Spent:
+   `01`, `02` and `03` are all merged, and Hassan built `03` himself on the
+   React Navigation setup from Phase 0.
 3. **Rafi holds the graded requirement and a stretch goal.** Do AI first (`11 §2`),
    Calendar second (`11 §1`), the system-state verification pass (`11 §3`) at the
    end, Family (`10`) only if everything else is green. The shared state components
@@ -172,10 +180,12 @@ dataset ($54.99) — ask the designer before changing the fixture.
 
 ---
 
-# Chris — `03`, `04`, `05`, `06`
+# Chris — `04`, `05`, `06`
 
-**Order:** `04` contract freeze → `04` endpoints → `05` → `06`. `03` is merged
-(#85) and `04`'s models, money engine and seed are merged (#90).
+**Order:** `04` contract freeze → `04` endpoints → `05` → `06`. `03` is done —
+Hassan built it (#83, #85) — and `04`'s models, money engine and seed are
+merged (#90). You still own the route tree: others add screens to their own
+stack file, not the root navigator.
 
 **You are the critical path.** `05`–`11` all list `04` as a prerequisite, so the
 contract freeze comes before the endpoints: frozen shapes let three people start,
@@ -211,9 +221,7 @@ admin login (`05 §7`).
 
 **Prompts**
 
-1. *Navigation:* template, FILE `03`, SCREEN "the whole navigation tree with
-   placeholder screens", "no screen content", "use the TabBar from src/components;
-   it must be one instance".
+1. ~~*Navigation:*~~ done — `03` is merged.
 2. *Auth (one session per screen, or two screens that share a layout):* template,
    FILE `05`. Add: "Tokens in `expo-secure-store`, never AsyncStorage. Test the
    five cold-start auth-gate cases in `03 §5` and both deep links, cold and

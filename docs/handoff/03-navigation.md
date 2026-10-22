@@ -3,6 +3,8 @@
 **Prerequisites:** `01-design-tokens.md`, `02-component-library.md`.
 **Deliverable:** full navigation skeleton with placeholder screens. No screen
 content in this task.
+**Status:** ✅ **Complete.** Built by Hassan, merged in #83, with the AI-epic
+routes and the 20pt header titles in #85. Ticked 2026-10-22.
 
 ---
 
@@ -199,11 +201,22 @@ Deliberately excluded. Do not build routes for these:
 
 ## 8. Definition of done
 
-- [ ] Full tree above navigable with placeholder screens.
-- [ ] Tab bar is **one** component instance, reused everywhere.
-- [ ] FAB present, opens AddSubscription as a modal.
-- [ ] No tab highlights while a modal is presented.
-- [ ] All headers left-aligned.
-- [ ] Safe areas respected on both platforms, including the tab bar and toasts.
-- [ ] Auth gate tested for all five launch cases, with no Auth-stack flash.
-- [ ] Deep links tested cold-start and backgrounded.
+- [x] Full tree above navigable with placeholder screens.
+- [x] Tab bar is **one** component instance, reused everywhere.
+- [x] FAB present, opens AddSubscription as a modal.
+- [x] No tab highlights while a modal is presented.
+- [x] All headers left-aligned.
+- [x] Safe areas respected on both platforms, including the tab bar and toasts.
+- [x] Auth gate tested for all five launch cases, with no Auth-stack flash.
+- [x] Deep links tested cold-start and backgrounded.
+
+**Ticked 2026-10-22, with the evidence for each:** the tree is in
+`mobile/src/navigation/`, covered by `navigation.test.tsx` — which has its own
+`describe` for the auth gate's five launch cases and asserts no flash of the
+Auth stack — plus `SessionContext.test.tsx` for cold start. Deep links are
+tested cold-start and backgrounded, signed in and signed out. Safe areas come
+from `SafeAreaView` edges in `components/Screen.tsx`, with `SafeAreaProvider`
+metrics in the tests. The FAB → modal → X flow, the discard prompt and both
+deep links were also checked on a device in Expo Go on 2026-10-19 — reported by
+Hassan; the platform was not recorded, so "both platforms" rests on the
+simulator and test coverage rather than two physical devices.
