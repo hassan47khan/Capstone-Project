@@ -60,6 +60,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-secure-store',
     'expo-font',
+    // Biometric unlock on Log In (handoff 05 §5). iOS shows this string the
+    // first time the app asks for Face ID.
+    [
+      'expo-local-authentication',
+      {
+        faceIDPermission: 'Allow SubTrak to use Face ID to log you in.',
+      },
+    ],
     [
       'expo-splash-screen',
       {
