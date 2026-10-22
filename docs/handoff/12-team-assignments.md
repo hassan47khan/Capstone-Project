@@ -10,10 +10,22 @@ disagree, follow the spec — every disagreement is already explained in the spe
 
 | Person | Files | Screens | Backend |
 |---|---|---|---|
-| **Hassan** | `00`, `01`, `02`, `04` | none (gallery only) | **All of `04`:** models, money engine, seed, auth / subscription / analytics endpoints, OpenAPI + TS client |
-| **Chris** | `03`, `05`, `06` | Navigation shell · 8 auth screens · first-run · Home | none — consumes Hassan's API |
-| **Ankit** | `07`, `08`, `09` | Add / Detail / Edit / History / Delete · Analytics · Settings, Currency, Confirm, Timezone, Notifications, Profile | none — consumes Hassan's API |
+| **Hassan** | `00`, `01`, `02` | none (gallery only) | none — reviews `04`, owns the generated TS client in `src/api` |
+| **Chris** | `03`, `04`, `05`, `06` | Navigation shell · 8 auth screens · first-run · Home | **All of `04`:** models, money engine, seed, auth / subscription / analytics endpoints, OpenAPI schema |
+| **Ankit** | `07`, `08`, `09` | Add / Detail / Edit / History / Delete · Analytics · Settings, Currency, Confirm, Timezone, Notifications, Profile | none — consumes Chris's API |
 | **Rafi** | `10`, `11` | AI epic (ConnectEmail, ReviewExtraction, TrialShield, SharedPlans) · Calendar · system states · Family (stretch) | **`04 §6a`:** extraction pipeline, Gmail OAuth, trials, shared plans, eval harness |
+
+> **Changed 2026-10-22.** `04` moved from Hassan to Chris. Everything else is
+> as originally proposed: `04 §6a` stays with Rafi, `src/api` stays with Hassan,
+> and `06` stays with Chris. *Why:* Chris had already built `04`'s models, money
+> engine and seed (#90), and `01`–`03` are merged, so the backend was the whole
+> of Hassan's remaining critical path. Recorded in
+> `Capstone_CSC325/01 - Planning/Open Decisions.md`.
+>
+> *Accepted trade-off:* Chris now holds the backend, the contract the others
+> mock against, the auth screens and Home. That makes the contract-freeze-first
+> order in §2.1 load-bearing rather than a preference, and it keeps the `06`/`08`
+> chart seam below — agree the chart library on day one.
 
 Phase order from `00` still applies: 0 → 1 → 2 → 3 is the minimum demo.
 Phase 6 (AI) is the graded requirement; Family (`10`) is cut first.
@@ -22,14 +34,17 @@ Phase 6 (AI) is the graded requirement; Family (`10`) is cut first.
 
 ## 2. Risks in this split — read before starting
 
-1. **Hassan is on the critical path for everyone.** `01`, `02` and the whole backend
-   gate every other file. Mitigation: land things in this order and announce each:
-   1. `01` tokens + fonts + theme provider (same day).
-   2. **API contract freeze:** the OpenAPI schema and generated TS client with
+1. **Whoever holds `04` is on the critical path for everyone.** Since
+   2026-10-22 that is Chris: `05`–`11` all list `04` as a prerequisite, so
+   nothing else finishes until the contract exists. `01`–`03` are merged, so
+   Hassan no longer gates anyone. Mitigation — land these in order and announce
+   each:
+   1. **API contract freeze:** the OpenAPI schema and generated TS client with
       mocked responses from the canonical dataset, *before* the endpoints work.
-      Chris, Ankit and Rafi build against the mock.
-   3. `02` batch A (below), then batch B.
-   4. Real endpoints behind the same contract.
+      Hassan, Ankit and Rafi build against the mock. This comes **first**: the
+      money engine is already merged, and endpoints unblock nobody new.
+   2. Real endpoints behind the same contract.
+   3. `02` batch B when the screens that need it arrive.
 2. **Chris's `03` needs Hassan's `01` and the TabBar from `02`.** `03` is "skeleton
    with placeholders" — Chris can start with the React Navigation setup that already exists
    routes once `01` lands, and swap in `TabBar` when `02` batch A merges.
@@ -44,11 +59,13 @@ Phase 6 (AI) is the graded requirement; Family (`10`) is cut first.
 |---|---|---|---|
 | Tokens, components | Hassan | everyone | `src/theme`, `src/components`; no one edits these without Hassan's review |
 | Route tree | Chris | everyone | `03 §1`; others register screens in their tab's stack file, not by editing the root navigator |
-| API client | Hassan | everyone | generated TS client; no `fetch()` in screens |
+| OpenAPI schema | Chris | Hassan | `backend/schema.yml`; Chris freezes the shapes, Hassan regenerates and commits `src/api` from them |
+| API client | Hassan | everyone | generated TS client; no `fetch()` in screens. Never hand-edited — it is regenerated from Chris's schema |
 | Settings rows for Shared plans / Connected email | Ankit builds the rows | Rafi builds the destinations | route names `SharedPlans`, `ConnectEmail`; stubs until Rafi merges |
 | Trial AlertCard on Home | Chris builds the card | Rafi supplies `GET /trials` and TrialShield | `06 §2.4`, `11 §2.5`; hidden until the endpoint exists |
 | Analytics AI-insight card | Ankit renders it | Rafi supplies `GET /analytics/insight` (grounded text) | `08 §2.0`; hide the card until it exists |
-| Trial exclusion from totals | Hassan | Rafi, Ankit, Chris | `04 §6a`; totals never include active trials |
+| Trial exclusion from totals | Chris | Rafi, Ankit, Hassan | `04 §6a`; totals never include active trials |
+| Category percentages | Chris (the engine) | Chris (`06`), Ankit (`08`) | `04 §4.3`; the API returns integers summing to 100 — neither screen rounds its own |
 | Family currency / settings | Ankit (`09`) | Rafi (`10`) | `10` reuses `SelectCurrency`, `NotificationRules` |
 
 5. **One Figma source.** Use the newer file `IKYivyJtmBYzJNQ7g8qPGc` for every
@@ -70,7 +87,7 @@ mobile/src/screens/auth|home                     (Chris)
 mobile/src/screens/subscriptions|analytics|settings   (Ankit)
 mobile/src/screens/ai|calendar|family            (Rafi)
 mobile/src/api/              generated client (Hassan)
-backend/                     Hassan (04) · Rafi (04 §6a, in apps/ai, apps/sharing)
+backend/                     Chris (04) · Rafi (04 §6a, in apps/ai, apps/sharing)
 ```
 
 - Branches: `feat/<epic>-<screen>` (for example `feat/home-spend-card`). One PR per
@@ -115,20 +132,22 @@ the failing tests from `04 §6` first".
 
 ---
 
-# Hassan — `00`, `01`, `02`, `04`
+# Hassan — `00`, `01`, `02`
 
 **Your order**
 
 | Step | Work | Spec | Done when |
 |---|---|---|---|
-| 1 | Verify `django-mongodb-backend` ↔ Django version match; repo, CLAUDE.md, `docs/handoff/` | `04` preamble, `00` | Backend boots and connects to Atlas |
-| 2 | Tokens, fonts (DM Serif Display, DM Sans), theme provider light + dark | `01` | `01` DoD ticked; contrast report committed |
-| 3 | **Contract freeze:** models, serializers, OpenAPI, TS client, mock server from the canonical dataset | `04 §1, §5` | Others can build against mocks |
-| 4 | Component batch A — Button, TextField, Toggle, Card, ListRow, SettingsRow, ScreenHeader, TabBar, Toast, EmptyState, Skeleton | `02 §1–15` | Gallery screen shows every variant |
-| 5 | Money engine + seed + the required tests | `04 §3, §4, §6` | Every assertion in §6 passes; Alex = **$129.20** |
-| 6 | Component batch B — CurrencyField, SegmentedControl, Select, DateField, BottomSheet, Stepper, FilterChip, SearchField, Badge, AlertCard, ServiceMark, ErrorBoundary | `02 §3–21` | Same |
-| 7 | Real endpoints behind the frozen contract; trial exclusion + `split_shares` | `04 §5, §6a` | CI drift check green |
-| 8 | Keep `00` coverage table and decisions list current; run the cross-person integration check | `00` | — |
+| 1 | ~~Verify `django-mongodb-backend` ↔ Django version match~~ | `04` preamble, `00` | Done — holds on 6.1 |
+| 2 | ~~Tokens, fonts (DM Serif Display, DM Sans), theme provider light + dark~~ | `01` | Done — merged in #82 |
+| 3 | ~~Component batch A~~ | `02 §1–15` | Done — merged in #83 |
+| 4 | Regenerate and commit `src/api` from Chris's frozen schema; npm script + CI drift check | `04 §5` Contract | No screen calls `fetch()`; drift check green |
+| 5 | Component batch B — CurrencyField, SegmentedControl, Select, DateField, BottomSheet, Stepper, FilterChip, SearchField, Badge, AlertCard, ServiceMark, ErrorBoundary | `02 §3–21` | Gallery screen shows every variant |
+| 6 | Keep `00` coverage table and decisions list current; run the cross-person integration check | `00` | — |
+| 7 | Review `04` PRs — the money invariants are the ones that bite | `04 §2, §3` | — |
+
+Steps 1–3 are done; `04` moved to Chris on 2026-10-22, so the backend rows that
+used to be here are in Chris's section.
 
 **Screens in the Figma for your components** (nodes in the newer file): list row
 `3:1686`, settings row `3:1819`, tab bar `21:52`, bottom sheets `3:1956` and
@@ -143,25 +162,34 @@ the failing tests from `04 §6` first".
 2. *Component batch:* template per component, FILE `02`, SCREEN "the {X} component
    with every variant and state", plus "add it to the dev gallery and write a
    snapshot test for each variant". Do 3–4 components per session.
-3. *Backend:* "Write the failing tests from `04 §6` first, then models, then the
-   money engine, then the seed command. Money is Decimal end to end; no float
-   anywhere. Assert Alex = $129.20, Jordan = $45.98, Sam = $22.98, Family =
-   $198.16, EUR = €118.56 at 0.9177."
-4. *Contract:* "Generate OpenAPI with drf-spectacular and a committed TS client.
-   Add an npm script to regenerate and a CI step that fails on drift. Serve a mock
-   of every endpoint from the seed data."
+3. *TS client:* "Regenerate `src/api` from `backend/schema.yml`, commit it, add
+   the npm regenerate script and the CI drift check. Wrap it with auth-token
+   injection and 401 → refresh → retry-once."
 
-**Watch-outs:** Delete is a **soft delete** with `POST /restore` (fixed in this
-pass; an earlier draft said hard delete). Active trials are excluded from totals
-(`04 §6a`). Adobe's price in the Analytics frame ($59.99) disagrees with the
+**Watch-outs:** the client is generated, never hand-edited — a fix belongs in
+Chris's schema. Adobe's price in the Analytics frame ($59.99) disagrees with the
 dataset ($54.99) — ask the designer before changing the fixture.
 
 ---
 
-# Chris — `03`, `05`, `06`
+# Chris — `03`, `04`, `05`, `06`
 
-**Order:** `03` (after Hassan's step 2) → `05` → `06`. `05` needs the auth endpoints
-from `04 §5`; develop against the mock first.
+**Order:** `04` contract freeze → `04` endpoints → `05` → `06`. `03` is merged
+(#85) and `04`'s models, money engine and seed are merged (#90).
+
+**You are the critical path.** `05`–`11` all list `04` as a prerequisite, so the
+contract freeze comes before the endpoints: frozen shapes let three people start,
+working endpoints behind an unfrozen contract let nobody.
+
+| Step | Work | Spec | Done when |
+|---|---|---|---|
+| 1 | ~~Models, money engine, seed, the `§6` money tests~~ | `04 §1–4, §6` | Done — merged in #90 |
+| 2 | **Contract freeze:** serializers and the OpenAPI shapes for every `§5` and `§6a` endpoint, plus a mock served from the seed data | `04 §5`, `§6a` | Hassan can generate the TS client; the others can build against the mock |
+| 3 | Auth endpoints + rate limits + the `§6` auth tests | `04 §5` Auth | Expired, reused, unverified and rate-limited cases all tested |
+| 4 | Subscription and analytics endpoints; MongoDB aggregation pipelines, not Python loops | `04 §5` | No endpoint returns a total the client computes |
+| 5 | Trial exclusion end to end + `split_shares` behind `§6a`'s shapes | `04 §6a` | Trials never reach a total until converted |
+| 6 | `05` auth screens against your own mock | `05` | `05` DoD ticked |
+| 7 | `06` Home on your own endpoints | `06` | Home's total reads **$129.20** from the API, not from the client |
 
 | Screen | Figma node (newer file) | Spec |
 |---|---|---|
@@ -190,22 +218,41 @@ admin login (`05 §7`).
    FILE `05`. Add: "Tokens in `expo-secure-store`, never AsyncStorage. Test the
    five cold-start auth-gate cases in `03 §5` and both deep links, cold and
    backgrounded."
-3. *Home:* "Build `06 §2.1`–`§2.5` as separate components (SpendCard, CategoryCard,
-   UrgentAttention, RenewalsList) wired to `/analytics/summary` and
-   `/analytics/price-changes?since=-30d&include_upcoming=true`. Never sum
-   anything on the client. Hide Urgent attention when empty."
+3. *Contract:* "Freeze the OpenAPI shapes for every `04 §5` and `§6a` endpoint
+   with drf-spectacular, before the endpoints work. Serve a mock of each from
+   the seed data. Nothing returns a total the client has to compute."
+4. *Endpoints:* "Build on `operations.py` and the money engine — no money
+   arithmetic in a view or a serializer. Analytics uses MongoDB aggregation
+   pipelines, not Python loops over querysets, with an index for every field
+   they sort or filter on."
+5. *Home:* "Build `06 §2.1`–`§2.5` as separate components (SpendCard,
+   CategoryCard, UrgentAttention, RenewalsList) wired to `/analytics/summary`
+   and `/analytics/price-changes?since=-30d&include_upcoming=true`. Never sum
+   anything on the client and never round a percentage. Hide Urgent attention
+   when empty."
 
-**Watch-outs:** the stale Home draft `113:641` in the newer file is **not** the
-design. Home's total must equal **$129.20** with seed data. The trial AlertCard
+**Watch-outs:** never store or hand-write a total (`04` preamble) — the five
+different monthly totals in the prototype all came from that. Delete is a
+**soft delete** with `POST /restore`. Active trials are excluded from totals
+(`04 §6a`). `next_bill_date` is recomputed from `start_date` + cycle, never
+trusted from input. The category percentages the API returns are integers
+summing to 100 (`04 §4.3`) — if a screen has to round them, the contract is
+wrong.
+
+On `06`: the stale Home draft `113:641` in the newer file is **not** the design.
+Home's total must equal **$129.20** with seed data. The trial AlertCard
 (`06 §2.4`) is hidden until Rafi's `GET /trials` exists. Show "Add subscription"
-only through the FAB.
+only through the FAB. Building Home on your own endpoints is the one place where
+owning both sides can hide a contract bug — if Home needs something the OpenAPI
+schema does not already describe, change the schema first.
 
 ---
 
 # Ankit — `07`, `08`, `09`
 
 **Order:** `07` (core loop, highest priority) → `09` → `08`. `08` shares the chart
-contract with Chris's Home (`08 §3`) — agree one chart library on day one.
+contract with Chris's Home (`08 §3`) — agree one chart library on day one, and
+reuse his CategoryCard rather than building a second one.
 
 | Screen | Figma node (newer file) | Spec |
 |---|---|---|
@@ -242,6 +289,8 @@ contract with Chris's Home (`08 §3`) — agree one chart library on day one.
 Departures tables first. The Analytics frame still shows $98.47 and Adobe $59.99;
 both are wrong against the dataset (`08 §2.0`). Settings needs rows for
 **Shared plans** and **Connected email** that open Rafi's screens (stub them).
+Analytics must not round the category percentages — `04 §4.3` has the API
+returning integers that already sum to 100.
 
 ---
 
