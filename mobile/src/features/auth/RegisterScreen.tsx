@@ -18,7 +18,7 @@
  * The back button shows only when there is somewhere to go back to: the auth
  * gate and deep links can open this screen as the first in the stack.
  */
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -54,6 +54,7 @@ export const TERMS_URL = 'https://subtrak.app/terms';
 export const PRIVACY_URL = 'https://subtrak.app/privacy';
 
 type Navigation = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
+type Route = RouteProp<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen() {
   const styles = useStyles();
@@ -61,7 +62,9 @@ export function RegisterScreen() {
   const toast = useToast();
   const cooldown = useCountdown();
 
-  const [email, setEmail] = useState('');
+  const route = useRoute<Route>();
+  // Prefilled when the user came back from Verify Email Sent ("Wrong email?").
+  const [email, setEmail] = useState(route.params?.email ?? '');
   const [password, setPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
