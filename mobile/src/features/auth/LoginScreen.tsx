@@ -202,6 +202,9 @@ export function LoginScreen() {
           label={`Log in with ${biometric.kind}`}
           variant="secondary"
           onPress={biometric.unlock}
+          // Gated by the 423/429 countdown like the password button, so the
+          // lockout cannot be sidestepped by restoring the parked session.
+          disabled={waiting}
           loading={biometric.busy}
           loadingLabel={`Waiting for ${biometric.kind}`}
           fullWidth

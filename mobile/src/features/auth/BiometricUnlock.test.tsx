@@ -18,7 +18,7 @@ import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 
 import { LoginScreen } from './LoginScreen';
-import { BIOMETRIC_PROMPT } from './useBiometricUnlock';
+import { BIOMETRIC_OFFLINE, BIOMETRIC_PROMPT } from './useBiometricUnlock';
 
 jest.mock('expo-local-authentication', () => ({
   AuthenticationType: { FINGERPRINT: 1, FACIAL_RECOGNITION: 2, IRIS: 3 },
@@ -48,6 +48,9 @@ function SignOutButton() {
       </Text>
       <Text testID="test-sign-out" onPress={() => signOut()}>
         sign out
+      </Text>
+      <Text testID="test-abandon" onPress={() => signOut({ park: false })}>
+        abandon
       </Text>
     </>
   );
@@ -194,7 +197,7 @@ it('a rejected refresh clears the stored state and shows only the form', async (
   expect(screen.getByTestId('session-status')).toHaveTextContent('unauthenticated');
 });
 
-it('offline keeps the parked token for next time', async () => {
+it('offline keeps the parked token for next time, and says why', async () => {
   server.use(http.post('*/auth/refresh', () => HttpResponse.error()));
   device();
   await afterASignOut();
@@ -204,7 +207,38 @@ it('offline keeps the parked token for next time', async () => {
 
   await waitFor(() => expect(auth.authenticateAsync).toHaveBeenCalled());
   await waitFor(() => expect(screen.getByTestId('login-biometric')).toBeEnabled());
+  expect(await screen.findByText(BIOMETRIC_OFFLINE)).toBeOnTheScreen();
   expect(await biometricStore.parkedRefreshToken()).toBe(PARKED);
+});
+
+it('a login lockout countdown also disables biometric unlock', async () => {
+  server.use(
+    http.post('*/auth/login', () =>
+      HttpResponse.json(
+        {
+          error: {
+            code: 'account_locked',
+            message: 'Too many attempts. Try again in 15 minutes.',
+          },
+        },
+        { status: 423 },
+      ),
+    ),
+  );
+  device();
+  await afterASignOut();
+
+  await renderLogin();
+  // The auto-prompt is cancelled by default, so biometric sits enabled first.
+  await waitFor(() => expect(auth.authenticateAsync).toHaveBeenCalled());
+  expect(screen.getByTestId('login-biometric')).toBeEnabled();
+
+  await fireEvent.changeText(screen.getByTestId('login-email'), 'alex@example.com');
+  await fireEvent.changeText(screen.getByTestId('login-password'), 'whatever1!');
+  await fireEvent.press(screen.getByTestId('login-submit'));
+
+  // Locked out behind the countdown: the parked session cannot sidestep it.
+  await waitFor(() => expect(screen.getByTestId('login-biometric')).toBeDisabled());
 });
 
 describe('session layer', () => {
@@ -231,5 +265,22 @@ describe('session layer', () => {
     await biometricStore.park('stray');
 
     expect(await biometricStore.parkedRefreshToken()).toBeNull();
+  });
+
+  it('abandoning the session discards the token instead of parking it', async () => {
+    device({ enrolled: false });
+    await renderLogin();
+
+    await fireEvent.press(screen.getByTestId('test-sign-in'));
+    await waitFor(() =>
+      expect(screen.getByTestId('session-status')).toHaveTextContent('authenticated'),
+    );
+
+    await fireEvent.press(screen.getByTestId('test-abandon'));
+    await waitFor(() =>
+      expect(screen.getByTestId('session-status')).toHaveTextContent('unauthenticated'),
+    );
+    expect(await biometricStore.parkedRefreshToken()).toBeNull();
+    expect(await tokenStore.getRefreshToken()).toBeNull();
   });
 });

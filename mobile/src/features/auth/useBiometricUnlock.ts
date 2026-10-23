@@ -20,13 +20,17 @@ import { useCallback, useRef, useState } from 'react';
 
 import { isRefreshRejected } from '@/api/client';
 import { authApi } from '@/api/endpoints';
-import { ApiError } from '@/api/errors';
+import { ApiError, messageFor } from '@/api/errors';
+import { useToast } from '@/components';
 import { biometricStore } from '@/session/biometricStore';
 import { useSession } from '@/session/SessionContext';
 
 export type BiometricKind = 'Face ID' | 'Touch ID' | 'biometrics';
 
 export const BIOMETRIC_PROMPT = 'Log in to SubTrak';
+
+/** Shown when the refresh after a successful biometric prompt can't reach the server. */
+export const BIOMETRIC_OFFLINE = "Couldn't reach SubTrak. Check your connection.";
 
 /** The kind the device offers, or null when there is none or none enrolled. */
 export async function availableBiometric(): Promise<BiometricKind | null> {
@@ -54,6 +58,7 @@ export interface BiometricUnlock {
 
 export function useBiometricUnlock(): BiometricUnlock {
   const { signIn } = useSession();
+  const toast = useToast();
   const [kind, setKind] = useState<BiometricKind | null>(null);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
@@ -77,15 +82,21 @@ export function useBiometricUnlock(): BiometricUnlock {
         await signIn(await authApi.refresh({ refresh }));
       } catch (error) {
         if (error instanceof ApiError && isRefreshRejected(error.status)) {
+          // The token is dead (expired or revoked): stop offering biometric.
           await biometricStore.forget();
           setKind(null);
+        } else if (error instanceof ApiError && error.isOffline) {
+          // Keep the token for next time, but say why nothing happened.
+          toast.show(BIOMETRIC_OFFLINE);
+        } else {
+          toast.show(messageFor(error));
         }
       }
     } finally {
       running.current = false;
       setBusy(false);
     }
-  }, [signIn]);
+  }, [signIn, toast]);
 
   useFocusEffect(
     useCallback(() => {

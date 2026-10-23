@@ -50,8 +50,13 @@ export interface SessionValue {
   /** Stores the tokens and flips the app into its authenticated state. */
   signIn: (tokens: TokenPair) => Promise<void>;
 
-  /** Clears the tokens and returns to the auth stack. */
-  signOut: () => Promise<void>;
+  /**
+   * Clears the tokens and returns to the auth stack. A normal sign-out parks
+   * the refresh token for biometric unlock on the next Log In; pass
+   * `{ park: false }` when the user is abandoning the session (leaving an
+   * unverified account) so it is discarded and cannot be resurrected.
+   */
+  signOut: (options?: { park?: boolean }) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -78,11 +83,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Signing out parks the refresh token for biometric unlock on Log In
-  // (biometricStore). A dead session, below, discards it instead.
-  const signOut = useCallback(async () => {
+  // (biometricStore). A dead session, below, discards it instead — and so does
+  // an abandoned one (`park: false`), or biometric would resurrect the very
+  // session the user backed out of (an unverified account leaving Verify Email
+  // Sent), looping them straight back to it.
+  const signOut = useCallback(async (options?: { park?: boolean }) => {
     invalidateRefresh();
     const refresh = await tokenStore.getRefreshToken();
-    if (refresh) await biometricStore.park(refresh);
+    if (refresh && options?.park !== false) await biometricStore.park(refresh);
     await tokenStore.clear();
     setStatus('unauthenticated');
   }, []);
