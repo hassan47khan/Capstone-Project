@@ -9,12 +9,11 @@ import { Linking, Text } from 'react-native';
 
 import type { AuthStackParamList } from '@/navigation/types';
 import { MOCK_EMAILS, MOCK_PASSWORD } from '@/test/fixtures';
-import { renderWithProviders } from '@/test/render';
+import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 import { sizes } from '@/theme';
 
 import { REGISTER_COPY, RegisterScreen, PRIVACY_URL, TERMS_URL } from './RegisterScreen';
-import { authTestQueryClient } from './testClient';
 import { RATE_LIMIT_FALLBACK_SECONDS } from './useCountdown';
 import { PASSWORD_RULE } from './validation';
 
@@ -43,7 +42,7 @@ async function renderRegister({ pushed = true } = {}) {
         <Stack.Screen name="VerifyEmailSent" component={Stub} />
       </Stack.Navigator>
     </NavigationContainer>,
-    { queryClient: authTestQueryClient() },
+    { queryClient: createTestQueryClient() },
   );
   await screen.findByTestId('register-screen');
 }

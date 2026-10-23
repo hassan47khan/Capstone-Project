@@ -37,6 +37,7 @@ import { sizes, ThemeProvider } from '@/theme';
 
 import { AppNavigator } from './AppNavigator';
 import { AuthNavigator } from './AuthNavigator';
+import { resetPendingAuthRoute } from './pendingAuthRoute';
 import { resetPendingLink } from './pendingLink';
 import { RootNavigator } from './RootNavigator';
 import type { AppStackParamList, AuthStackParamList } from './types';
@@ -106,6 +107,7 @@ const title = () => screen.getByTestId('header-title', HIDDEN).props.children;
 beforeEach(async () => {
   mockLoginRenders.mockClear();
   resetPendingLink();
+  resetPendingAuthRoute();
   await tokenStore.clear();
   jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
 });
@@ -137,6 +139,29 @@ describe('auth gate (03 §5)', () => {
 
     await waitFor(() => expect(title()).toBe('Check your email'));
     expect(mockLoginRenders).not.toHaveBeenCalled();
+  });
+
+  it('case 3: "Wrong email?" signs out and lands on Register with the email filled in', async () => {
+    server.use(
+      http.get('*/me', () =>
+        HttpResponse.json({
+          id: 'u1',
+          email: MOCK_EMAILS.full,
+          name: null,
+          email_verified: false,
+        }),
+      ),
+    );
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    await renderApp();
+    await waitFor(() => expect(title()).toBe('Check your email'));
+    await waitFor(() => expect(screen.getByTestId('verify-wrong-email')).toBeEnabled());
+
+    await fireEvent.press(screen.getByTestId('verify-wrong-email'));
+
+    await waitFor(() => expect(title()).toBe('Create your account'));
+    expect(screen.getByTestId('register-email').props.value).toBe(MOCK_EMAILS.full);
+    expect(await tokenStore.getRefreshToken()).toBeNull();
   });
 
   it.each([
@@ -432,8 +457,11 @@ describe('the full tree is navigable (03 §1)', () => {
     await waitFor(() =>
       expect(screen.getByRole('header', { name: expectedTitle })).toBeOnTheScreen(),
     );
-    // Pushed over Log in, so there is somewhere to go back to.
-    expect(screen.getByRole('button', { name: 'Back to Log In' })).toBeOnTheScreen();
+    // Pushed over Log In, so there is somewhere to go back to. Some screens
+    // also offer a "Back to Log In" link in the card, hence "at least one".
+    expect(
+      screen.getAllByRole('button', { name: 'Back to Log In' }).length,
+    ).toBeGreaterThan(0);
   });
 
   it('Settings rows lead to the Settings modals', async () => {

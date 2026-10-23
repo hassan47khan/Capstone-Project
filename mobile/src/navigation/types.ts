@@ -24,11 +24,16 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 /** Screens shown when nobody is signed in (handoff 05). */
 export type AuthStackParamList = {
   Login: undefined;
-  Register: undefined;
+  /** `email` prefills the form, from Verify Email Sent's "Wrong email?". */
+  Register: { email?: string } | undefined;
   /** Carries the address when known, so the screen can say which inbox to check. */
   VerifyEmailSent: { email?: string } | undefined;
-  /** `token` arrives from the emailed link: subtrak://verify-email?token=… */
-  EmailConfirmed: { token: string };
+  /**
+   * `token` arrives from the emailed link: subtrak://verify-email?token=…
+   * A malformed link can omit it (deep links are untrusted input), so it is
+   * optional and the screen treats a missing token as an invalid link.
+   */
+  EmailConfirmed: { token?: string } | undefined;
   ForgotPassword: undefined;
   ResetLinkSent: { email: string };
   /** `token` arrives from the emailed link: subtrak://reset-password?token=… */

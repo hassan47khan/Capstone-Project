@@ -17,13 +17,12 @@ import type { AuthStackParamList } from '@/navigation/types';
 import { SessionProvider, useSession } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
 import { MOCK_EMAILS, MOCK_PASSWORD } from '@/test/fixtures';
-import { renderWithProviders } from '@/test/render';
+import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 import { sizes } from '@/theme';
 
 import { AUTH_NAV_BAR_HEIGHT } from './AuthShell';
 import { LOGIN_COPY, LoginScreen } from './LoginScreen';
-import { authTestQueryClient } from './testClient';
 import {
   formatCountdown,
   RATE_LIMIT_FALLBACK_SECONDS,
@@ -60,7 +59,7 @@ async function renderLogin() {
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
-    { queryClient: authTestQueryClient() },
+    { queryClient: createTestQueryClient() },
   );
   await waitFor(() =>
     expect(screen.getByTestId('session-status')).toHaveTextContent('unauthenticated'),
