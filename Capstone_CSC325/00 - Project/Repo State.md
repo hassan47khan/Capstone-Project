@@ -6,12 +6,12 @@ updated: 2026-10-23
 
 # Repo State
 
-Snapshot of the repository as of 2026-10-23, `main` at `d117147` (#118, after #113). Written
+Snapshot of the repository as of 2026-10-23, `main` at `83370f7` (#120, after #113, #118 and #119). Written
 so a sprint review does not have to be reconstructed from git log. This note is
 rewritten rather than appended to, on `main` only, by whoever merged the last
 PR; history is in git log and PR descriptions.
 
-Mobile figures were re-measured on 2026-10-23 for #113 and #118. Backend
+Mobile figures were re-measured on 2026-10-23 after #119. Backend
 figures are from #113's branch (the only backend change since #110 is its mock
 login fix). The ruleset is from 2026-10-20 and was not re-read. Each figure
 names its source.
@@ -21,8 +21,8 @@ names its source.
 | Area | State |
 | --- | --- |
 | Backend | Sprint 0 spike (#68): MongoDB, custom user, JWT wiring, `/health/`, `/me/`. Time zone helpers for US-5 (#71). Handoff `04` slice 1 (#90, Chris): the full data model with migrations, the money engine in `subscriptions/services/`, `operations.py`, and the `seed_demo` and `convert_trials` commands. Every money test in `04 §6` and `§6a` passes. Handoff `04` slice 2 (#110, Chris): the API contract is frozen. All 34 `04 §5` and `§6a` operations exist under `/api/v1/` with final shapes, and `schema.yml` is OpenAPI 3.1. **Every story endpoint still answers from `backend/mocks.py`** (Alex at `SEED_TODAY`, figures computed by the money engine); real logic, auth and rate limits come in slice 3. #113 made the mock login answer like the contract (unknown email → 401 `invalid_credentials`, `unverified@example.com` → 403, case-insensitive). 788 tests, 98.66% coverage (run locally on #113's head `7f05981`, 2026-10-23; `backend-ci` green on `main` at `c36ef13`, run `39892336097`). |
-| Mobile | Handoffs 01–03 merged: Figma tokens with light/dark (#82), component library with dev gallery and the 03 navigation tree (#83), AI-epic routes and 20pt header titles (#85). **Handoff 05, Log In (#113, Chris):** the shared auth shell and the Log In screen with every 05 §9 state. **Handoff 06, Home (#118, Chris):** the dashboard from Figma `4:2901` (greeting, spend card, category donut, urgent attention, upcoming renewals) against the contract's `/analytics` endpoints, with per-section loading, error, empty and stale states; charts are `react-native-svg` directly. The rest of 05 is in review: Register (#119; #114 was merged into `feat/auth-login` by mistake), then #115–#117 stacked. The TS client in `src/api` has still not been regenerated from the #110 schema: `types.ts` is hand-written, and #118 added hand-written `analyticsTypes.ts` and `endpoints/analytics.ts` that mirror it until then. 478 Jest tests in 15 suites, all passing (run locally on `d117147`, 2026-10-23). The other screens are still placeholders. |
-| CI | `mobile-ci` (`ff8cefd`, pushed without a PR) and `backend-ci` (#70) on `main`. Both green on #118's head `0777d31` (runs `39892051530` and `39892051595`) and on `main` at `c36ef13` after #113 (2026-10-23). `verify` and `backend-verify` are required checks; see [[Backend CI]]. |
+| Mobile | Handoffs 01–03 merged: Figma tokens with light/dark (#82), component library with dev gallery and the 03 navigation tree (#83), AI-epic routes and 20pt header titles (#85). **Handoff 05, Log In (#113, Chris):** the shared auth shell and the Log In screen with every 05 §9 state. **Handoff 06, Home (#118, Chris):** the dashboard from Figma `4:2901` (greeting, spend card, category donut, urgent attention, upcoming renewals) against the contract's `/analytics` endpoints, with per-section loading, error, empty and stale states; charts are `react-native-svg` directly. **The rest of handoff 05 (#119, Chris):** Create your account, Check your email and Email confirmed, the password reset flow (Forgot password, Check your email, Create a new password, Password updated), and Face ID / Touch ID unlock on Log In, which parks the refresh token on Log Out and restores it through the client's single-flight refresh. #114–#117 were merged into their stacked branches, so #119 brought all of them to `main` together. The TS client in `src/api` has still not been regenerated from the #110 schema: `types.ts` is hand-written, and #118 added hand-written `analyticsTypes.ts` and `endpoints/analytics.ts` that mirror it until then. 562 Jest tests in 19 suites, all passing (run locally on `83370f7`, 2026-10-23). The other screens are still placeholders. |
+| CI | `mobile-ci` (`ff8cefd`, pushed without a PR) and `backend-ci` (#70) on `main`. Both green on #119's head `151fdfa` (runs `40008475313` and `40008475514`), #118's head `0777d31`, and `main` at `c36ef13` after #113 (2026-10-23). `verify` and `backend-verify` are required checks; see [[Backend CI]]. |
 | Protection | Ruleset `main-protection`, read from the GitHub API on 2026-10-20: PR + 1 approval (stale approvals dismissed), squash only, linear history, threads resolved, and required status checks `verify` and `backend-verify`. `hassan47khan` has an `always` bypass. |
 | Docs | Spec and design critique in `docs/design/`; Figma is the appearance source (#82). Developer handoffs `00`–`12` in `docs/handoff/` (#85). Root `CLAUDE.md` added in #85; since #90 it records the Decimal128 storage decision and the backend commands. #109 marked `00`–`03` done, corrected three figures in `04`, and moved `04` to Chris (ownership in root `CLAUDE.md` and `12 §1`). |
 | Vault | This vault is committed at `Capstone_CSC325/` and shared (`41ca1a2`–`80ffa05`). Since #86, root `CLAUDE.md` and `AGENTS.md` tell every AI to read it first; session logs in `04 - Logs/` are local-only and gitignored, and the merger of each PR updates this note. |
@@ -61,11 +61,11 @@ pure engine, from the seeded database, and through every API response; contract
 tests fail on any field `schema.yml` does not document. Details in
 [[Backend CI]].
 
-**Mobile** — `npm run verify` on `d117147`, 2026-10-23: `tsc`, ESLint and
-Prettier clean, Jest 478 tests in 15 suites, all passing. `mobile-ci` was green
-on #118's head. Home renders the seed figures from the mock routes ($129.20, the
-43/31/16/5/3/2 legend, the Netflix +$18.00/yr alert); Log In and Home have not
-had a device pass yet. The Metro export was not re-run. The Expo Go device pass for handoffs 01–03 passed on
+**Mobile** — `npm run verify` on `83370f7`, 2026-10-23: `tsc`, ESLint and
+Prettier clean, Jest 562 tests in 19 suites, all passing. `mobile-ci` was green
+on #118's and #119's heads. Home renders the seed figures from the mock routes ($129.20, the
+43/31/16/5/3/2 legend, the Netflix +$18.00/yr alert); The auth screens and Home
+have not had a device pass yet, including Face ID on real hardware. The Metro export was not re-run. The Expo Go device pass for handoffs 01–03 passed on
 2026-10-19 (reported by Hassan; checklist in [[Open Decisions]]): themes, Reduce
 Motion, the largest text size, the modal flow and deep links. **Not** verified:
 measured on-device contrast, SecureStore, keyboard behaviour. See
@@ -97,9 +97,6 @@ Carried over from the 2026-10-09 snapshot and not re-checked, except where noted
   `rates_as_of` is only the date of the stored rates, so Home infers conversion
   from the upcoming bills' currencies, which misses subscriptions with no bill
   in the next 30 days. Needs a summary-level field in slice 3 (#118).
-- **Register is not on `main`.** #114 was approved but merged into
-  `feat/auth-login` instead of `main`; #119 brings it to `main`. #115–#117 are
-  stacked on it and get retargeted to `main` one at a time.
 
 ## Links
 
