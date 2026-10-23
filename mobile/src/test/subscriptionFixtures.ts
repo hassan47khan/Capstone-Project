@@ -3,11 +3,11 @@
  * SEED_TODAY 2026-10-01). Written by hand to match what the backend seed
  * sends; the client never computes these figures.
  *
- * Used by the GET /subscriptions/:id mock route in routes.ts.
+ * Used by the GET and POST /subscriptions mock routes in routes.ts.
  */
-import type { SubscriptionDetail } from '@/features/subscriptions/api';
+import type { SubscriptionDetail, SubscriptionInput } from '@/features/subscriptions/api';
 
-import { CATEGORIES } from './contractFixtures';
+import { CATEGORIES, SEED_TODAY } from './contractFixtures';
 import { MOCK_EMAILS } from './fixtures';
 
 const usd = (amount: string) => ({ amount, currency: 'USD' });
@@ -126,10 +126,114 @@ const detailsByEmail: Record<string, SubscriptionDetail[]> = {
   [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail],
 };
 
+// Subscriptions added during this app session or test, per account.
+// resetMockState() in routes.ts clears them between tests.
+let created: Record<string, SubscriptionDetail[]> = {};
+let nextId = 1;
+
+export function resetCreatedSubscriptions(): void {
+  created = {};
+  nextId = 1;
+}
+
 /** One subscription for one account, or null (the route turns that into a 404). */
 export function subscriptionDetailFor(
   email: string,
   id: string,
 ): SubscriptionDetail | null {
-  return detailsByEmail[email]?.find((s) => s.id === id) ?? null;
+  const all = [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])];
+  return all.find((s) => s.id === id) ?? null;
+}
+
+type CreateResult =
+  | { detail: SubscriptionDetail; error?: undefined }
+  | {
+      detail?: undefined;
+      error: { code: string; message: string; fields: Record<string, string[]> };
+    };
+
+const PRICE_MESSAGE = 'Enter a valid price greater than $0.';
+
+/**
+ * POST /subscriptions for the mock API: checks what the real server checks
+ * (04 §5) and keeps the new subscription so GET /subscriptions/:id finds it.
+ *
+ * The mock can't do the server's money math, so the figures it would compute
+ * are left empty (null): no monthly equivalent unless the plan is monthly
+ * (then it's just the price), no total spent, no next bill date.
+ */
+export function createMockSubscription(email: string, body: unknown): CreateResult {
+  const input = (body ?? {}) as Partial<SubscriptionInput>;
+  const price = input.billing_price ?? '';
+
+  const fields: Record<string, string[]> = {};
+  if (!input.name?.trim()) fields.name = ['Enter a subscription name.'];
+  if (!input.category) fields.category = ['Choose a category.'];
+  if (!input.start_date) fields.start_date = ['Choose a start date.'];
+  // Price > 0, checked as text: digits, optional fraction, some non-zero digit.
+  const priceOk = /^\d+(\.\d+)?$/.test(price) && /[1-9]/.test(price);
+  if (!priceOk) fields.billing_price = [PRICE_MESSAGE];
+
+  if (Object.keys(fields).length > 0) {
+    return {
+      error: {
+        code: priceOk ? 'validation_error' : 'price_invalid',
+        message: priceOk ? Object.values(fields)[0]![0]! : PRICE_MESSAGE,
+        fields,
+      },
+    };
+  }
+
+  const currency = input.billing_currency ?? 'USD';
+  const cycle = input.billing_cycle ?? 'monthly';
+  const category =
+    Object.values(CATEGORIES).find((c) => c.slug === input.category) ?? null;
+  const now = `${SEED_TODAY}T00:00:00Z`;
+  const detail: SubscriptionDetail = {
+    id: `sub_new_${nextId++}`,
+    name: input.name!.trim(),
+    billing_price: price,
+    billing_currency: currency,
+    billing_cycle: cycle,
+    custom_cycle_count: input.custom_cycle_count ?? null,
+    custom_cycle_unit: input.custom_cycle_unit ?? null,
+    start_date: input.start_date!,
+    next_bill_date: null,
+    category,
+    notes: input.notes ?? '',
+    payment_label: input.payment_label ?? '',
+    status: 'active',
+    cancelled_on: null,
+    is_trial: false,
+    trial_ends_on: null,
+    trial_length_days: null,
+    trial_reminder_enabled: true,
+    trial_decision: 'none',
+    counts_toward_totals: true,
+    normalized_monthly: cycle === 'monthly' ? { amount: price, currency } : null,
+    service_mark: null,
+    created_at: now,
+    updated_at: now,
+    total_spent_to_date: null,
+    saved_per_year: null,
+    history: [
+      {
+        id: `evt-new-${nextId}`,
+        event_type: 'created',
+        occurred_at: now,
+        old_value: null,
+        new_value: {
+          price,
+          currency,
+          category: input.category ?? null,
+          billing_cycle: cycle,
+          custom_cycle_count: input.custom_cycle_count ?? null,
+          custom_cycle_unit: input.custom_cycle_unit ?? null,
+        },
+      },
+    ],
+  };
+
+  created[email] = [...(created[email] ?? []), detail];
+  return { detail };
 }
