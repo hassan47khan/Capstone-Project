@@ -25,6 +25,7 @@
 
 import type { ApiErrorBody, Subscription, SubscriptionInput } from '@/api/types';
 
+import { contractHomeFor } from './contractFixtures';
 import {
   defaultAccount,
   MOCK_EMAILS,
@@ -398,6 +399,40 @@ export const routes: Route[] = [
     method: 'GET',
     pattern: '/analytics',
     handler: protectedRoute((_request, account) => ok(account.analytics)),
+  },
+
+  // The /analytics endpoints of the frozen contract (04 §5) that Home reads.
+  // Canonical seed figures; see contractFixtures.ts.
+  {
+    method: 'GET',
+    pattern: '/analytics/summary',
+    handler: protectedRoute((_request, account) =>
+      ok(contractHomeFor(account.profile.email).summary),
+    ),
+  },
+
+  {
+    method: 'GET',
+    pattern: '/analytics/spend-over-time',
+    handler: protectedRoute((_request, account) =>
+      ok(contractHomeFor(account.profile.email).spend),
+    ),
+  },
+
+  {
+    method: 'GET',
+    pattern: '/analytics/price-changes',
+    handler: protectedRoute((_request, account) =>
+      ok(contractHomeFor(account.profile.email).urgent),
+    ),
+  },
+
+  {
+    method: 'GET',
+    pattern: '/analytics/upcoming',
+    handler: protectedRoute((_request, account) =>
+      ok(contractHomeFor(account.profile.email).upcoming),
+    ),
   },
 
   {

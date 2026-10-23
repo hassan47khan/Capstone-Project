@@ -67,6 +67,11 @@ export const queryKeys = {
   analytics: {
     all: ['analytics'] as const,
     summary: () => [...queryKeys.analytics.all, 'summary'] as const,
+    /** The other contract endpoints (04 §5) Home reads; see endpoints/analytics.ts. */
+    spendOverTime: (months: number) =>
+      [...queryKeys.analytics.all, 'spend-over-time', months] as const,
+    urgent: () => [...queryKeys.analytics.all, 'price-changes', 'urgent'] as const,
+    upcoming: (days: number) => [...queryKeys.analytics.all, 'upcoming', days] as const,
   },
 
   /**
