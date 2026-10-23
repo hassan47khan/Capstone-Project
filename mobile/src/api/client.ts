@@ -103,7 +103,20 @@ export function configureTokenHooks(hooks: TokenHooks): void {
  * This module-level variable IS the single-flight mechanism. Everything else is
  * detail.
  */
-let refreshInFlight: Promise<string | null> | null = null;
+let refreshInFlight: Promise<RefreshAttempt> | null = null;
+
+/**
+ * How a refresh ended. `rejected` means the refresh token itself is dead (the
+ * session layer has already been told, via onRefreshFailed); `transient` means
+ * the server could not be reached or answered with an error, and the session
+ * may still be fine.
+ */
+export type RefreshOutcome = 'refreshed' | 'rejected' | 'transient';
+
+interface RefreshAttempt {
+  access: string | null;
+  outcome: RefreshOutcome;
+}
 
 /**
  * Bumped whenever the session changes hands (sign-in, sign-out). A refresh
@@ -141,6 +154,20 @@ export function isRefreshRejected(status: number): boolean {
  * Resolves to the new access token, or null if the session is truly gone.
  */
 async function refreshAccessToken(): Promise<string | null> {
+  return (await refreshOnce()).access;
+}
+
+/**
+ * Runs (or joins) the single-flight refresh and says how it ended. For the
+ * session layer, which needs to tell a dead refresh token from a dropped
+ * connection — restoring a parked session for biometric unlock, say — without
+ * a second, unsynchronised call to /auth/refresh.
+ */
+export async function refreshSession(): Promise<RefreshOutcome> {
+  return (await refreshOnce()).outcome;
+}
+
+async function refreshOnce(): Promise<RefreshAttempt> {
   if (refreshInFlight) return refreshInFlight;
 
   const generation = refreshGeneration;
@@ -148,12 +175,14 @@ async function refreshAccessToken(): Promise<string | null> {
 
   // Declared before assignment so the `finally` below can compare against it
   // even if the body settles synchronously.
-  let attempt: Promise<string | null> | null = null;
+  let attempt: Promise<RefreshAttempt> | null = null;
+  const transient: RefreshAttempt = { access: null, outcome: 'transient' };
+  const rejected: RefreshAttempt = { access: null, outcome: 'rejected' };
 
   attempt = (async () => {
     try {
       const refresh = await tokenHooks.getRefreshToken();
-      if (!refresh || isStale()) return null;
+      if (!refresh || isStale()) return transient;
 
       const response = await rawRequest('/auth/refresh', {
         method: 'POST',
@@ -163,35 +192,35 @@ async function refreshAccessToken(): Promise<string | null> {
 
       // The session changed while we were waiting. Whatever came back belongs
       // to a session that no longer exists; act on none of it.
-      if (isStale()) return null;
+      if (isStale()) return transient;
 
       if (isRefreshRejected(response.status)) {
         await tokenHooks.onRefreshFailed();
-        return null;
+        return rejected;
       }
 
       // Any other failure is transient. Returning null surfaces the original
       // 401 to the caller without ending the session; the next request retries.
       if (response.status < 200 || response.status >= 300) {
-        return null;
+        return transient;
       }
 
       const tokens = response.body as { access?: string; refresh?: string };
       if (!tokens.access || !tokens.refresh) {
         await tokenHooks.onRefreshFailed();
-        return null;
+        return rejected;
       }
 
       await tokenHooks.onTokensRefreshed({
         access: tokens.access,
         refresh: tokens.refresh,
       });
-      return tokens.access;
+      return { access: tokens.access, outcome: 'refreshed' };
     } catch {
       // A network failure during refresh is NOT a sign-out: the session may be
       // perfectly valid and the user merely in a lift. Returning null surfaces
       // the original error to the caller, which shows the offline state.
-      return null;
+      return transient;
     } finally {
       // Cleared whatever happened, so the next 401 can start a fresh attempt —
       // unless this attempt was abandoned and a newer one now holds the slot.
