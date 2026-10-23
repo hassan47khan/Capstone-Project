@@ -26,6 +26,8 @@
 import type { ApiErrorBody, Subscription, SubscriptionInput } from '@/api/types';
 
 import { contractHomeFor } from './contractFixtures';
+import { subscriptionDetailFor } from './subscriptionFixtures';
+
 import {
   defaultAccount,
   MOCK_EMAILS,
@@ -505,10 +507,9 @@ export const routes: Route[] = [
   {
     method: 'GET',
     pattern: '/subscriptions/:id',
+    // Frozen contract shape (04 §5); see subscriptionFixtures.ts.
     handler: protectedRoute((request, account) => {
-      const found = subscriptionsFor(account.profile.email).find(
-        (s) => s.id === request.params.id,
-      );
+      const found = subscriptionDetailFor(account.profile.email, request.params.id ?? '');
 
       // 404 rather than 403 for someone else's record, so ids cannot be probed
       // (specification section 5).
