@@ -6,10 +6,16 @@ from jsonschema import Draft202012Validator
 from rest_framework.test import APIClient
 
 import mocks
-from subscriptions.seed import ensure_system_categories
+from subscriptions.seed import SEED_TODAY, ensure_system_categories
 
 SCHEMA_FILE = Path(__file__).resolve().parent / "schema.yml"
 API_PREFIX = "/api/v1"
+
+
+@pytest.fixture(autouse=True)
+def seed_today(settings):
+    """Every test runs on SEED_TODAY, the day the canonical figures are for."""
+    settings.SUBTRAK_TODAY = SEED_TODAY
 
 
 @pytest.fixture

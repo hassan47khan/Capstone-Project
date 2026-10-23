@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -38,6 +38,12 @@ if not SECRET_KEY:
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
+
+# Pins "today" for every user (core/clock.py), e.g. SUBTRAK_TODAY=2026-10-01 to
+# demo the seed dataset as of SEED_TODAY. Unset, today is each user's local date.
+SUBTRAK_TODAY = (
+    date.fromisoformat(os.environ["SUBTRAK_TODAY"]) if os.environ.get("SUBTRAK_TODAY") else None
+)
 
 
 # Application definition
