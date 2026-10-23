@@ -88,12 +88,14 @@ export function VerifyEmailSentScreen() {
     // just knownEmail, so an address the user entered here is not discarded.
     const registerParams = { email: email || undefined };
     if (status === 'authenticated') {
+      // Abandoning this unverified session: discard the token (no biometric
+      // park), or Face ID would restore it and loop back to this screen.
       if (to === 'Register') {
         parkAuthRoute({ name: 'Register', params: registerParams });
-        await signOut();
+        await signOut({ park: false });
         return;
       }
-      await signOut();
+      await signOut({ park: false });
     }
     if (to === 'Register') navigation.navigate('Register', registerParams);
     else navigation.navigate('Login');

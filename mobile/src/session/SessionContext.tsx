@@ -34,11 +34,17 @@ import {
   type ReactNode,
 } from 'react';
 
-import { configureTokenHooks, invalidateRefresh, isRefreshRejected } from '@/api/client';
+import {
+  configureTokenHooks,
+  invalidateRefresh,
+  isRefreshRejected,
+  refreshSession,
+} from '@/api/client';
 import { authApi } from '@/api/endpoints';
 import { ApiError } from '@/api/errors';
 import type { TokenPair } from '@/api/types';
 
+import { biometricStore } from './biometricStore';
 import { tokenStore } from './tokenStore';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
@@ -49,8 +55,38 @@ export interface SessionValue {
   /** Stores the tokens and flips the app into its authenticated state. */
   signIn: (tokens: TokenPair) => Promise<void>;
 
-  /** Clears the tokens and returns to the auth stack. */
-  signOut: () => Promise<void>;
+  /**
+   * Clears the tokens and returns to the auth stack. A normal sign-out parks
+   * the refresh token for biometric unlock on the next Log In; pass
+   * `{ park: false }` when the user is abandoning the session (leaving an
+   * unverified account) so it is discarded and cannot be resurrected.
+   */
+  signOut: (options?: { park?: boolean }) => Promise<void>;
+
+  /**
+   * Restores the session parked at sign-out, for biometric unlock on Log In.
+   * The parked refresh token goes through the client's single-flight refresh,
+   * the same path every other refresh takes. Throws ParkedSessionRejected when
+   * the token is dead (it is forgotten), or ParkedSessionUnavailable when the
+   * server cannot be reached (it is kept for next time).
+   */
+  restoreParked: () => Promise<void>;
+}
+
+/** The parked session is dead (expired or revoked) and has been forgotten. */
+export class ParkedSessionRejected extends Error {
+  constructor() {
+    super('The saved session is no longer valid.');
+    this.name = 'ParkedSessionRejected';
+  }
+}
+
+/** The server could not restore the parked session right now; it is kept. */
+export class ParkedSessionUnavailable extends Error {
+  constructor() {
+    super('The server could not be reached.');
+    this.name = 'ParkedSessionUnavailable';
+  }
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -59,11 +95,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SessionStatus>('loading');
 
   /**
-   * Lets the token hooks call the latest `signOut` without being reinstalled on
+   * Lets the token hooks call the latest `endDeadSession` without being reinstalled on
    * every render. Reinstalling them mid-flight would be a race: a request could
    * read one version of the hooks and its retry another.
    */
-  const signOutRef = useRef<() => Promise<void>>(async () => {});
+  const endDeadSessionRef = useRef<() => Promise<void>>(async () => {});
 
   // Both start by abandoning any in-flight refresh, synchronously and before
   // touching storage, so a refresh from the previous session cannot resolve
@@ -71,25 +107,66 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (tokens: TokenPair) => {
     invalidateRefresh();
     await tokenStore.setTokens(tokens);
+    // Biometric unlock is offered once a session has existed here (05 §5).
+    await biometricStore.markEstablished();
     setStatus('authenticated');
   }, []);
 
-  const signOut = useCallback(async () => {
+  // Signing out parks the refresh token for biometric unlock on Log In
+  // (biometricStore). A dead session, below, discards it instead — and so does
+  // an abandoned one (`park: false`), or biometric would resurrect the very
+  // session the user backed out of (an unverified account leaving Verify Email
+  // Sent), looping them straight back to it.
+  const signOut = useCallback(async (options?: { park?: boolean }) => {
     invalidateRefresh();
+    const refresh = await tokenStore.getRefreshToken();
+    if (refresh && options?.park !== false) await biometricStore.park(refresh);
     await tokenStore.clear();
     setStatus('unauthenticated');
   }, []);
 
+  /** The refresh token was rejected: nothing is worth keeping for biometrics. */
+  const restoreParked = useCallback(async () => {
+    const parked = await biometricStore.parkedRefreshToken();
+    if (!parked) throw new ParkedSessionRejected();
+    // The parked token becomes the active one, so the client's own refresh
+    // (single-flight, rotation-aware) is what exchanges it. No
+    // invalidateRefresh() here: a second restore while one is in flight joins
+    // it rather than abandoning it.
+    await tokenStore.setRefreshToken(parked);
+    const outcome = await refreshSession();
+    if (outcome === 'refreshed') {
+      // onTokensRefreshed has stored the rotated pair; the parked copy is stale.
+      await biometricStore.markEstablished();
+      setStatus('authenticated');
+      return;
+    }
+    if (outcome === 'rejected') {
+      // onRefreshFailed has already ended the session and forgotten the token.
+      throw new ParkedSessionRejected();
+    }
+    // Transient: take the token back out of the active slot, keep it parked.
+    await tokenStore.clear();
+    throw new ParkedSessionUnavailable();
+  }, []);
+
+  const endDeadSession = useCallback(async () => {
+    invalidateRefresh();
+    await tokenStore.clear();
+    await biometricStore.forget();
+    setStatus('unauthenticated');
+  }, []);
+
   /**
-   * Keeps the ref pointing at the current `signOut`.
+   * Keeps the ref pointing at the current `endDeadSession`.
    *
    * In an effect, not inline during render: writing a ref while rendering is a
    * React rule violation, and in a concurrent render it can be executed twice or
    * discarded entirely, leaving the hook holding a stale closure.
    */
   useEffect(() => {
-    signOutRef.current = signOut;
-  }, [signOut]);
+    endDeadSessionRef.current = endDeadSession;
+  }, [endDeadSession]);
 
   /**
    * Installs the HTTP client's token hooks once, on mount.
@@ -103,7 +180,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       getAccessToken: () => tokenStore.getAccessToken(),
       getRefreshToken: () => tokenStore.getRefreshToken(),
       onTokensRefreshed: (tokens) => tokenStore.setTokens(tokens),
-      onRefreshFailed: () => signOutRef.current(),
+      onRefreshFailed: () => endDeadSessionRef.current(),
     });
   }, []);
 
@@ -163,8 +240,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SessionValue>(
-    () => ({ status, signIn, signOut }),
-    [status, signIn, signOut],
+    () => ({ status, signIn, signOut, restoreParked }),
+    [status, signIn, signOut, restoreParked],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
