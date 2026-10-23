@@ -489,14 +489,16 @@ describe('error mapping', () => {
     try {
       await request('/subscriptions', {
         method: 'POST',
-        body: { name: 'Test', price: '0' },
+        body: { name: 'Test', billing_price: '0' },
       });
       throw new Error('should have rejected');
     } catch (error) {
       expect(error).toBeInstanceOf(ApiError);
       const apiError = error as ApiError;
       expect(apiError.code).toBe('price_invalid');
-      expect(apiError.fields?.price?.[0]).toBe('Enter a valid price greater than $0.');
+      expect(apiError.fields?.billing_price?.[0]).toBe(
+        'Enter a valid price greater than $0.',
+      );
     }
   });
 

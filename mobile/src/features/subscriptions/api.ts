@@ -72,6 +72,27 @@ export interface SubscriptionDetail extends SubscriptionRow {
   saved_per_year: ContractMoney | null; // only set when cancelled
   history: HistoryEvent[]; // newest first
 }
+// What the Add and Edit forms send. next_bill_date is never sent: the server
+// works it out from start_date and the cycle.
+export interface SubscriptionInput {
+  name: string;
+  billing_price: MoneyString;
+  billing_currency: CurrencyCode;
+  billing_cycle: BillingCycle;
+  custom_cycle_count: number | null;
+  custom_cycle_unit: CustomCycleUnit | null;
+  start_date: DateOnly;
+  category: string; // category slug, e.g. "entertainment"
+  notes: string;
+  payment_label: string;
+}
+
+// Adds a subscription. A 400 carries per-field messages in error.fields.
+export function createSubscription(
+  input: SubscriptionInput,
+): Promise<SubscriptionDetail> {
+  return request<SubscriptionDetail>('/subscriptions', { method: 'POST', body: input });
+}
 
 // Loads one subscription. A 404 means "not found or not yours".
 export function getSubscription(id: string): Promise<SubscriptionDetail> {

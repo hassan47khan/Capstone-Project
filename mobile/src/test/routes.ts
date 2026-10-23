@@ -26,7 +26,11 @@
 import type { ApiErrorBody, Subscription, SubscriptionInput } from '@/api/types';
 
 import { contractHomeFor } from './contractFixtures';
-import { subscriptionDetailFor } from './subscriptionFixtures';
+import {
+  createMockSubscription,
+  resetCreatedSubscriptions,
+  subscriptionDetailFor,
+} from './subscriptionFixtures';
 
 import {
   defaultAccount,
@@ -137,12 +141,11 @@ function protectedRoute(
  */
 let subscriptionOverrides: Record<string, Subscription[]> = {};
 let preferences = { ...mockNotificationPreferences };
-let nextId = 1;
 
 export function resetMockState(): void {
   subscriptionOverrides = {};
   preferences = { ...mockNotificationPreferences };
-  nextId = 1;
+  resetCreatedSubscriptions();
 }
 
 function subscriptionsFor(email: string): Subscription[] {
@@ -463,49 +466,13 @@ export const routes: Route[] = [
   {
     method: 'POST',
     pattern: '/subscriptions',
+    // Frozen contract shape (04 §5); see subscriptionFixtures.ts.
     handler: protectedRoute((request, account) => {
-      const input = (request.body ?? {}) as Partial<SubscriptionInput>;
-
-      if (!input.name?.trim()) {
-        return fail(400, 'validation_error', 'Enter a name.', {
-          name: ['Enter a name.'],
-        });
+      const result = createMockSubscription(account.profile.email, request.body);
+      if (result.error) {
+        return fail(400, result.error.code, result.error.message, result.error.fields);
       }
-
-      // US-7: the price must be greater than zero. Compared as a string-safe
-      // numeric check, since the value arrives as a decimal string.
-      if (
-        !input.price ||
-        !/^\d+(\.\d+)?$/.test(input.price) ||
-        Number(input.price) <= 0
-      ) {
-        return fail(400, 'price_invalid', 'Enter a valid price greater than $0.', {
-          price: ['Enter a valid price greater than $0.'],
-        });
-      }
-
-      const created: Subscription = {
-        id: `sub_new_${nextId++}`,
-        name: input.name.trim(),
-        category: input.category ?? null,
-        price: input.price,
-        currency: input.currency ?? 'USD',
-        cycle: input.cycle ?? { unit: 'month', count: 1 },
-        next_renewal_on: input.next_renewal_on ?? '2026-11-01',
-        status: input.status ?? 'active',
-        trial: input.trial ?? null,
-        monthly_equivalent: input.price,
-        reminder_enabled: input.reminder_enabled ?? true,
-        revisions: [],
-        created_at: '2026-09-30T12:00:00Z',
-      };
-
-      setSubscriptions(account.profile.email, [
-        ...subscriptionsFor(account.profile.email),
-        created,
-      ]);
-
-      return ok(created, 201);
+      return ok(result.detail, 201);
     }),
   },
 
