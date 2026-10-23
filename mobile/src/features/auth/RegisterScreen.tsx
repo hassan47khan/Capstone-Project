@@ -65,6 +65,18 @@ export function RegisterScreen() {
   const route = useRoute<Route>();
   // Prefilled when the user came back from Verify Email Sent ("Wrong email?").
   const [email, setEmail] = useState(route.params?.email ?? '');
+
+  // "Wrong email?" navigates to a Register that is already mounted below Verify
+  // Email Sent, so the useState initializer above runs only on first mount.
+  // React's documented way to adjust state when a prop changes is to set it
+  // during render (not in an effect), so a fresh email param is not ignored.
+  const paramEmail = route.params?.email;
+  const [lastParamEmail, setLastParamEmail] = useState(paramEmail);
+  if (paramEmail !== lastParamEmail) {
+    setLastParamEmail(paramEmail);
+    if (paramEmail != null) setEmail(paramEmail);
+  }
+
   const [password, setPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);

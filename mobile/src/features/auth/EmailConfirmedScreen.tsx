@@ -59,7 +59,7 @@ function isTokenPair(value: unknown): value is TokenPair {
 export function EmailConfirmedScreen() {
   const styles = useStyles();
   const navigation = useNavigation<Navigation>();
-  const { token } = useRoute<Route>().params;
+  const token = useRoute<Route>().params?.token;
   const { status, signIn } = useSession();
   const queryClient = useQueryClient();
 
@@ -68,8 +68,10 @@ export function EmailConfirmedScreen() {
   const sent = useRef(false);
 
   useEffect(() => {
-    // Once: StrictMode runs effects twice, and the token is single-use.
-    if (sent.current) return;
+    // Once: StrictMode runs effects twice, and the token is single-use. A
+    // malformed link can carry no token; there is nothing to verify, so the
+    // invalid-link state below is shown instead of sending an empty request.
+    if (sent.current || !token) return;
     sent.current = true;
     mutate({ token });
   }, [token, mutate]);
@@ -87,7 +89,9 @@ export function EmailConfirmedScreen() {
   const backLabel = navigation.canGoBack() ? 'Log In' : undefined;
   const onBack = () => navigation.goBack();
 
-  if (verify.isError) {
+  // A link with no token is as good as an invalid one: nothing was sent, so
+  // show the same "not valid" way out rather than spinning on Continue forever.
+  if (verify.isError || !token) {
     const error = verify.error;
     const offline = error instanceof ApiError && error.isOffline;
     const expired = error instanceof ApiError && error.code === 'token_expired';
@@ -114,7 +118,9 @@ export function EmailConfirmedScreen() {
         {offline ? (
           <Button
             label="Try again"
-            onPress={() => mutate({ token })}
+            onPress={() => {
+              if (token) mutate({ token });
+            }}
             fullWidth
             testID="confirmed-retry"
           />

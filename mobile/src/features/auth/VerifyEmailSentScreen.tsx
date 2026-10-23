@@ -113,7 +113,9 @@ export function VerifyEmailSentScreen() {
   // shows the Auth stack from Log In.
   const leave = async (to: 'Register' | 'Login') => {
     if (status === 'authenticated') await signOut();
-    if (to === 'Register') navigation.navigate('Register', { email: knownEmail });
+    // Forward the effective email (a typed address when none was known), not
+    // just knownEmail, so an address the user entered here is not discarded.
+    if (to === 'Register') navigation.navigate('Register', { email: email || undefined });
     else navigation.navigate('Login');
   };
 

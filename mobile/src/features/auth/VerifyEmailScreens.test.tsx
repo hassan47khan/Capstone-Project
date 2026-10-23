@@ -304,6 +304,17 @@ describe('Email confirmed (05 §8)', () => {
     expect(await screen.findByTestId('stub')).toHaveTextContent('Login');
   });
 
+  it('a link with no token at all says so instead of crashing', async () => {
+    // A malformed subtrak://verify-email with no ?token= routes here with no
+    // params; the screen must show the invalid-link state, not throw.
+    await renderAt('EmailConfirmed', undefined);
+
+    expect(
+      await screen.findByRole('header', { name: CONFIRMED_COPY.invalid }),
+    ).toBeOnTheScreen();
+    expect(screen.getByTestId('confirmed-back-to-login')).toBeOnTheScreen();
+  });
+
   it('offline keeps the user here with Try again', async () => {
     let calls = 0;
     server.use(
