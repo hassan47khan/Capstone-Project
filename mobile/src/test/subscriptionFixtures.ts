@@ -154,6 +154,24 @@ type CreateResult =
 
 const PRICE_MESSAGE = 'Enter a valid price greater than $0.';
 
+// Monthly equivalents the real server gives for non-monthly plans (mock can't do money math).
+const KNOWN_MONTHLY: Record<string, string> = {
+  '12.99 custom 2 months': '6.50', // Headspace (04 §4.2)
+};
+
+// A monthly plan's equivalent is its price; others come from KNOWN_MONTHLY, else null.
+function monthlyFor(
+  price: string,
+  cycle: string,
+  input: Partial<SubscriptionInput>,
+  currency: string,
+) {
+  if (cycle === 'monthly') return { amount: price, currency };
+  const key = `${price} ${cycle} ${input.custom_cycle_count ?? ''} ${input.custom_cycle_unit ?? ''}`;
+  const amount = KNOWN_MONTHLY[key.trim()];
+  return amount ? { amount, currency } : null;
+}
+
 /**
  * POST /subscriptions for the mock API: checks what the real server checks
  * (04 §5) and keeps the new subscription so GET /subscriptions/:id finds it.
@@ -210,7 +228,8 @@ export function createMockSubscription(email: string, body: unknown): CreateResu
     trial_reminder_enabled: true,
     trial_decision: 'none',
     counts_toward_totals: true,
-    normalized_monthly: cycle === 'monthly' ? { amount: price, currency } : null,
+    normalized_monthly: monthlyFor(price, cycle, input, currency),
+
     service_mark: null,
     created_at: now,
     updated_at: now,

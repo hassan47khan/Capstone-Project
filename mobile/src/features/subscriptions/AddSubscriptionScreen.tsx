@@ -1,21 +1,4 @@
-/**
- * Add subscription (handoff 07 §1–3; US-7). Figma `4:3340` / `4:3417` / `4:3509`.
- *
- * A modal with an X. Saving sends POST /subscriptions; the server checks the
- * data again, works out the next bill date and does every sum.
- *
- * States (07 §9)
- *   idle        Save disabled until the form is valid
- *   error       each field's message shows after it loses focus (or on Save)
- *   saving      Save shows a spinner; fields are locked
- *   failed      a banner at the top; everything typed is kept
- *   saved       opens the new subscription's detail screen
- *
- * Closing a form with something typed in asks "Discard changes?" first; an
- * untouched form closes straight away (07 §1, useDiscardGuard).
- *
- *
- */
+// Add subscription screen (07 §1–3). Shows "Subscription added" after saving.
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -29,7 +12,8 @@ import type { AppStackParamList } from '@/navigation/types';
 import { useDiscardGuard } from '@/navigation/useDiscardGuard';
 import { makeStyles, radius, spacing } from '@/theme';
 
-import { createSubscription } from './api';
+import { AddSuccess } from './AddSuccess';
+import { createSubscription, type SubscriptionDetail } from './api';
 import { SubscriptionForm } from './SubscriptionForm';
 import {
   EMPTY_FORM,
@@ -58,30 +42,30 @@ export function AddSubscriptionScreen() {
   const queryClient = useQueryClient();
 
   const [values, setValues] = useState<FormValues>(EMPTY_FORM);
-  // Fields the user has left; their errors are shown from then on.
-  const [touched, setTouched] = useState<Set<FormField>>(new Set());
-  // After pressing Save, every error shows, touched or not.
-  const [submitted, setSubmitted] = useState(false);
-  // Errors the server sent back for particular fields.
+  const [touched, setTouched] = useState<Set<FormField>>(new Set()); // fields the user has left
+  const [submitted, setSubmitted] = useState(false); // after Save, show all errors
   const [serverErrors, setServerErrors] = useState<FormErrors>({});
-  // A problem not tied to one field (offline, server down).
-  const [formError, setFormError] = useState<string>();
+  const [formError, setFormError] = useState<string>(); // offline / server down
+  const [created, setCreated] = useState<SubscriptionDetail | null>(null); // saved → success screen
 
   const errors = validateForm(values, localToday());
   const valid = Object.keys(errors).length === 0;
-  const { sheet, allowLeave } = useDiscardGuard(isFormDirty(values, EMPTY_FORM));
+  const { sheet } = useDiscardGuard(isFormDirty(values, EMPTY_FORM));
 
   const create = useMutation({
     mutationFn: createSubscription,
-    onSuccess: async (created) => {
-      // Totals on Home and Analytics include it now, so refresh them.
+    onSuccess: async (saved) => {
+      // Refresh totals on Home and Analytics.
       await Promise.all(
         subscriptionWriteInvalidations.map((queryKey) =>
           queryClient.invalidateQueries({ queryKey }),
         ),
       );
-      allowLeave();
-      navigation.replace('SubscriptionDetail', { id: created.id });
+      // Clear the form so leaving won't ask to discard, and "Add another" starts fresh.
+      setValues(EMPTY_FORM);
+      setTouched(new Set());
+      setSubmitted(false);
+      setCreated(saved);
     },
     onError: (error) => {
       if (error instanceof ApiError && error.isOffline) {
@@ -95,8 +79,7 @@ export function AddSubscriptionScreen() {
     },
   });
 
-  // Errors to show: the server's first, then our own for fields the user
-  // has left (or all of them after Save).
+  // Server errors first, then ours for fields the user has left (or all after Save).
   const shown: FormErrors = { ...serverErrors };
   for (const [field, message] of Object.entries(errors) as [FormField, string][]) {
     if (!shown[field] && (submitted || touched.has(field))) shown[field] = message;
@@ -104,7 +87,7 @@ export function AddSubscriptionScreen() {
 
   const change = (patch: Partial<FormValues>) => {
     setValues((previous) => ({ ...previous, ...patch }));
-    // Typing in a field clears the server's old message for it.
+    // Editing a field clears its old server error.
     setServerErrors((previous) => {
       const next = { ...previous };
       for (const key of Object.keys(patch)) delete next[key as FormField];
@@ -121,6 +104,19 @@ export function AddSubscriptionScreen() {
     if (!valid || create.isPending) return;
     create.mutate(toSubscriptionInput(values));
   };
+
+  // Saved: show the success screen instead of the form.
+  if (created) {
+    return (
+      <Screen edges={['top', 'bottom']} gutter="compact" testID="add-screen">
+        <AddSuccess
+          created={created}
+          onViewDashboard={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+          onAddAnother={() => setCreated(null)}
+        />
+      </Screen>
+    );
+  }
 
   return (
     <Screen
@@ -166,7 +162,6 @@ export function AddSubscriptionScreen() {
 }
 
 const useStyles = makeStyles(({ colors, typography }) => ({
-  // Same look as the auth screens' form error.
   formError: {
     backgroundColor: colors.dangerSurface,
     borderRadius: radius.card,
