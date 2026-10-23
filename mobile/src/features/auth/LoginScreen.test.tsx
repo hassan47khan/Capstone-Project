@@ -22,9 +22,13 @@ import { server } from '@/test/server';
 import { sizes } from '@/theme';
 
 import { AUTH_NAV_BAR_HEIGHT } from './AuthShell';
-import { LOGIN_COPY, LoginScreen, RATE_LIMIT_FALLBACK_SECONDS } from './LoginScreen';
+import { LOGIN_COPY, LoginScreen } from './LoginScreen';
 import { authTestQueryClient } from './testClient';
-import { formatCountdown, useCountdown } from './useCountdown';
+import {
+  formatCountdown,
+  RATE_LIMIT_FALLBACK_SECONDS,
+  useCountdown,
+} from './useCountdown';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
