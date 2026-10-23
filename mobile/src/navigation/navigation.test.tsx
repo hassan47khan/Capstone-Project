@@ -430,7 +430,7 @@ describe('the full tree is navigable (03 §1)', () => {
     ['Register', undefined, 'Create your account'],
     ['VerifyEmailSent', undefined, 'Check your email'],
     ['EmailConfirmed', { token: 't' }, 'Email confirmed'],
-    ['ForgotPassword', undefined, 'Reset your password'],
+    ['ForgotPassword', undefined, 'Forgot your password?'],
     ['ResetLinkSent', { email: 'a@b.c' }, 'Check your email'],
     ['CreateNewPassword', { token: 't' }, 'Create a new password'],
     ['PasswordResetSuccess', undefined, 'Password updated'],
@@ -459,9 +459,14 @@ describe('the full tree is navigable (03 §1)', () => {
     );
     // Pushed over Log In, so there is somewhere to go back to. Some screens
     // also offer a "Back to Log In" link in the card, hence "at least one".
-    expect(
-      screen.getAllByRole('button', { name: 'Back to Log In' }).length,
-    ).toBeGreaterThan(0);
+    // Password updated is terminal (05 §1): its only way on is Log In.
+    if (route === 'PasswordResetSuccess') {
+      expect(screen.queryByRole('button', { name: 'Back to Log In' })).toBeNull();
+    } else {
+      expect(
+        screen.getAllByRole('button', { name: 'Back to Log In' }).length,
+      ).toBeGreaterThan(0);
+    }
   });
 
   it('Settings rows lead to the Settings modals', async () => {

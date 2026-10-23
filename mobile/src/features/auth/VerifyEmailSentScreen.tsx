@@ -11,21 +11,18 @@
  *   signed-in but unverified user (03 §5, case 3) there is no param, so it
  *   reads the profile. If neither is known, an email field appears for Resend.
  *
- * The cooldown is read from the resend response (`cooldown_seconds`, frozen in
- * the API contract). The hand-written client in src/api still types that
- * response as { verification_sent }, so the field is read defensively and
- * DEFAULT_RESEND_COOLDOWN_SECONDS covers a response without it.
+ * Resend, its cooldown and the mail-app button come from
+ * useResendWithCooldown, shared with Reset Link Sent.
  */
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Linking, Platform, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { authApi, meApi } from '@/api/endpoints';
-import { ApiError, messageFor } from '@/api/errors';
 import { queryKeys } from '@/api/queryKeys';
-import { Button, Skeleton, TextField, useToast } from '@/components';
+import { Button, Skeleton, TextField } from '@/components';
 import { parkAuthRoute } from '@/navigation/pendingAuthRoute';
 import type { AuthStackParamList } from '@/navigation/types';
 import { useSession } from '@/session/SessionContext';
@@ -33,11 +30,8 @@ import { makeStyles, sizes, spacing } from '@/theme';
 
 import { AuthShell, FormError } from './AuthShell';
 import { StatusIcon } from './StatusIcon';
-import {
-  formatCountdown,
-  RATE_LIMIT_FALLBACK_SECONDS,
-  useCountdown,
-} from './useCountdown';
+import { formatCountdown } from './useCountdown';
+import { useResendWithCooldown } from './useResendWithCooldown';
 import { isValidEmail } from './validation';
 
 export const VERIFY_COPY = {
@@ -49,25 +43,14 @@ export const VERIFY_COPY = {
   offline: "Couldn't reach SubTrak. Check your connection.",
 } as const;
 
-/** Used when the resend response carries no cooldown. */
-export const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
-
 type Navigation = NativeStackNavigationProp<AuthStackParamList, 'VerifyEmailSent'>;
 type Route = RouteProp<AuthStackParamList, 'VerifyEmailSent'>;
-
-/** Opens the default mail client, inbox first where the platform allows. */
-export async function openMailApp(): Promise<void> {
-  await Linking.openURL(Platform.OS === 'ios' ? 'message://' : 'mailto:');
-}
 
 export function VerifyEmailSentScreen() {
   const styles = useStyles();
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const { status, signOut } = useSession();
-  const toast = useToast();
-  const cooldown = useCountdown();
-  const [formError, setFormError] = useState<string>();
   const [typedEmail, setTypedEmail] = useState('');
 
   const paramEmail = route.params?.email;
@@ -82,36 +65,20 @@ export function VerifyEmailSentScreen() {
   // fallback field nor "your email address" yet, and hold the actions.
   const loadingEmail = !paramEmail && status === 'authenticated' && profile.isPending;
 
-  const resend = useMutation({
-    mutationFn: authApi.resendVerification,
-    onSuccess: (response) => {
-      const seconds = (response as { cooldown_seconds?: number }).cooldown_seconds;
-      cooldown.start(seconds ?? DEFAULT_RESEND_COOLDOWN_SECONDS);
-      toast.show(VERIFY_COPY.resent, 'success');
-    },
-    onError: (error) => {
-      if (error instanceof ApiError && error.status === 429) {
-        setFormError(error.message);
-        cooldown.start(RATE_LIMIT_FALLBACK_SECONDS);
-      } else if (error instanceof ApiError && error.isOffline) {
-        toast.show(VERIFY_COPY.offline);
-      } else {
-        setFormError(messageFor(error));
-      }
-    },
+  const resend = useResendWithCooldown({
+    send: authApi.resendVerification,
+    resentMessage: VERIFY_COPY.resent,
+    offlineMessage: VERIFY_COPY.offline,
   });
 
-  const waiting = cooldown.remaining > 0;
-  const canResend = !loadingEmail && isValidEmail(email) && !waiting && !resend.isPending;
+  const canResend =
+    !loadingEmail && isValidEmail(email) && !resend.waiting && !resend.pending;
 
   const onResend = () => {
-    if (!canResend) return;
-    setFormError(undefined);
-    resend.mutate({ email });
+    if (canResend) resend.resend({ email });
   };
 
-  const onOpenMail = () =>
-    openMailApp().catch(() => toast.show(VERIFY_COPY.mailUnavailable));
+  const onOpenMail = () => resend.openMail(VERIFY_COPY.mailUnavailable);
 
   // A signed-in but unverified user leaves through sign-out, which remounts
   // the Auth stack at Log In; a navigate() now would be lost. So Register is
@@ -121,12 +88,14 @@ export function VerifyEmailSentScreen() {
     // just knownEmail, so an address the user entered here is not discarded.
     const registerParams = { email: email || undefined };
     if (status === 'authenticated') {
+      // Abandoning this unverified session: discard the token (no biometric
+      // park), or Face ID would restore it and loop back to this screen.
       if (to === 'Register') {
         parkAuthRoute({ name: 'Register', params: registerParams });
-        await signOut();
+        await signOut({ park: false });
         return;
       }
-      await signOut();
+      await signOut({ park: false });
     }
     if (to === 'Register') navigation.navigate('Register', registerParams);
     else navigation.navigate('Login');
@@ -164,7 +133,7 @@ export function VerifyEmailSentScreen() {
         />
       )}
 
-      <FormError message={formError} />
+      <FormError message={resend.error} />
 
       <Button
         label="Open Mail app"
@@ -173,11 +142,13 @@ export function VerifyEmailSentScreen() {
         testID="verify-open-mail"
       />
       <Button
-        label={waiting ? `Resend in ${formatCountdown(cooldown.remaining)}` : 'Resend'}
+        label={
+          resend.waiting ? `Resend in ${formatCountdown(resend.remaining)}` : 'Resend'
+        }
         variant="secondary"
         onPress={onResend}
         disabled={!canResend}
-        loading={resend.isPending}
+        loading={resend.pending}
         loadingLabel="Resending the email"
         fullWidth
         testID="verify-resend"
