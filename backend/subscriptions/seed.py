@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db import transaction
+from django_mongodb_backend import transaction
 
 from accounts.models import User, rules_for, settings_for
 
