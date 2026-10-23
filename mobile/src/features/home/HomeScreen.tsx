@@ -27,7 +27,7 @@ import { useQuery } from '@tanstack/react-query';
 import { PlusCircle } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import type { PriceChangeItem, UpcomingBill } from '@/api/analyticsTypes';
+import type { PriceChangeItem, Upcoming, UpcomingBill } from '@/api/analyticsTypes';
 import { analyticsApi, meApi } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import { Button, EmptyState, ErrorState, Screen } from '@/components';
@@ -60,6 +60,24 @@ const UPCOMING_DAYS = 30;
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 
+/**
+ * Whether Home's figures include amounts converted from another currency.
+ *
+ * The contract has no summary-level flag for this: `rates_as_of` is only the
+ * date of the stored rates and is set whenever rates exist, converted or not.
+ * The upcoming bills do carry both currencies, so a bill billed in a currency
+ * other than the display currency is the signal. It compares currency codes;
+ * it does no arithmetic. TODO(contract): a summary field would cover
+ * subscriptions with no bill in the next 30 days.
+ */
+export function convertedFrom(upcoming: Upcoming | undefined): boolean {
+  return Boolean(
+    upcoming?.items.some(
+      (bill) => bill.billing_amount.currency !== upcoming.display_currency,
+    ),
+  );
+}
+
 function timeOf(epochMs: number): string {
   return new Date(epochMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
@@ -73,7 +91,7 @@ export function HomeScreen() {
     queryFn: meApi.getProfile,
   });
   const summary = useQuery({
-    queryKey: queryKeys.analytics.currentMonth(),
+    queryKey: queryKeys.analytics.summary(),
     queryFn: analyticsApi.getSummary,
   });
   const spend = useQuery({
@@ -154,6 +172,15 @@ export function HomeScreen() {
   // Offline or a failed refresh with data still in hand: keep it, and say how old.
   const stale = sections.find((q) => q.isError && q.data);
   const urgentItems = urgent.data?.items ?? [];
+  const urgentContent =
+    urgent.isError && !urgent.data ? (
+      <SectionError error={urgent.error} onRetry={() => urgent.refetch()} />
+    ) : urgent.isPending ? (
+      <SectionLoading label="Loading alerts" rows={1} />
+    ) : urgentItems.length > 0 ? (
+      <UrgentList items={urgentItems} onOpen={openUrgent} />
+    ) : null;
+  const converted = convertedFrom(upcoming.data);
 
   return (
     <Screen
@@ -177,7 +204,7 @@ export function HomeScreen() {
 
       <Section testID="home-spend">
         {summary.data ? (
-          <SpendCard summary={summary.data} spend={spend.data} />
+          <SpendCard summary={summary.data} spend={spend.data} converted={converted} />
         ) : summary.isError ? (
           <SectionError error={summary.error} onRetry={() => summary.refetch()} />
         ) : (
@@ -196,17 +223,9 @@ export function HomeScreen() {
       </Section>
 
       {/* 06 §2.4: hidden entirely when empty, header and all. */}
-      {urgent.isError && !urgent.data ? (
+      {urgentContent ? (
         <Section title="Urgent attention" testID="home-urgent">
-          <SectionError error={urgent.error} onRetry={() => urgent.refetch()} />
-        </Section>
-      ) : urgent.isPending ? (
-        <Section title="Urgent attention" testID="home-urgent">
-          <SectionLoading label="Loading alerts" rows={1} />
-        </Section>
-      ) : urgentItems.length > 0 ? (
-        <Section title="Urgent attention" testID="home-urgent">
-          <UrgentList items={urgentItems} onOpen={openUrgent} />
+          {urgentContent}
         </Section>
       ) : null}
 

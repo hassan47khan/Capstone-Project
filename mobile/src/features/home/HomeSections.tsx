@@ -130,15 +130,21 @@ export function SectionError({
 export function SpendCard({
   summary,
   spend,
+  converted,
 }: {
   summary: AnalyticsSummary;
   spend: SpendOverTime | undefined;
+  /**
+   * Whether figures here were converted from another billing currency, from
+   * the server's own currencies (see convertedFrom in HomeScreen). Not
+   * "display currency isn't USD": a EUR user billed only in EUR sees no note.
+   */
+  converted: boolean;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const total = summary.monthly_total;
   const delta = spend ? deltaFor(spend) : null;
-  const converted = summary.display_currency !== 'USD';
   const figure = formatMoney(total.amount, total.currency).display;
   const deltaSpoken = delta
     ? delta.percent
@@ -214,11 +220,11 @@ export function CategoryCard({ summary }: { summary: AnalyticsSummary }) {
     <Card style={styles.categoryCard} testID="category-card">
       <CategoryDonut rows={summary.categories} />
       <View style={styles.legend}>
-        {summary.categories.map((row) => {
+        {summary.categories.map((row, index) => {
           const name = row.category?.display_name ?? 'Uncategorized';
           return (
             <View
-              key={row.category?.slug ?? 'uncategorized'}
+              key={row.category?.slug ?? `uncategorized-${index}`}
               style={styles.spaceBetween}
               accessible
               accessibilityLabel={`${name}, ${row.percent} percent.`}
@@ -265,6 +271,7 @@ export function UrgentList({
             title={words.title}
             message={words.message}
             onPress={() => onOpen(item)}
+            accessibilityLabel={words.label}
             accessibilityHint={
               item.kind === 'trial_ending'
                 ? 'Opens Trial Shield'
@@ -295,7 +302,11 @@ function RenewalRow({ bill, onPress }: { bill: UpcomingBill; onPress: () => void
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${bill.name}, ${spoken}, due ${formatDateSpoken(bill.bill_date)}.`}
+      accessibilityLabel={
+        // Says so when the amount could not be converted, as the marker shows.
+        `${bill.name}, ${spoken}${bill.amount === null ? ', not converted' : ''}, ` +
+        `due ${formatDateSpoken(bill.bill_date)}.`
+      }
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       testID={`renewal-${bill.subscription_id}`}
     >

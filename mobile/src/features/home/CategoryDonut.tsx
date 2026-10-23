@@ -66,9 +66,9 @@ export function CategoryDonut({ rows }: { rows: CategorySpend[] }) {
       <Svg width={DIAMETER} height={DIAMETER}>
         {/* Rotate so the first slice starts at 12 o'clock. */}
         <G rotation={-90} origin={`${DIAMETER / 2}, ${DIAMETER / 2}`}>
-          {slices.map(({ row, start: offset, fraction }) => (
+          {slices.map(({ row, start: offset, fraction }, index) => (
             <AnimatedCircle
-              key={row.category?.slug ?? 'uncategorized'}
+              key={row.category?.slug ?? `uncategorized-${index}`}
               cx={DIAMETER / 2}
               cy={DIAMETER / 2}
               r={RADIUS}

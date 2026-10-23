@@ -10,7 +10,7 @@ import { Text } from 'react-native';
 
 import { SessionProvider } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
-import { alexSummary } from '@/test/contractFixtures';
+import { alexSummary, alexUpcoming } from '@/test/contractFixtures';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
@@ -116,6 +116,10 @@ describe('loaded with the seed data (06 §9)', () => {
       within(trial).getByText("You'll be charged $17.99 on Oct 3."),
     ).toBeOnTheScreen();
     const netflix = screen.getByTestId('urgent-price_change-sub-netflix');
+    // Spoken as a sentence, not "→ · /yr" (06 §8).
+    expect(netflix.props.accessibilityLabel).toBe(
+      'Netflix price increased from $13.99 to $15.49, $18.00 more per year, since Oct 1.',
+    );
     expect(within(netflix).getByText('Netflix price increase')).toBeOnTheScreen();
     expect(
       within(netflix).getByText('$13.99 → $15.49 · +$18.00/yr since Oct 1'),
@@ -276,21 +280,115 @@ describe('states (06 §5, §6)', () => {
     expect(screen.getByTestId('spend-card')).toBeOnTheScreen();
   });
 
-  it('a converted currency shows the chip and the conversion note', async () => {
+  const eur = (amount: string) => ({ amount, currency: 'EUR' });
+  const usd = (amount: string) => ({ amount, currency: 'USD' });
+
+  it('EUR display with bills converted from USD shows the chip and the note', async () => {
     server.use(
       http.get('*/analytics/summary', () =>
         HttpResponse.json({
           ...alexSummary,
           display_currency: 'EUR',
-          monthly_total: { amount: '118.56', currency: 'EUR' },
+          monthly_total: eur('118.56'),
+        }),
+      ),
+      http.get('*/analytics/upcoming', () =>
+        HttpResponse.json({
+          ...alexUpcoming,
+          display_currency: 'EUR',
+          items: [
+            {
+              ...alexUpcoming.items[0]!,
+              amount: eur('2.74'),
+              billing_amount: usd('2.99'),
+            },
+          ],
         }),
       ),
     );
     await renderHome();
 
     const card = await screen.findByTestId('spend-card');
+    await waitFor(() =>
+      expect(within(card).getByText("Converted at today's rate")).toBeOnTheScreen(),
+    );
     expect(within(card).getByText('EUR')).toBeOnTheScreen();
-    expect(within(card).getByText("Converted at today's rate")).toBeOnTheScreen();
     expect(card.props.accessibilityLabel).toContain('€118.56');
+  });
+
+  it('EUR display with everything billed in EUR shows no conversion note', async () => {
+    server.use(
+      http.get('*/analytics/summary', () =>
+        HttpResponse.json({
+          ...alexSummary,
+          display_currency: 'EUR',
+          monthly_total: eur('118.56'),
+        }),
+      ),
+      http.get('*/analytics/upcoming', () =>
+        HttpResponse.json({
+          ...alexUpcoming,
+          display_currency: 'EUR',
+          items: [
+            {
+              ...alexUpcoming.items[0]!,
+              amount: eur('2.99'),
+              billing_amount: eur('2.99'),
+            },
+          ],
+        }),
+      ),
+    );
+    await renderHome();
+
+    const card = await screen.findByTestId('spend-card');
+    await screen.findByTestId(/^renewal-/);
+    expect(within(card).queryByText("Converted at today's rate")).toBeNull();
+  });
+
+  it('USD display with a bill converted from EUR shows the note', async () => {
+    server.use(
+      http.get('*/analytics/upcoming', () =>
+        HttpResponse.json({
+          ...alexUpcoming,
+          items: [
+            {
+              ...alexUpcoming.items[0]!,
+              amount: usd('3.26'),
+              billing_amount: eur('2.99'),
+            },
+          ],
+        }),
+      ),
+    );
+    await renderHome();
+
+    const card = await screen.findByTestId('spend-card');
+    await waitFor(() =>
+      expect(within(card).getByText("Converted at today's rate")).toBeOnTheScreen(),
+    );
+  });
+
+  it('says "not converted" for a renewal with no exchange rate', async () => {
+    server.use(
+      http.get('*/analytics/upcoming', () =>
+        HttpResponse.json({
+          ...alexUpcoming,
+          items: [
+            {
+              ...alexUpcoming.items[0]!,
+              amount: null,
+              billing_amount: { amount: '2.49', currency: 'GBP' },
+            },
+          ],
+        }),
+      ),
+    );
+    await renderHome();
+
+    const row = await screen.findByTestId('renewal-sub-icloud-');
+    expect(row.props.accessibilityLabel).toBe(
+      'iCloud+, £2.49, not converted, due October 1, 2026.',
+    );
   });
 });
