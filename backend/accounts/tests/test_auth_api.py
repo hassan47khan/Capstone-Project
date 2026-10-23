@@ -12,7 +12,7 @@ from django.core import mail
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from accounts import auth
+from accounts import auth, tokens
 from accounts.models import EmailLinkToken, RevokedRefreshToken, User
 from accounts.serializers import PASSWORD_MESSAGE
 from accounts.throttles import AuthEmailThrottle, AuthIPThrottle
@@ -186,7 +186,9 @@ def test_login_gives_tokens_that_open_the_api(anon, contract, alex):
     me = signed_in(tokens).get("/api/v1/auth/me")
 
     assert contract(me, "/auth/me")["email"] == ALEX
-    assert signed_in(tokens).get("/api/v1/analytics/summary").status_code == 200
+    # Seed, log in, read: the canonical figure through the real endpoints (04 §4).
+    summary = signed_in(tokens).get("/api/v1/analytics/summary").json()
+    assert summary["monthly_total"] == {"amount": "129.20", "currency": "USD"}
 
 
 @pytest.mark.parametrize("email", ["Alex.Kim@Example.com", " alex.kim@example.com "])
@@ -453,3 +455,15 @@ def test_an_access_token_from_before_a_version_bump_is_rejected(anon, alex):
     error = signed_in(tokens).get("/api/v1/auth/me").json()["error"]
 
     assert error == {"code": "token_invalid", "message": "Your session has expired. Log in again."}
+
+
+def test_two_refreshes_racing_on_one_token_give_one_pair(anon, alex, monkeypatch):
+    """Both pass the revoked check; the unique jti lets only the first rotate."""
+    refresh = login(anon).json()["refresh"]
+    checked = tokens._current(refresh)
+    tokens._revoke(*checked)  # the other request got there first
+    monkeypatch.setattr(tokens, "_current", lambda token: checked)
+
+    response = post(anon, "/auth/refresh", {"refresh": refresh})
+
+    assert response.status_code == 401
