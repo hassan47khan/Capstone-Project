@@ -34,7 +34,12 @@ import {
   type ReactNode,
 } from 'react';
 
-import { configureTokenHooks, invalidateRefresh, isRefreshRejected } from '@/api/client';
+import {
+  configureTokenHooks,
+  invalidateRefresh,
+  isRefreshRejected,
+  refreshSession,
+} from '@/api/client';
 import { authApi } from '@/api/endpoints';
 import { ApiError } from '@/api/errors';
 import type { TokenPair } from '@/api/types';
@@ -57,6 +62,31 @@ export interface SessionValue {
    * unverified account) so it is discarded and cannot be resurrected.
    */
   signOut: (options?: { park?: boolean }) => Promise<void>;
+
+  /**
+   * Restores the session parked at sign-out, for biometric unlock on Log In.
+   * The parked refresh token goes through the client's single-flight refresh,
+   * the same path every other refresh takes. Throws ParkedSessionRejected when
+   * the token is dead (it is forgotten), or ParkedSessionUnavailable when the
+   * server cannot be reached (it is kept for next time).
+   */
+  restoreParked: () => Promise<void>;
+}
+
+/** The parked session is dead (expired or revoked) and has been forgotten. */
+export class ParkedSessionRejected extends Error {
+  constructor() {
+    super('The saved session is no longer valid.');
+    this.name = 'ParkedSessionRejected';
+  }
+}
+
+/** The server could not restore the parked session right now; it is kept. */
+export class ParkedSessionUnavailable extends Error {
+  constructor() {
+    super('The server could not be reached.');
+    this.name = 'ParkedSessionUnavailable';
+  }
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -96,6 +126,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /** The refresh token was rejected: nothing is worth keeping for biometrics. */
+  const restoreParked = useCallback(async () => {
+    const parked = await biometricStore.parkedRefreshToken();
+    if (!parked) throw new ParkedSessionRejected();
+    // The parked token becomes the active one, so the client's own refresh
+    // (single-flight, rotation-aware) is what exchanges it. No
+    // invalidateRefresh() here: a second restore while one is in flight joins
+    // it rather than abandoning it.
+    await tokenStore.setRefreshToken(parked);
+    const outcome = await refreshSession();
+    if (outcome === 'refreshed') {
+      // onTokensRefreshed has stored the rotated pair; the parked copy is stale.
+      await biometricStore.markEstablished();
+      setStatus('authenticated');
+      return;
+    }
+    if (outcome === 'rejected') {
+      // onRefreshFailed has already ended the session and forgotten the token.
+      throw new ParkedSessionRejected();
+    }
+    // Transient: take the token back out of the active slot, keep it parked.
+    await tokenStore.clear();
+    throw new ParkedSessionUnavailable();
+  }, []);
+
   const endDeadSession = useCallback(async () => {
     invalidateRefresh();
     await tokenStore.clear();
@@ -186,8 +240,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SessionValue>(
-    () => ({ status, signIn, signOut }),
-    [status, signIn, signOut],
+    () => ({ status, signIn, signOut, restoreParked }),
+    [status, signIn, signOut, restoreParked],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

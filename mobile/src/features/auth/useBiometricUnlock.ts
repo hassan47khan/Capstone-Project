@@ -3,27 +3,36 @@
  *
  * Offered only when all three hold: a session has existed on this device and
  * its refresh token was parked at sign-out (biometricStore), the device has
- * biometric hardware, and the user has enrolled. Then the prompt opens by
- * itself once each time Log In comes into focus, and a button stays on the
- * screen to try again.
+ * biometric hardware, and the user has enrolled. A "Log in with Face ID"
+ * button stays on the screen whenever it is offered.
  *
- *   success    → the parked refresh token goes through the normal refresh
- *                call and the session starts; the auth gate opens Home
+ * The automatic prompt
+ *   It opens by itself when Log In comes into focus, until the user cancels or
+ *   declines it once. After that it stays quiet, however often Log In comes
+ *   back into focus, until the app is backgrounded and reopened or launched
+ *   fresh. The button still works the whole time.
+ *
+ * Once the OS prompt succeeds, the session layer does the rest
+ * (session.restoreParked): the parked token goes through the client's own
+ * single-flight refresh, never a separate call to /auth/refresh.
+ *   success    → the session starts; the auth gate opens Home
  *   cancel     → nothing: the form is right there, with no error (05 §5)
- *   rejected   → the token is dead (expired, or revoked by a reset), so the
- *                stored state is cleared and the button disappears
- *   offline    → the token is kept for next time
+ *   rejected   → the token is dead (expired, or revoked by a reset): it is
+ *                forgotten and the button disappears
+ *   offline    → the token is kept for next time, and a toast says why
  */
 import { useFocusEffect } from '@react-navigation/native';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
-import { isRefreshRejected } from '@/api/client';
-import { authApi } from '@/api/endpoints';
-import { ApiError, messageFor } from '@/api/errors';
 import { useToast } from '@/components';
 import { biometricStore } from '@/session/biometricStore';
-import { useSession } from '@/session/SessionContext';
+import {
+  ParkedSessionRejected,
+  ParkedSessionUnavailable,
+  useSession,
+} from '@/session/SessionContext';
 
 export type BiometricKind = 'Face ID' | 'Touch ID' | 'biometrics';
 
@@ -31,6 +40,18 @@ export const BIOMETRIC_PROMPT = 'Log in to SubTrak';
 
 /** Shown when the refresh after a successful biometric prompt can't reach the server. */
 export const BIOMETRIC_OFFLINE = "Couldn't reach SubTrak. Check your connection.";
+
+/**
+ * Set when the user cancels or declines the prompt; cleared when the app comes
+ * back to the foreground. Module-level, so it outlives Log In unmounting and
+ * remounting within one app session, and a fresh launch starts clear.
+ */
+let autoPromptDeclined = false;
+
+/** Test helper: as if the app had just launched. */
+export function resetBiometricAutoPrompt(): void {
+  autoPromptDeclined = false;
+}
 
 /** The kind the device offers, or null when there is none or none enrolled. */
 export async function availableBiometric(): Promise<BiometricKind | null> {
@@ -57,19 +78,32 @@ export interface BiometricUnlock {
 }
 
 export function useBiometricUnlock(): BiometricUnlock {
-  const { signIn } = useSession();
+  const { restoreParked } = useSession();
   const toast = useToast();
   const [kind, setKind] = useState<BiometricKind | null>(null);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
+
+  // Coming back from the background counts as reopening the app.
+  useEffect(() => {
+    // currentState can be null before the first change event.
+    let previous: AppStateStatus | null = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if ((previous === 'background' || previous === 'inactive') && next === 'active') {
+        autoPromptDeclined = false;
+      }
+      previous = next;
+    });
+    // Optional: test environments can hand back no subscription.
+    return () => subscription?.remove?.();
+  }, []);
 
   const unlock = useCallback(async () => {
     if (running.current) return;
     running.current = true;
     setBusy(true);
     try {
-      const refresh = await biometricStore.parkedRefreshToken();
-      if (!refresh) {
+      if (!(await biometricStore.parkedRefreshToken())) {
         setKind(null);
         return;
       }
@@ -77,26 +111,26 @@ export function useBiometricUnlock(): BiometricUnlock {
         promptMessage: BIOMETRIC_PROMPT,
         cancelLabel: 'Use password',
       });
-      if (!result.success) return;
+      if (!result.success) {
+        autoPromptDeclined = true;
+        return;
+      }
       try {
-        await signIn(await authApi.refresh({ refresh }));
+        await restoreParked();
       } catch (error) {
-        if (error instanceof ApiError && isRefreshRejected(error.status)) {
-          // The token is dead (expired or revoked): stop offering biometric.
-          await biometricStore.forget();
+        if (error instanceof ParkedSessionRejected) {
           setKind(null);
-        } else if (error instanceof ApiError && error.isOffline) {
-          // Keep the token for next time, but say why nothing happened.
+        } else if (error instanceof ParkedSessionUnavailable) {
           toast.show(BIOMETRIC_OFFLINE);
         } else {
-          toast.show(messageFor(error));
+          throw error;
         }
       }
     } finally {
       running.current = false;
       setBusy(false);
     }
-  }, [signIn, toast]);
+  }, [restoreParked, toast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -108,7 +142,7 @@ export function useBiometricUnlock(): BiometricUnlock {
         const available = offered ? await availableBiometric() : null;
         if (cancelled) return;
         setKind(available);
-        if (available) await unlock();
+        if (available && !autoPromptDeclined) await unlock();
       })();
       return () => {
         cancelled = true;

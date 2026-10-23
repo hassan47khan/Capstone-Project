@@ -2,12 +2,12 @@
  * Biometric unlock on Log In (05 §5, §12 "Biometric unlock works after first
  * successful login"), with expo-local-authentication mocked.
  */
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { http, HttpResponse } from 'msw';
-import { Text } from 'react-native';
+import { AppState, Text, type AppStateStatus } from 'react-native';
 
 import type { AuthStackParamList } from '@/navigation/types';
 import { biometricStore } from '@/session/biometricStore';
@@ -18,7 +18,11 @@ import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 
 import { LoginScreen } from './LoginScreen';
-import { BIOMETRIC_OFFLINE, BIOMETRIC_PROMPT } from './useBiometricUnlock';
+import {
+  BIOMETRIC_OFFLINE,
+  BIOMETRIC_PROMPT,
+  resetBiometricAutoPrompt,
+} from './useBiometricUnlock';
 
 jest.mock('expo-local-authentication', () => ({
   AuthenticationType: { FINGERPRINT: 1, FACIAL_RECOGNITION: 2, IRIS: 3 },
@@ -95,6 +99,62 @@ beforeEach(async () => {
   await tokenStore.clear();
   await biometricStore.forget();
   auth.authenticateAsync.mockResolvedValue({ success: false, error: 'user_cancel' });
+  resetBiometricAutoPrompt();
+});
+
+/** Stands in for Register, with a way back to Log In. */
+function RegisterStub() {
+  const navigation = useNavigation();
+  return (
+    <Text testID="go-back" onPress={() => navigation.goBack()}>
+      back
+    </Text>
+  );
+}
+
+it('after a cancel, coming back to Log In does not prompt again until the app reopens', async () => {
+  let onAppState: ((next: AppStateStatus) => void) | undefined;
+  const listen = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockImplementation((_type, handler) => {
+      onAppState = handler as (next: AppStateStatus) => void;
+      return { remove: jest.fn() } as unknown as ReturnType<
+        typeof AppState.addEventListener
+      >;
+    });
+  device();
+  await afterASignOut();
+  await renderWithProviders(
+    <SessionProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterStub} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SessionProvider>,
+    { queryClient: createTestQueryClient() },
+  );
+  // The first focus prompts; the user cancels.
+  await waitFor(() => expect(auth.authenticateAsync).toHaveBeenCalledTimes(1));
+  expect(await screen.findByTestId('login-biometric')).toBeEnabled();
+
+  // Away and back: no second automatic prompt, but the button is still there.
+  await fireEvent.press(screen.getByTestId('login-register'));
+  await fireEvent.press(await screen.findByTestId('go-back'));
+  expect(await screen.findByTestId('login-biometric')).toBeOnTheScreen();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(auth.authenticateAsync).toHaveBeenCalledTimes(1);
+
+  // Backgrounded and reopened: the next focus prompts again.
+  await act(async () => {
+    onAppState?.('background');
+    onAppState?.('active');
+  });
+  await fireEvent.press(screen.getByTestId('login-register'));
+  await fireEvent.press(await screen.findByTestId('go-back'));
+  await waitFor(() => expect(auth.authenticateAsync).toHaveBeenCalledTimes(2));
+  listen.mockRestore();
 });
 
 it('does not prompt when no biometric is enrolled', async () => {
@@ -242,6 +302,54 @@ it('a login lockout countdown also disables biometric unlock', async () => {
 });
 
 describe('session layer', () => {
+  it('restoreParked goes through the single-flight refresh: two at once, one request', async () => {
+    let refreshes = 0;
+    server.use(
+      http.post('*/auth/refresh', async () => {
+        refreshes += 1;
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        return HttpResponse.json({
+          access: `mock-access-${MOCK_EMAILS.full}`,
+          refresh: `mock-refresh-${MOCK_EMAILS.full}`,
+        });
+      }),
+    );
+    await afterASignOut();
+
+    function RestoreTwice() {
+      const { restoreParked, status } = useSession();
+      return (
+        <Text
+          testID="restore-twice"
+          onPress={() => {
+            void restoreParked();
+            void restoreParked();
+          }}
+        >
+          {status}
+        </Text>
+      );
+    }
+    await renderWithProviders(
+      <SessionProvider>
+        <RestoreTwice />
+      </SessionProvider>,
+      { queryClient: createTestQueryClient() },
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('restore-twice')).toHaveTextContent('unauthenticated'),
+    );
+
+    await fireEvent.press(screen.getByTestId('restore-twice'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('restore-twice')).toHaveTextContent('authenticated'),
+    );
+    expect(refreshes).toBe(1);
+    expect(await tokenStore.getRefreshToken()).toBe(`mock-refresh-${MOCK_EMAILS.full}`);
+    expect(await biometricStore.parkedRefreshToken()).toBeNull();
+  });
+
   it('signing in marks the device; signing out parks the refresh token', async () => {
     device({ enrolled: false });
     await renderLogin();
