@@ -16,11 +16,8 @@ import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 
 import { CONFIRMED_COPY, EmailConfirmedScreen } from './EmailConfirmedScreen';
-import {
-  DEFAULT_RESEND_COOLDOWN_SECONDS,
-  VERIFY_COPY,
-  VerifyEmailSentScreen,
-} from './VerifyEmailSentScreen';
+import { DEFAULT_RESEND_COOLDOWN_SECONDS } from './useResendWithCooldown';
+import { VERIFY_COPY, VerifyEmailSentScreen } from './VerifyEmailSentScreen';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
