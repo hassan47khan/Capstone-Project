@@ -63,6 +63,13 @@ export interface AlertCardProps {
   /** What tapping leads to, e.g. "Opens the subscription". */
   accessibilityHint?: string;
 
+  /**
+   * Overrides the spoken text. For a card whose visible text uses symbols a
+   * screen reader reads badly ("$13.99 → $15.49 · +$18.00/yr"). Defaults to
+   * the title and message.
+   */
+  accessibilityLabel?: string;
+
   testID?: string;
 }
 
@@ -72,6 +79,7 @@ export function AlertCard({
   tone = 'warning',
   onPress,
   accessibilityHint,
+  accessibilityLabel,
   testID,
 }: AlertCardProps) {
   const styles = useStyles();
@@ -106,7 +114,7 @@ export function AlertCard({
     </View>
   );
 
-  const label = title ? `${title}. ${message}` : message;
+  const label = accessibilityLabel ?? (title ? `${title}. ${message}` : message);
 
   if (!onPress) {
     return (

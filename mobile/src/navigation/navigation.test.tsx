@@ -147,7 +147,8 @@ describe('auth gate (03 §5)', () => {
     await renderApp();
 
     await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeSelected());
-    expect(title()).toBe('Home');
+    // Home has a greeting rather than a header title (06 §2.1).
+    expect(await screen.findByTestId('home-screen')).toBeOnTheScreen();
     expect(mockLoginRenders).not.toHaveBeenCalled();
   });
 
@@ -256,9 +257,11 @@ describe('modals (03 §3)', () => {
     expect(screen.getByTestId('tab-Home')).toBeSelected();
   });
 
+  // Checked on Settings: Home has a greeting, not a header (06 §2.1).
   it('headers are left-aligned', async () => {
     await renderApp();
     await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('tab-Settings'));
 
     expect(flattenStyle(screen.getByTestId('header-title').props.style).textAlign).toBe(
       'left',
@@ -268,6 +271,7 @@ describe('modals (03 §3)', () => {
   it('header titles are 20pt (03 §4)', async () => {
     await renderApp();
     await waitFor(() => expect(screen.getByTestId('tab-Home')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('tab-Settings'));
 
     expect(flattenStyle(screen.getByTestId('header-title').props.style).fontSize).toBe(
       20,

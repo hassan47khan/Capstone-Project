@@ -7,6 +7,7 @@
  * twenty unrelated function names in one namespace.
  */
 
+export * as analyticsApi from './analytics';
 export * as authApi from './auth';
 export * as dashboardApi from './dashboard';
 export * as meApi from './me';
