@@ -179,6 +179,7 @@ def summary(user, ctx: presenters.Context, period: str) -> dict:
             engine.monthly_total(trial_items, ctx.currency, ctx.rates), ctx.currency
         ),
         "unconverted_count": len(lines) - len(convertible),
+        "converted": any(s.billing_currency != ctx.currency for s in convertible),
         "rates_as_of": _rates_as_of(),
         "categories": [
             {
@@ -278,6 +279,7 @@ def upcoming(user, ctx: presenters.Context, start: date, end: date) -> dict:
                     "days_until": (due - ctx.today).days,
                     "amount": ctx.display(price, sub.billing_currency),
                     "billing_amount": money(price, sub.billing_currency),
+                    **presenters.cycle_fields(_cycle_on(sub, history, due)),
                     "is_trial": sub.is_trial and due == sub.trial_ends_on,
                 }
             )
@@ -325,6 +327,7 @@ def price_changes(
                 "annual_change": ctx.display(engine.annual(monthly), sub.billing_currency),
                 "direction": "up" if new > old else "down",
                 "days_left": None,
+                **presenters.cycle_fields(cycle),
             }
         )
     if include_upcoming:
@@ -352,6 +355,7 @@ def price_changes(
                     "annual_change": None,
                     "direction": None,
                     "days_left": (sub.trial_ends_on - today).days,
+                    **presenters.cycle_fields(sub.cycle),
                 }
             )
     items.sort(key=lambda item: item["name"])

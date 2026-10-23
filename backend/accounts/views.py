@@ -13,12 +13,14 @@ from rest_framework.views import APIView
 from core.contract import ApiError, errors
 
 from . import auth, tokens
+from .models import settings_for
 from .serializers import (
     CooldownSerializer,
     EmailSerializer,
     EmailTokenSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
+    ProfileUpdateSerializer,
     RefreshSerializer,
     RegisterResponseSerializer,
     RegisterSerializer,
@@ -37,6 +39,31 @@ class MeView(RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class ProfileView(MeView):
+    """GET and PATCH /me."""
+
+    @extend_schema(
+        operation_id="me_update",
+        tags=["me"],
+        request=ProfileUpdateSerializer,
+        responses={200: UserProfileSerializer, **errors(400, 401)},
+    )
+    def patch(self, request):
+        """Change the name, or record that first-run onboarding is done."""
+        serializer = ProfileUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        user = request.user
+        if "name" in data:
+            user.name = data["name"]
+            user.save(update_fields=["name"])
+        if "has_completed_first_run" in data:
+            prefs = settings_for(user)
+            prefs.has_completed_first_run = data["has_completed_first_run"]
+            prefs.save(update_fields=["has_completed_first_run"])
+        return Response(UserProfileSerializer(user).data)
 
 
 class AuthMeView(MeView):

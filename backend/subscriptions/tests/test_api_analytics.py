@@ -73,6 +73,20 @@ def test_summary_leaves_out_a_currency_without_a_rate(api, alex):
     assert body["unconverted_count"] == 1
     assert body["active_count"] == 7
     assert body["monthly_total"] == usd("118.21")
+    assert body["converted"] is False
+    rows = {r["name"]: r for r in api.get("/api/v1/subscriptions").json()["results"]}
+    assert rows["Spotify"]["normalized_monthly"] is None
+    assert rows["Netflix"]["normalized_monthly"] == usd("15.49")
+
+
+def test_summary_says_when_it_converted(api, alex, contract):
+    assert (
+        contract(api.get("/api/v1/analytics/summary"), "/analytics/summary")["converted"] is False
+    )
+
+    Subscription.objects.filter(owner=alex, name="Spotify").update(billing_currency="EUR")
+
+    assert api.get("/api/v1/analytics/summary").json()["converted"] is True
 
 
 def test_summary_rejects_an_unknown_period(api, contract):
@@ -347,3 +361,24 @@ def test_today_comes_from_the_clock(api, settings):
     body = api.get("/api/v1/analytics/upcoming?days=0").json()
 
     assert body["start"] == body["end"] == "2026-10-02"
+
+
+def test_items_carry_the_cycle_in_effect(api, alex, contract):
+    upcoming = contract(api.get("/api/v1/analytics/upcoming"), "/analytics/upcoming")
+    urgent = contract(
+        api.get("/api/v1/analytics/price-changes?since=-30d&include_upcoming=true"),
+        "/analytics/price-changes",
+    )
+
+    bills = {item["name"]: item for item in upcoming["items"]}
+    assert bills["Headspace"]["billing_cycle"] == "custom"
+    assert (bills["Headspace"]["custom_cycle_count"], bills["Headspace"]["custom_cycle_unit"]) == (
+        2,
+        "months",
+    )
+    assert bills["Netflix"]["billing_cycle"] == "monthly"
+    assert bills["Netflix"]["custom_cycle_count"] is None
+    assert {item["name"]: item["billing_cycle"] for item in urgent["items"]} == {
+        "Hulu": "monthly",
+        "Netflix": "monthly",
+    }

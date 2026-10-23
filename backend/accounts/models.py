@@ -67,6 +67,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     def email_verified(self):
         return self.email_verified_at is not None
 
+    @property
+    def has_completed_first_run(self):
+        return settings_for(self).has_completed_first_run
+
 
 class UserSettings(models.Model):
     """One per user (handoff 04 §1). Created on first read by settings_for()."""

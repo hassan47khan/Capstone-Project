@@ -65,6 +65,7 @@ def test_me_returns_profile_for_valid_token(user):
         "email": "sam@example.com",
         "name": "Sam",
         "email_verified": False,
+        "has_completed_first_run": False,
     }
 
 
@@ -91,3 +92,32 @@ def test_me_without_trailing_slash_is_served_not_redirected(user):
 def test_user_email_is_unique_regardless_of_case(user):
     with pytest.raises(IntegrityError):
         User.objects.create_user(email="SAM@example.com", password="x")
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("path", ["/api/v1/me", "/api/v1/me/"])
+def test_patch_me_records_first_run_and_the_name(user, contract, path):
+    client = client_with(versioned(user))
+
+    response = client.patch(path, {"has_completed_first_run": True}, format="json")
+    renamed = client.patch(path, {"name": "Sam Lee"}, format="json")
+
+    assert contract(response, "/me/")["has_completed_first_run"] is True
+    assert renamed.json()["name"] == "Sam Lee"
+    assert renamed.json()["has_completed_first_run"] is True
+    assert client.get("/api/v1/auth/me").json()["has_completed_first_run"] is True
+
+
+@pytest.mark.django_db
+def test_patch_me_validates(user, contract):
+    response = client_with(versioned(user)).patch("/api/v1/me/", {"name": "x" * 151}, format="json")
+
+    assert response.status_code == 400
+    assert "name" in contract(response, "/me/")["error"]["fields"]
+
+
+@pytest.mark.django_db
+def test_auth_me_has_no_patch(user):
+    response = client_with(versioned(user)).patch("/api/v1/auth/me", {"name": "x"}, format="json")
+
+    assert response.status_code == 405
