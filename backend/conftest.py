@@ -6,7 +6,7 @@ from django.core.cache import cache
 from jsonschema import Draft202012Validator
 from rest_framework.test import APIClient
 
-import mocks
+from subscriptions import seed
 from subscriptions.seed import SEED_TODAY, ensure_system_categories
 
 SCHEMA_FILE = Path(__file__).resolve().parent / "schema.yml"
@@ -38,8 +38,8 @@ def categories(db):
 
 @pytest.fixture
 def alex(db):
-    """The mock API's signed-in user, with the canonical dataset loaded."""
-    return mocks.demo_user()
+    """Alex Kim, with the whole canonical dataset loaded (04 §4)."""
+    return seed.load_demo(today=SEED_TODAY)[seed.ALEX.email]
 
 
 @pytest.fixture

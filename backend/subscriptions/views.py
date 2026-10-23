@@ -1,17 +1,22 @@
-"""Subscription and analytics endpoints (handoff 04 §5). Requests are validated
-for real; the answers come from `mocks` until slice 3 swaps in the real logic."""
+"""Subscription and analytics endpoints (handoff 04 §5), always scoped to the
+signed-in user. Writes go through `operations`, figures through the money
+engine, and payloads through `presenters`; the analytics reads are in
+`analytics`."""
 
 import re
 from datetime import timedelta
 
+from bson import ObjectId
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-import mocks
-from core.contract import errors
+from core.clock import today_for
+from core.contract import ApiError, errors, not_found
 
+from . import analytics, operations, presenters
+from .models import Category, Subscription
 from .serializers import (
     STATUSES,
     HistoryEventSerializer,
@@ -41,6 +46,27 @@ def body(serializer_class, request, *, partial=False) -> dict:
     return serializer.validated_data
 
 
+def context(request) -> presenters.Context:
+    return presenters.Context.for_user(request.user, today=today_for(request.user))
+
+
+def owned(request, subscription_id: str, *, include_deleted=False) -> Subscription:
+    """The caller's subscription, or 404, never 403, so ids cannot be probed."""
+    if not ObjectId.is_valid(subscription_id):
+        raise not_found()
+    manager = Subscription.all_objects if include_deleted else Subscription.objects
+    sub = manager.filter(owner=request.user, pk=ObjectId(subscription_id)).first()
+    if sub is None:
+        raise not_found()
+    return sub
+
+
+def detail(sub: Subscription, request, ctx=None) -> dict:
+    return SubscriptionDetailSerializer(
+        presenters.subscription_detail(sub, ctx or context(request))
+    ).data
+
+
 # Subscriptions ----------------------------------------------------------------
 
 
@@ -62,7 +88,19 @@ class SubscriptionsView(APIView):
         """The caller's subscriptions, soonest bill first; cancelled ones last.
         Deleted subscriptions never appear."""
         params = query(SubscriptionListQuery, request)
-        return Response(SubscriptionListSerializer(mocks.list_subscriptions(**params)).data)
+        subs = Subscription.objects.filter(owner=request.user).select_related("category")
+        if params.get("category"):
+            found = Category.objects.filter(slug=params["category"]).first()
+            subs = subs.filter(category=found) if found else subs.none()
+        if params.get("status"):
+            subs = subs.filter(status=params["status"])
+        # Soonest bill first; cancelled ones (no next bill) after, by name.
+        ordered = sorted(subs, key=lambda s: (s.next_bill_date is None, s.next_bill_date, s.name))
+        ctx = context(request)
+        rows = [presenters.subscription(sub, ctx) for sub in ordered]
+        return Response(
+            SubscriptionListSerializer({"count": len(rows), "next": None, "results": rows}).data
+        )
 
     @extend_schema(
         operation_id="subscriptions_create",
@@ -76,8 +114,10 @@ class SubscriptionsView(APIView):
         400 `price_invalid`: "Enter a valid price greater than $0."
         """
         fields = body(SubscriptionInputSerializer, request)
-        detail = mocks.create_subscription(fields)
-        return Response(SubscriptionDetailSerializer(detail).data, status=status.HTTP_201_CREATED)
+        sub = operations.create_subscription(
+            today=today_for(request.user), owner=request.user, **fields
+        )
+        return Response(detail(sub, request), status=status.HTTP_201_CREATED)
 
 
 class SubscriptionDetailView(APIView):
@@ -88,7 +128,7 @@ class SubscriptionDetailView(APIView):
     )
     def get(self, request, subscription_id):
         """One subscription with its monthly equivalent, total spent and history."""
-        return Response(SubscriptionDetailSerializer(mocks.get_subscription(subscription_id)).data)
+        return Response(detail(owned(request, subscription_id), request))
 
     @extend_schema(
         operation_id="subscriptions_update",
@@ -98,9 +138,10 @@ class SubscriptionDetailView(APIView):
     )
     def patch(self, request, subscription_id):
         """Change any fields. A price, category or cycle change writes one history event each."""
+        sub = owned(request, subscription_id)
         changes = body(SubscriptionInputSerializer, request, partial=True)
-        detail = mocks.update_subscription(subscription_id, changes)
-        return Response(SubscriptionDetailSerializer(detail).data)
+        operations.update_subscription(sub, today=today_for(request.user), **changes)
+        return Response(detail(sub, request))
 
     @extend_schema(
         operation_id="subscriptions_delete",
@@ -110,7 +151,7 @@ class SubscriptionDetailView(APIView):
     def delete(self, request, subscription_id):
         """Soft delete: it leaves every list and total, its history is kept, and
         POST .../restore undoes it."""
-        mocks.delete_subscription(subscription_id)
+        operations.soft_delete(owned(request, subscription_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -126,9 +167,11 @@ class CancelView(APIView):
 
         409 `already_cancelled`.
         """
-        return Response(
-            SubscriptionDetailSerializer(mocks.cancel_subscription(subscription_id)).data
-        )
+        sub = owned(request, subscription_id)
+        if sub.status == Subscription.Status.CANCELLED:
+            raise ApiError(409, "already_cancelled", "This subscription is already cancelled.")
+        operations.cancel_subscription(sub, today=today_for(request.user))
+        return Response(detail(sub, request))
 
 
 class RestoreView(APIView):
@@ -140,9 +183,9 @@ class RestoreView(APIView):
     )
     def post(self, request, subscription_id):
         """Undo a delete: puts back the status it had before. Powers the Undo toast."""
-        return Response(
-            SubscriptionDetailSerializer(mocks.restore_subscription(subscription_id)).data
-        )
+        sub = owned(request, subscription_id, include_deleted=True)
+        operations.restore(sub, today=today_for(request.user))
+        return Response(detail(sub, request))
 
 
 class HistoryView(APIView):
@@ -153,7 +196,7 @@ class HistoryView(APIView):
     )
     def get(self, request, subscription_id):
         """Every recorded change, newest first."""
-        events = mocks.subscription_history(subscription_id)
+        events = presenters.history(owned(request, subscription_id))
         return Response(HistoryEventSerializer(events, many=True).data)
 
 
@@ -175,7 +218,8 @@ class SummaryView(APIView):
         """Monthly and annual totals and the category breakdown. The one source for
         Home's donut and Analytics' bars (08 §3)."""
         params = query(SummaryQuery, request)
-        return Response(SummarySerializer(mocks.summary(params["period"])).data)
+        result = analytics.summary(request.user, context(request), params["period"])
+        return Response(SummarySerializer(result).data)
 
 
 class SpendOverTimeQuery(serializers.Serializer):
@@ -193,7 +237,8 @@ class SpendOverTimeView(APIView):
         """Monthly recurring spend per month, ending with this month, and the change
         from last month. Home calls it with months=2."""
         params = query(SpendOverTimeQuery, request)
-        return Response(SpendOverTimeSerializer(mocks.spend_over_time(params["months"])).data)
+        result = analytics.spend_over_time(request.user, context(request), params["months"])
+        return Response(SpendOverTimeSerializer(result).data)
 
 
 class UpcomingQuery(serializers.Serializer):
@@ -225,9 +270,10 @@ class UpcomingView(APIView):
         """Every bill in a window, soonest first, at the price in effect on its date.
         Past dates show what was charged; future dates what will be (Calendar, 11 §1)."""
         params = query(UpcomingQuery, request)
-        start = params.get("start") or mocks.TODAY
-        end = params.get("end") or mocks.TODAY + timedelta(days=params["days"])
-        return Response(UpcomingSerializer(mocks.upcoming(start, end)).data)
+        ctx = context(request)
+        start = params.get("start") or ctx.today
+        end = params.get("end") or ctx.today + timedelta(days=params["days"])
+        return Response(UpcomingSerializer(analytics.upcoming(request.user, ctx, start, end)).data)
 
 
 class PriceChangesQuery(serializers.Serializer):
@@ -262,13 +308,17 @@ class PriceChangesView(APIView):
         """Price changes, newest first. The Detail chart uses months=12&subscription={id};
         Home's Urgent attention uses since=-30d&include_upcoming=true."""
         params = query(PriceChangesQuery, request)
+        ctx = context(request)
         if "since" in params:
-            start = mocks.TODAY - timedelta(days=int(re.match(r"-(\d+)d", params["since"])[1]))
+            start = ctx.today - timedelta(days=int(re.match(r"-(\d+)d", params["since"])[1]))
         else:
-            start = add_months(mocks.TODAY, -params.get("months", 12))
-        result = mocks.price_changes(
+            start = add_months(ctx.today, -params.get("months", 12))
+        subscription = params.get("subscription")
+        result = analytics.price_changes(
+            request.user,
+            ctx,
             start,
             include_upcoming=params["include_upcoming"],
-            subscription_id=params.get("subscription"),
+            subscription=owned(request, subscription) if subscription else None,
         )
         return Response(PriceChangesSerializer(result).data)

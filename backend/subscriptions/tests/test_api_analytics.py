@@ -1,11 +1,13 @@
 """Contract tests for /analytics (handoff 04 §5, 06 §3, 08 §3): shapes from
 schema.yml, figures from the canonical dataset at SEED_TODAY."""
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
+from rest_framework.test import APIClient
 
-from accounts.models import settings_for
+from accounts.models import User, settings_for
 from subscriptions import operations
 from subscriptions.models import PriceHistoryEvent, Subscription
 
@@ -298,3 +300,50 @@ def test_price_changes_validation(api, contract, params, status):
 
     assert response.status_code == status
     contract(response, "/analytics/price-changes")
+
+
+# Every figure is the signed-in user's own (04 §4.5) ---------------------------
+
+
+@pytest.mark.parametrize(
+    ("email", "total", "active"),
+    [("jordan.doe@example.com", "45.98", 4), ("sam@example.com", "22.98", 2)],
+)
+def test_each_family_member_sees_their_own_total(alex, contract, email, total, active):
+    client = APIClient()
+    client.force_authenticate(User.objects.get(email=email))
+
+    body = contract(client.get("/api/v1/analytics/summary"), "/analytics/summary")
+
+    assert body["monthly_total"] == usd(total)
+    assert body["active_count"] == active
+    assert body["trial_count"] == 0
+
+
+def test_a_new_user_starts_from_nothing(db, contract):
+    client = APIClient()
+    client.force_authenticate(User.objects.create_user(email="fresh@example.com", password="x"))
+
+    summary = contract(client.get("/api/v1/analytics/summary"), "/analytics/summary")
+    urgent = client.get("/api/v1/analytics/price-changes?since=-30d&include_upcoming=true")
+
+    assert summary["monthly_total"] == usd("0.00")
+    assert summary["categories"] == []
+    assert urgent.json()["items"] == []
+    assert client.get("/api/v1/analytics/upcoming").json()["items"] == []
+
+
+def test_a_deleted_subscriptions_price_change_is_not_an_alert(api, alex):
+    operations.soft_delete(Subscription.objects.get(owner=alex, name="Netflix"))
+
+    body = api.get("/api/v1/analytics/price-changes?since=-30d&include_upcoming=true").json()
+
+    assert [item["name"] for item in body["items"]] == ["Hulu"]
+
+
+def test_today_comes_from_the_clock(api, settings):
+    settings.SUBTRAK_TODAY = date(2026, 10, 2)
+
+    body = api.get("/api/v1/analytics/upcoming?days=0").json()
+
+    assert body["start"] == body["end"] == "2026-10-02"

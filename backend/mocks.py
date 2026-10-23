@@ -1,9 +1,10 @@
-"""Mock behaviour behind the frozen API contract (handoff 04 slice 2, 12 §2 step 2).
+"""Mock answers for the AI-epic endpoints (handoff 04 §6a, 11 §2): extractions,
+trials, shared plans and Gmail. These belong to the 11 owner; auth,
+subscriptions and analytics have been real since 04 slice 3.
 
-Every view in this slice validates its request for real, calls one function in
-this module, and serializes what it returns with the contract's serializers.
-Slice 3 replaces these functions, one at a time, with real logic behind the same
-shapes; nothing outside this module knows the data is mocked.
+Each view validates its request for real, calls one function in this module,
+and serializes what it returns with the contract's serializers, so replacing a
+function here changes nothing outside it.
 
 How the mock answers
   - The signed-in user is always Alex Kim from the canonical dataset (04 §4),
@@ -15,7 +16,6 @@ How the mock answers
   - Writes run the real operation, read the result, then put the data back as
     it was (`_discarded`), so a mock create or edit returns exactly what the
     real one will, and the dataset never drifts between calls.
-  - Auth is real since slice 3 (accounts.auth, accounts.tokens).
   - Extractions, shared plans and Gmail have no models yet (they are the 11
     owner's, §6a). Their payloads are fixed here, dated from SEED_TODAY, with
     money computed by the engine.
@@ -23,7 +23,7 @@ How the mock answers
 
 from contextlib import contextmanager
 from datetime import date, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from bson import ObjectId
 from django.utils import timezone
@@ -31,10 +31,9 @@ from django.utils import timezone
 from accounts.models import User, rules_for
 from core.contract import ApiError, money, not_found, rounded
 from subscriptions import operations, presenters, seed
-from subscriptions.models import Category, FxRate, PriceHistoryEvent, Subscription
+from subscriptions.models import PriceHistoryEvent, Subscription
 from subscriptions.services import money as engine
 from subscriptions.services import trials as trial_math
-from subscriptions.services.cycles import Cycle, add_months, schedule
 
 TODAY = seed.SEED_TODAY
 REMINDER_INTERVAL = timedelta(hours=24)
@@ -97,30 +96,6 @@ def _discarded(sub: Subscription | None = None):
             Subscription.all_objects.filter(pk=sub.pk).update(**saved)
 
 
-def _histories(subs) -> dict:
-    by_sub = {sub.pk: [] for sub in subs}
-    events = PriceHistoryEvent.objects.filter(subscription_id__in=list(by_sub))
-    for event in events.order_by("occurred_at"):
-        by_sub[event.subscription_id].append(event)
-    return by_sub
-
-
-def _price_on(sub, history, day: date) -> Decimal:
-    price, changes = operations.price_timeline(sub, history)
-    for change in changes:
-        if change.on <= day:
-            price = change.price
-    return price
-
-
-def _cycle_on(sub, history, day: date) -> Cycle:
-    cycle, changes = operations.cycle_timeline(sub, history)
-    for change in changes:
-        if change.on <= day:
-            cycle = change.cycle
-    return cycle
-
-
 def _pending_trial(sub: Subscription) -> bool:
     """A trial that has not converted yet: never in a total (04 §6a)."""
     return (
@@ -131,292 +106,13 @@ def _pending_trial(sub: Subscription) -> bool:
     )
 
 
-def _rates_as_of() -> date | None:
-    latest = FxRate.objects.order_by("-as_of").first()
-    return latest.as_of.date() if latest else None
-
-
-# Subscriptions (04 §5) --------------------------------------------------------
-
-
-def list_subscriptions(*, category: str | None = None, status: str | None = None) -> dict:
-    user = demo_user()
-    ctx = _context(user)
-    subs = Subscription.objects.filter(owner=user)
-    if category:
-        found = Category.objects.filter(slug=category).first()
-        subs = subs.filter(category=found) if found else subs.none()
-    if status:
-        subs = subs.filter(status=status)
-    # Soonest bill first; cancelled ones (no next bill) after, by name.
-    ordered = sorted(subs, key=lambda s: (s.next_bill_date is None, s.next_bill_date, s.name))
-    rows = [presenters.subscription(sub, ctx) for sub in ordered]
-    return {"count": len(rows), "next": None, "results": rows}
-
-
-def get_subscription(subscription_id: str) -> dict:
-    user = demo_user()
-    return presenters.subscription_detail(_owned(user, subscription_id), _context(user))
-
-
-def create_subscription(fields: dict) -> dict:
+def _preview_create(fields: dict) -> dict:
+    """What creating this subscription returns, without keeping it."""
     user = demo_user()
     with _discarded() as created:
         sub = operations.create_subscription(today=TODAY, owner=user, **fields)
         created.append(sub)
         return presenters.subscription_detail(sub, _context(user))
-
-
-def update_subscription(subscription_id: str, changes: dict) -> dict:
-    user = demo_user()
-    sub = _owned(user, subscription_id)
-    with _discarded(sub):
-        operations.update_subscription(sub, today=TODAY, **changes)
-        return presenters.subscription_detail(sub, _context(user))
-
-
-def cancel_subscription(subscription_id: str) -> dict:
-    user = demo_user()
-    sub = _owned(user, subscription_id)
-    if sub.status == Status.CANCELLED:
-        raise ApiError(409, "already_cancelled", "This subscription is already cancelled.")
-    with _discarded(sub):
-        operations.cancel_subscription(sub, today=TODAY)
-        return presenters.subscription_detail(sub, _context(user))
-
-
-def delete_subscription(subscription_id: str) -> None:
-    sub = _owned(demo_user(), subscription_id)
-    with _discarded(sub):
-        operations.soft_delete(sub)
-
-
-def restore_subscription(subscription_id: str) -> dict:
-    user = demo_user()
-    sub = _owned(user, subscription_id, include_deleted=True)
-    with _discarded(sub):
-        operations.restore(sub, today=TODAY)
-        return presenters.subscription_detail(sub, _context(user))
-
-
-def subscription_history(subscription_id: str) -> list[dict]:
-    return presenters.history(_owned(demo_user(), subscription_id))
-
-
-# Analytics (04 §5). Python loops for now; slice 3 moves these to pipelines. ----
-
-
-def summary(period: str) -> dict:
-    user = demo_user()
-    ctx = _context(user)
-    subs = list(Subscription.objects.filter(owner=user))
-    counted = [s for s in subs if presenters.counts(s, TODAY)]
-    convertible = [s for s in counted if ctx.can_convert(s.billing_currency)]
-
-    items = operations.line_items(convertible, today=TODAY)
-    total = engine.monthly_total(items, ctx.currency, ctx.rates)
-    rollup = engine.category_rollup(items, ctx.currency, ctx.rates)
-    amounts = engine.round_to_total([row.monthly for row in rollup], ctx.currency)
-    percents = engine.round_to_whole_total([row.percent for row in rollup])
-    categories = {c.slug: c for c in Category.objects.all()}
-
-    trials = [s for s in subs if _pending_trial(s) and ctx.can_convert(s.billing_currency)]
-    trial_items = [
-        engine.LineItem(
-            engine.normalize_to_monthly(s.billing_price, s.cycle), s.billing_currency, None
-        )
-        for s in trials
-    ]
-    return {
-        "period": period,
-        "display_currency": ctx.currency,
-        "monthly_total": money(total, ctx.currency),
-        "annual_total": money(engine.annual(total), ctx.currency),
-        "active_count": len(convertible),
-        "trial_count": len([s for s in subs if _pending_trial(s)]),
-        "pending_trials_monthly": money(
-            engine.monthly_total(trial_items, ctx.currency, ctx.rates), ctx.currency
-        ),
-        "unconverted_count": len(counted) - len(convertible),
-        "rates_as_of": _rates_as_of(),
-        "categories": [
-            {
-                "category": presenters.category_ref(categories.get(row.category)),
-                "amount": rounded(amount, ctx.currency),
-                "percent": percent,
-                "share": str(engine.round_money(row.percent)),
-            }
-            for row, amount, percent in zip(rollup, amounts, percents, strict=True)
-        ],
-    }
-
-
-def _month_end(first: date) -> date:
-    return add_months(first, 1) - timedelta(days=1)
-
-
-def _run_rate(subs, histories, as_of: date, ctx) -> Decimal:
-    """Monthly recurring spend as it stood on `as_of`: what was active then, at
-    the price and cycle in effect then."""
-    items = []
-    for sub in subs:
-        if not ctx.can_convert(sub.billing_currency) or sub.start_date > as_of:
-            continue
-        if sub.cancelled_on and sub.cancelled_on <= as_of:
-            continue
-        if sub.is_trial and sub.trial_ends_on and sub.trial_ends_on >= as_of:
-            continue
-        history = histories[sub.pk]
-        price = _price_on(sub, history, as_of)
-        cycle = _cycle_on(sub, history, as_of)
-        items.append(
-            engine.LineItem(engine.normalize_to_monthly(price, cycle), sub.billing_currency, None)
-        )
-    return engine.monthly_total(items, ctx.currency, ctx.rates)
-
-
-def spend_over_time(months: int) -> dict:
-    user = demo_user()
-    ctx = _context(user)
-    subs = list(Subscription.objects.filter(owner=user))
-    histories = _histories(subs)
-    this_month = date(TODAY.year, TODAY.month, 1)
-    # Always at least two, so the delta exists even when one month is asked for.
-    firsts = [add_months(this_month, -k) for k in range(max(months, 2) - 1, -1, -1)]
-    series = [
-        (first, _run_rate(subs, histories, min(_month_end(first), TODAY), ctx)) for first in firsts
-    ]
-
-    current, previous = series[-1][1], series[-2][1]
-    if current == previous:
-        direction = "flat"
-    else:
-        direction = "up" if current > previous else "down"
-    delta = None
-    if previous:
-        change = (current - previous) / previous * 100
-        delta = str(change.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
-    last_month_end = _month_end(add_months(this_month, -1))
-    return {
-        "display_currency": ctx.currency,
-        "months": [
-            {"month": f"{first:%Y-%m}", "amount": money(amount, ctx.currency)}
-            for first, amount in series[-months:]
-        ],
-        "current": money(current, ctx.currency),
-        "previous": money(previous, ctx.currency),
-        "delta_percent": delta,
-        "direction": direction,
-        "enough_history": any(
-            s.start_date <= last_month_end for s in subs if not _pending_trial(s)
-        ),
-    }
-
-
-def upcoming(start: date, end: date) -> dict:
-    """Every bill from `start` to `end` inclusive: what was charged before today,
-    and what will be after, each at the price in effect on its date."""
-    user = demo_user()
-    ctx = _context(user)
-    subs = list(Subscription.objects.filter(owner=user))
-    histories = _histories(subs)
-    items = []
-    for sub in subs:
-        history = histories[sub.pk]
-        initial_cycle, cycle_changes = operations.cycle_timeline(sub, history)
-        for due in schedule(sub.start_date, initial_cycle, cycle_changes):
-            if due > end or (sub.cancelled_on and due >= sub.cancelled_on):
-                break
-            if due < start:
-                continue
-            price = _price_on(sub, history, due)
-            items.append(
-                {
-                    "subscription_id": str(sub.pk),
-                    "name": sub.name,
-                    "category": presenters.category_ref(sub.category),
-                    "service_mark": ctx.marks.get(sub.name),
-                    "bill_date": due,
-                    "days_until": (due - TODAY).days,
-                    "amount": ctx.display(price, sub.billing_currency),
-                    "billing_amount": money(price, sub.billing_currency),
-                    "is_trial": sub.is_trial and due == sub.trial_ends_on,
-                }
-            )
-    items.sort(key=lambda item: (item["bill_date"], item["name"]))
-    return {"display_currency": ctx.currency, "start": start, "end": end, "items": items}
-
-
-def price_changes(
-    start: date, *, include_upcoming: bool = False, subscription_id: str | None = None
-) -> dict:
-    """Price changes effective from `start`, newest first. With include_upcoming,
-    future changes too, plus trials about to convert (06 §2.4)."""
-    user = demo_user()
-    ctx = _context(user)
-    if subscription_id:
-        subs = [_owned(user, subscription_id)]
-    else:
-        subs = list(Subscription.objects.filter(owner=user))
-    by_pk = {sub.pk: sub for sub in subs}
-    histories = _histories(subs)
-    items = []
-    for pk, history in histories.items():
-        sub = by_pk[pk]
-        for event in history:
-            on = event.occurred_at.date()
-            if event.event_type != PriceHistoryEvent.EventType.PRICE_CHANGE or on < start:
-                continue
-            if on > TODAY and not include_upcoming:
-                continue
-            old, new = Decimal(event.old_value["price"]), Decimal(event.new_value["price"])
-            cycle = _cycle_on(sub, history, on)
-            monthly = engine.normalize_to_monthly(new, cycle) - engine.normalize_to_monthly(
-                old, cycle
-            )
-            items.append(
-                {
-                    "kind": "price_change",
-                    "subscription_id": str(sub.pk),
-                    "name": sub.name,
-                    "service_mark": ctx.marks.get(sub.name),
-                    "effective_on": on,
-                    "is_upcoming": on > TODAY,
-                    "old_price": money(old, sub.billing_currency),
-                    "new_price": money(new, sub.billing_currency),
-                    "monthly_change": ctx.display(monthly, sub.billing_currency),
-                    "annual_change": ctx.display(engine.annual(monthly), sub.billing_currency),
-                    "direction": "up" if new > old else "down",
-                    "days_left": None,
-                }
-            )
-    if include_upcoming:
-        window = rules_for(user).trial_alert_days_before
-        for sub in subs:
-            if not _pending_trial(sub) or sub.trial_decision == Decision.KEEP:
-                continue
-            days_left = (sub.trial_ends_on - TODAY).days
-            if days_left > window:
-                continue
-            items.append(
-                {
-                    "kind": "trial_ending",
-                    "subscription_id": str(sub.pk),
-                    "name": sub.name,
-                    "service_mark": ctx.marks.get(sub.name),
-                    "effective_on": sub.trial_ends_on,
-                    "is_upcoming": sub.trial_ends_on > TODAY,
-                    "old_price": None,
-                    "new_price": money(sub.billing_price, sub.billing_currency),
-                    "monthly_change": None,
-                    "annual_change": None,
-                    "direction": None,
-                    "days_left": days_left,
-                }
-            )
-    items.sort(key=lambda item: item["name"])
-    items.sort(key=lambda item: item["effective_on"], reverse=True)
-    return {"display_currency": ctx.currency, "items": items}
 
 
 # Trials (04 §6a, 11 §2.5) -----------------------------------------------------
@@ -771,7 +467,7 @@ def pending_extractions() -> dict:
 def confirm_extraction(extraction_id: str, fields: dict) -> dict:
     if extraction_id not in _EXTRACTION_IDS:
         raise not_found()
-    return create_subscription(fields)
+    return _preview_create(fields)
 
 
 def discard_extraction(extraction_id: str) -> None:
