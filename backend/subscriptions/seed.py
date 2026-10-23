@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db import transaction
+from django_mongodb_backend import transaction
 
 from accounts.models import User, rules_for, settings_for
 
@@ -20,6 +20,9 @@ from .models import Category, FxRate, ServiceCatalogEntry, Subscription
 from .services.cycles import Cycle, add_months
 
 SEED_TODAY = date(2026, 10, 1)
+# Every demo user logs in with this. Local and demo databases only: the seed
+# deletes and recreates its users, so never run it against shared data.
+DEMO_PASSWORD = "subtrak-demo"
 
 # slug, display name, key into the mobile theme's category colours. Labels and
 # keys match CATEGORY_LABELS and categorySlugToKey in mobile/src/theme/tokens.ts.
@@ -286,7 +289,7 @@ def load_demo(*, today: date = SEED_TODAY) -> dict[str, User]:
 
     users = {}
     for demo in DEMO_USERS:
-        user = User.objects.create_user(email=demo.email, name=demo.name)
+        user = User.objects.create_user(email=demo.email, name=demo.name, password=DEMO_PASSWORD)
         user.email_verified_at = operations.at_start_of(today)
         user.save(update_fields=["email_verified_at"])
         settings_for(user)

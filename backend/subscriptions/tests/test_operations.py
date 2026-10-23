@@ -162,6 +162,25 @@ def test_invalid_update_writes_no_event(make):
     assert len(history(sub)) == 1
 
 
+def test_a_failed_history_write_rolls_the_change_back(make, monkeypatch):
+    """The operations run in a real MongoDB transaction (replica set), so a
+    subscription is never saved without its history event, or the reverse."""
+    sub = make()
+
+    def broken(**kwargs):
+        raise RuntimeError("history write failed")
+
+    monkeypatch.setattr(PriceHistoryEvent.objects, "create", broken)
+    with pytest.raises(RuntimeError):
+        operations.update_subscription(sub, today=TODAY, billing_price=D("15.49"))
+    assert Subscription.objects.get(pk=sub.pk).billing_price == D("13.99")
+
+    count = Subscription.objects.count()
+    with pytest.raises(RuntimeError):
+        make(name="Spotify")
+    assert Subscription.objects.count() == count
+
+
 def test_cycle_change_mid_life_recomputes_next_bill_date(make):
     # Monthly on the 12th since Jan; switched to quarterly on Apr 20. The last
     # monthly bill was Apr 12, so bills go Jul 12, Oct 12, Jan 12.

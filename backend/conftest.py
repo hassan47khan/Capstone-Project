@@ -2,14 +2,31 @@ from pathlib import Path
 
 import pytest
 import yaml
+from django.core.cache import cache
 from jsonschema import Draft202012Validator
 from rest_framework.test import APIClient
 
-import mocks
-from subscriptions.seed import ensure_system_categories
+from subscriptions import seed
+from subscriptions.seed import SEED_TODAY, ensure_system_categories
 
 SCHEMA_FILE = Path(__file__).resolve().parent / "schema.yml"
 API_PREFIX = "/api/v1"
+
+
+@pytest.fixture(autouse=True)
+def pinned_settings(settings):
+    """Every test runs on SEED_TODAY, the day the canonical figures are for."""
+    settings.SUBTRAK_TODAY = SEED_TODAY
+    # A fast hasher: the tests check the rules around passwords, not PBKDF2.
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
+@pytest.fixture(autouse=True)
+def fresh_cache():
+    """Rate-limit counters and resend cooldowns live in the cache."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture
@@ -21,8 +38,8 @@ def categories(db):
 
 @pytest.fixture
 def alex(db):
-    """The mock API's signed-in user, with the canonical dataset loaded."""
-    return mocks.demo_user()
+    """Alex Kim, with the whole canonical dataset loaded (04 §4)."""
+    return seed.load_demo(today=SEED_TODAY)[seed.ALEX.email]
 
 
 @pytest.fixture

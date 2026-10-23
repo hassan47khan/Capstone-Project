@@ -1,15 +1,15 @@
 """Contract tests for /subscriptions (handoff 04 §5): each response matches
-schema.yml and carries the canonical figures, and mock writes leave the dataset
-as it was."""
+schema.yml and carries the canonical figures, and writes are kept."""
 
 from decimal import Decimal
 
 import pytest
 from rest_framework.test import APIClient
 
-import mocks
+from accounts.models import User
 from subscriptions import operations
 from subscriptions.models import PriceHistoryEvent, Subscription
+from subscriptions.seed import SEED_TODAY
 
 TODAY = "2026-10-01"
 
@@ -95,7 +95,7 @@ def test_list_filters_by_category_and_status(api, contract):
 
 def test_list_puts_cancelled_last(api, alex):
     operations.cancel_subscription(
-        Subscription.objects.get(owner=alex, name="iCloud+"), today=mocks.TODAY
+        Subscription.objects.get(owner=alex, name="iCloud+"), today=SEED_TODAY
     )
 
     rows = api.get("/api/v1/subscriptions").json()["results"]
@@ -175,7 +175,7 @@ def test_history_endpoint_is_newest_first(api, alex, contract):
 # Create ---------------------------------------------------------------------
 
 
-def test_create_returns_the_new_subscription_without_keeping_it(api, alex, contract):
+def test_create_keeps_the_new_subscription_and_its_created_event(api, alex, contract):
     before = Subscription.all_objects.count()
 
     response = api.post("/api/v1/subscriptions", new_subscription(), format="json")
@@ -190,8 +190,9 @@ def test_create_returns_the_new_subscription_without_keeping_it(api, alex, contr
     assert body["total_spent_to_date"] == usd("15.00")
     assert [e["event_type"] for e in body["history"]] == ["created"]
     assert body["history"][0]["new_value"]["category"] == "productivity"
-    assert Subscription.all_objects.count() == before
-    assert not PriceHistoryEvent.objects.filter(subscription_id=body["id"]).exists()
+    assert Subscription.all_objects.count() == before + 1
+    assert Subscription.objects.get(pk=body["id"]).owner == alex
+    assert PriceHistoryEvent.objects.filter(subscription_id=body["id"]).count() == 1
 
 
 def test_create_a_trial(api, contract):
@@ -269,7 +270,7 @@ def test_create_without_a_name(api):
 # Update, cancel, delete, restore ---------------------------------------------
 
 
-def test_patch_price_writes_one_history_event_and_leaves_the_data(api, alex, contract):
+def test_patch_price_writes_one_history_event(api, alex, contract):
     netflix = sub_id(alex, "Netflix")
     path = "/subscriptions/{subscription_id}"
 
@@ -283,8 +284,8 @@ def test_patch_price_writes_one_history_event_and_leaves_the_data(api, alex, con
     assert [e["event_type"] for e in body["history"]][:2] == ["price_change", "price_change"]
     assert body["history"][0]["old_value"] == {"price": "15.49"}
     after = api.get(f"/api/v1/subscriptions/{netflix}").json()
-    assert after["billing_price"] == "15.49"
-    assert len(after["history"]) == 3
+    assert after["billing_price"] == "16.99"
+    assert len(after["history"]) == 4
 
 
 def test_patch_category_and_cycle(api, alex, contract):
@@ -301,7 +302,7 @@ def test_patch_category_and_cycle(api, alex, contract):
     assert body["normalized_monthly"] == usd("9.08")
     kinds = {e["event_type"] for e in body["history"][:3]}
     assert kinds == {"price_change", "category_change", "cycle_change"}
-    assert Subscription.objects.get(pk=spotify).billing_cycle == "monthly"
+    assert Subscription.objects.get(pk=spotify).billing_cycle == "yearly"
 
 
 def test_patch_that_breaks_the_cycle_is_a_400(api, alex, contract):
@@ -337,12 +338,12 @@ def test_cancel_reports_what_is_saved_per_year(api, alex, contract):
     assert body["counts_toward_totals"] is False
     assert body["saved_per_year"] == usd("131.88")
     assert body["history"][0]["event_type"] == "cancelled"
-    assert Subscription.objects.get(pk=spotify).status == "active"
+    assert Subscription.objects.get(pk=spotify).status == "cancelled"
 
 
 def test_cancelling_a_cancelled_subscription_is_409(api, alex, contract):
     spotify = Subscription.objects.get(owner=alex, name="Spotify")
-    operations.cancel_subscription(spotify, today=mocks.TODAY)
+    operations.cancel_subscription(spotify, today=SEED_TODAY)
 
     response = api.post(f"/api/v1/subscriptions/{spotify.pk}/cancel")
     body = contract(response, "/subscriptions/{subscription_id}/cancel")
@@ -371,7 +372,40 @@ def test_restore_puts_back_a_deleted_subscription(api, alex):
 
     assert body["status"] == "active"
     assert body["next_bill_date"] == "2026-10-04"
+    assert Subscription.objects.get(pk=spotify.pk).status == "active"
+
+
+def test_delete_keeps_the_row_and_its_history(api, alex):
+    spotify = Subscription.objects.get(owner=alex, name="Spotify")
+
+    api.delete(f"/api/v1/subscriptions/{spotify.pk}")
+
     assert Subscription.all_objects.get(pk=spotify.pk).status == "deleted"
+    assert PriceHistoryEvent.objects.filter(subscription=spotify).exists()
+    names = [r["name"] for r in api.get("/api/v1/subscriptions").json()["results"]]
+    assert "Spotify" not in names
+
+
+def test_another_users_subscription_is_404(api, alex, categories):
+    stranger = User.objects.create_user(email="stranger@example.com", password="x")
+    theirs = operations.create_subscription(
+        today=SEED_TODAY,
+        owner=stranger,
+        name="Theirs",
+        billing_price=Decimal("5.00"),
+        start_date=SEED_TODAY,
+        category=categories["other"],
+    )
+    path = f"/api/v1/subscriptions/{theirs.pk}"
+
+    assert api.get(path).status_code == 404
+    assert api.patch(path, {"name": "Mine"}, format="json").status_code == 404
+    assert api.delete(path).status_code == 404
+    assert api.post(f"{path}/cancel").status_code == 404
+    assert api.post(f"{path}/restore").status_code == 404
+    assert api.get(f"{path}/history").status_code == 404
+    assert "Theirs" not in [r["name"] for r in api.get("/api/v1/subscriptions").json()["results"]]
+    assert Subscription.objects.get(pk=theirs.pk).name == "Theirs"
 
 
 def test_a_deleted_subscription_is_404_except_to_restore(api, alex):
