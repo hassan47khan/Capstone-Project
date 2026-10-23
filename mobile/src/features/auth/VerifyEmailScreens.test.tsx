@@ -191,6 +191,36 @@ describe('Check your email (05 §4)', () => {
     expect(screen.getByTestId('verify-resend')).toBeEnabled();
   });
 
+  it('shows a skeleton, not the fallback field, while the profile loads', async () => {
+    server.use(
+      http.get('*/me', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return HttpResponse.json({
+          id: 'u1',
+          email: MOCK_EMAILS.full,
+          name: null,
+          email_verified: false,
+        });
+      }),
+    );
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    await renderAt('VerifyEmailSent', undefined);
+
+    expect(
+      screen.getByTestId('verify-email-loading', { includeHiddenElements: true }),
+    ).toBeTruthy();
+    expect(screen.queryByTestId('verify-email')).toBeNull();
+    expect(screen.queryByText(VERIFY_COPY.sentToUnknown)).toBeNull();
+    expect(screen.getByTestId('verify-resend')).toBeDisabled();
+    expect(screen.getByTestId('verify-wrong-email')).toBeDisabled();
+
+    expect(await screen.findByText(MOCK_EMAILS.full)).toBeOnTheScreen();
+    expect(
+      screen.queryByTestId('verify-email-loading', { includeHiddenElements: true }),
+    ).toBeNull();
+    expect(screen.getByTestId('verify-resend')).toBeEnabled();
+  });
+
   it('reads the email from the profile for a signed-in, unverified user', async () => {
     await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
     await renderAt('VerifyEmailSent', undefined);

@@ -25,10 +25,11 @@ import { Linking, Platform, Text, View } from 'react-native';
 import { authApi, meApi } from '@/api/endpoints';
 import { ApiError, messageFor } from '@/api/errors';
 import { queryKeys } from '@/api/queryKeys';
-import { Button, TextField, useToast } from '@/components';
+import { Button, Skeleton, TextField, useToast } from '@/components';
+import { parkAuthRoute } from '@/navigation/pendingAuthRoute';
 import type { AuthStackParamList } from '@/navigation/types';
 import { useSession } from '@/session/SessionContext';
-import { makeStyles, spacing } from '@/theme';
+import { makeStyles, sizes, spacing } from '@/theme';
 
 import { AuthShell, FormError } from './AuthShell';
 import { StatusIcon } from './StatusIcon';
@@ -77,6 +78,9 @@ export function VerifyEmailSentScreen() {
   });
   const knownEmail = paramEmail ?? profile.data?.email;
   const email = knownEmail ?? typedEmail.trim();
+  // A signed-in user's address is on its way from /me: show neither the
+  // fallback field nor "your email address" yet, and hold the actions.
+  const loadingEmail = !paramEmail && status === 'authenticated' && profile.isPending;
 
   const resend = useMutation({
     mutationFn: authApi.resendVerification,
@@ -98,7 +102,7 @@ export function VerifyEmailSentScreen() {
   });
 
   const waiting = cooldown.remaining > 0;
-  const canResend = isValidEmail(email) && !waiting && !resend.isPending;
+  const canResend = !loadingEmail && isValidEmail(email) && !waiting && !resend.isPending;
 
   const onResend = () => {
     if (!canResend) return;
@@ -109,13 +113,22 @@ export function VerifyEmailSentScreen() {
   const onOpenMail = () =>
     openMailApp().catch(() => toast.show(VERIFY_COPY.mailUnavailable));
 
-  // A signed-in but unverified user leaves through sign-out; the gate then
-  // shows the Auth stack from Log In.
+  // A signed-in but unverified user leaves through sign-out, which remounts
+  // the Auth stack at Log In; a navigate() now would be lost. So Register is
+  // parked first and the remounted stack opens on it (pendingAuthRoute).
   const leave = async (to: 'Register' | 'Login') => {
-    if (status === 'authenticated') await signOut();
     // Forward the effective email (a typed address when none was known), not
     // just knownEmail, so an address the user entered here is not discarded.
-    if (to === 'Register') navigation.navigate('Register', { email: email || undefined });
+    const registerParams = { email: email || undefined };
+    if (status === 'authenticated') {
+      if (to === 'Register') {
+        parkAuthRoute({ name: 'Register', params: registerParams });
+        await signOut();
+        return;
+      }
+      await signOut();
+    }
+    if (to === 'Register') navigation.navigate('Register', registerParams);
     else navigation.navigate('Login');
   };
 
@@ -124,7 +137,7 @@ export function VerifyEmailSentScreen() {
       title={VERIFY_COPY.title}
       icon={<StatusIcon kind="mail" />}
       subtitle={
-        knownEmail ? (
+        loadingEmail ? undefined : knownEmail ? (
           <>
             {VERIFY_COPY.sentTo} <Text style={styles.email}>{knownEmail}</Text>.
           </>
@@ -136,7 +149,9 @@ export function VerifyEmailSentScreen() {
       onBack={() => navigation.goBack()}
       testID="verify-email-sent-screen"
     >
-      {knownEmail ? null : (
+      {loadingEmail ? (
+        <Skeleton height={sizes.minTouch} testID="verify-email-loading" />
+      ) : knownEmail ? null : (
         <TextField
           label="Email address"
           placeholder="you@example.com"
@@ -173,6 +188,7 @@ export function VerifyEmailSentScreen() {
           label="Wrong email?"
           variant="ghost"
           onPress={() => leave('Register')}
+          disabled={loadingEmail}
           testID="verify-wrong-email"
         />
         <Button

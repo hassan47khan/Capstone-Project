@@ -25,7 +25,7 @@
  */
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuthGate } from '@/session/useAuthGate';
 import { useTheme } from '@/theme';
@@ -33,6 +33,7 @@ import { useTheme } from '@/theme';
 import { AppNavigator } from './AppNavigator';
 import { AuthNavigator } from './AuthNavigator';
 import { linking } from './linking';
+import { takePendingAuthRoute } from './pendingAuthRoute';
 import { setAppMounted, takePendingLink } from './pendingLink';
 import { getNavigationTheme } from './theme';
 import type { RootStackParamList } from './types';
@@ -40,7 +41,15 @@ import type { RootStackParamList } from './types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function AuthAtLogin() {
-  return <AuthNavigator initialRouteName="Login" />;
+  // A route parked just before sign-out (pendingAuthRoute), such as Register
+  // from "Wrong email?", replaces Log In as the first screen, once.
+  const [parked] = useState(takePendingAuthRoute);
+  return (
+    <AuthNavigator
+      initialRouteName={parked?.name ?? 'Login'}
+      initialParams={parked?.params}
+    />
+  );
 }
 
 function AuthAtVerify() {
