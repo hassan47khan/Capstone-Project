@@ -173,17 +173,12 @@ export const routes: Route[] = [
         });
       }
 
-      // Password policy, specification section 6: 8+ characters, one number, one
-      // special character. The API returns the UNMET rule so the form can show
-      // it inline rather than repeating the whole policy as an error.
-      const unmet: string[] = [];
-      if (password.length < 8) unmet.push('Use at least 8 characters.');
-      if (!/\d/.test(password)) unmet.push('Include at least one number.');
-      if (!/[^A-Za-z0-9]/.test(password))
-        unmet.push('Include at least one special character.');
-
-      if (unmet.length > 0) {
-        return fail(400, 'validation_error', unmet[0]!, { password: unmet });
+      // Password policy, handoff 05 §3 and the API contract: minimum length
+      // only (8), with no composition rules.
+      if (password.length < 8) {
+        return fail(400, 'validation_error', 'Use at least 8 characters.', {
+          password: ['Use at least 8 characters.'],
+        });
       }
 
       // 409 is the duplicate-email case the sign-up form must show inline.

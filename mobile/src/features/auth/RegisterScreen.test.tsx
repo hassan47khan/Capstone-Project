@@ -3,7 +3,7 @@
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { Linking, Text } from 'react-native';
 
@@ -11,9 +11,11 @@ import type { AuthStackParamList } from '@/navigation/types';
 import { MOCK_EMAILS, MOCK_PASSWORD } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
+import { sizes } from '@/theme';
 
 import { REGISTER_COPY, RegisterScreen, PRIVACY_URL, TERMS_URL } from './RegisterScreen';
 import { authTestQueryClient } from './testClient';
+import { RATE_LIMIT_FALLBACK_SECONDS } from './useCountdown';
 import { PASSWORD_RULE } from './validation';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
@@ -76,9 +78,9 @@ describe('layout (05 §3)', () => {
     expect(screen.getByText(PASSWORD_RULE)).toBeOnTheScreen();
   });
 
-  it('shows Back to Log in when pushed over Log In', async () => {
+  it('shows Back to Log In when pushed over Log In', async () => {
     await renderRegister();
-    expect(screen.getByRole('button', { name: 'Back to Log in' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Back to Log In' })).toBeOnTheScreen();
   });
 
   it('has no back button when it is the first screen', async () => {
@@ -186,6 +188,67 @@ describe('submitting (US-1)', () => {
     );
   });
 
+  it('us1_any_password_of_8_characters_is_accepted', async () => {
+    await renderRegister();
+    // No digit and no symbol: the rule is length only (05 §3).
+    await fillIn('new@subtrak.test', 'longenough');
+
+    await submit();
+
+    expect(await screen.findByText('VerifyEmailSent new@subtrak.test')).toBeOnTheScreen();
+  });
+
+  it('shows the message as a banner when a 400 names no field on this form', async () => {
+    server.use(
+      http.post('*/auth/register', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'validation_error',
+              message: 'Registration is closed right now.',
+              fields: {},
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    await renderRegister();
+    await fillIn('new@subtrak.test', MOCK_PASSWORD);
+
+    await submit();
+
+    expect(await screen.findByTestId('form-error')).toHaveTextContent(
+      'Registration is closed right now.',
+    );
+  });
+
+  it('clears the rate-limit banner when the countdown ends', async () => {
+    server.use(
+      http.post('*/auth/register', () =>
+        HttpResponse.json(
+          { error: { code: 'throttled', message: 'Too many attempts.' } },
+          { status: 429 },
+        ),
+      ),
+    );
+    await renderRegister();
+    await fillIn('new@subtrak.test', MOCK_PASSWORD);
+    await submit();
+    await screen.findByTestId('form-error');
+
+    const later = Date.now() + (RATE_LIMIT_FALLBACK_SECONDS + 1) * 1000;
+    const now = jest.spyOn(Date, 'now').mockReturnValue(later);
+    try {
+      await waitFor(() => expect(screen.queryByTestId('form-error')).toBeNull(), {
+        timeout: 3000,
+      });
+      expect(screen.getByTestId('register-submit')).toBeEnabled();
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('us1_rate_limited_waits_out_a_countdown', async () => {
     server.use(
       http.post('*/auth/register', () =>
@@ -242,6 +305,15 @@ describe('submitting (US-1)', () => {
       'Something went wrong on our end.',
     );
   });
+});
+
+it('gives the Terms and Privacy links a 44pt touch target', async () => {
+  await renderRegister();
+
+  for (const id of ['register-terms-link', 'register-privacy-link', 'register-terms']) {
+    const { hitSlop } = screen.getByTestId(id).props;
+    expect(sizes.icon + 2 * hitSlop).toBeGreaterThanOrEqual(sizes.minTouch);
+  }
 });
 
 describe('navigation', () => {

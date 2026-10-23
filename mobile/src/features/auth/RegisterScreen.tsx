@@ -10,7 +10,9 @@
  *   409 duplicate_email → inline on the email field, with a way to Log In
  *   400 with fields     → each message under its field
  *   429                 → the server's message; Create Account waits out a
- *                         countdown (RATE_LIMIT_FALLBACK_SECONDS, see Log In)
+ *                         countdown (RATE_LIMIT_FALLBACK_SECONDS), and the
+ *                         banner clears when it ends
+ *   400 naming no field → the message as the form banner (formErrors.ts)
  *   offline             → a toast; everything typed is kept
  *
  * The back button shows only when there is somewhere to go back to: the auth
@@ -23,15 +25,19 @@ import { useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 
 import { authApi } from '@/api/endpoints';
-import { ApiError, fieldError, messageFor } from '@/api/errors';
+import { ApiError, messageFor } from '@/api/errors';
 import { Button, TextField, useToast } from '@/components';
 import type { AuthStackParamList } from '@/navigation/types';
 import { makeStyles, spacing } from '@/theme';
 
 import { AuthShell, FormError } from './AuthShell';
-import { RATE_LIMIT_FALLBACK_SECONDS } from './LoginScreen';
 import { TermsCheckbox } from './TermsCheckbox';
-import { formatCountdown, useCountdown } from './useCountdown';
+import { formErrorsFrom } from './formErrors';
+import {
+  formatCountdown,
+  RATE_LIMIT_FALLBACK_SECONDS,
+  useCountdown,
+} from './useCountdown';
 import { isValidEmail, isValidPassword, PASSWORD_RULE } from './validation';
 
 export const REGISTER_COPY = {
@@ -62,6 +68,8 @@ export function RegisterScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [duplicate, setDuplicate] = useState(false);
   const [formError, setFormError] = useState<string>();
+  // Shown only while the 429 countdown runs, so it clears when it ends.
+  const [limitError, setLimitError] = useState<string>();
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>(
     {},
   );
@@ -79,15 +87,14 @@ export function RegisterScreen() {
       } else if (error.code === 'duplicate_email') {
         setDuplicate(true);
       } else if (error.status === 429) {
-        setFormError(error.message);
+        setLimitError(error.message);
         cooldown.start(RATE_LIMIT_FALLBACK_SECONDS);
       } else if (error.isOffline) {
         toast.show(REGISTER_COPY.offline);
       } else if (error.fields) {
-        setFieldErrors({
-          email: fieldError(error, 'email'),
-          password: fieldError(error, 'password'),
-        });
+        const { fields, banner } = formErrorsFrom(error, ['email', 'password'] as const);
+        setFieldErrors(fields);
+        setFormError(banner);
       } else {
         setFormError(error.message);
       }
@@ -125,7 +132,7 @@ export function RegisterScreen() {
     <AuthShell
       title={REGISTER_COPY.title}
       subtitle={REGISTER_COPY.subtitle}
-      backLabel={navigation.canGoBack() ? 'Log in' : undefined}
+      backLabel={navigation.canGoBack() ? 'Log In' : undefined}
       onBack={() => navigation.goBack()}
       testID="register-screen"
       footer={
@@ -200,7 +207,7 @@ export function RegisterScreen() {
       />
 
       {/* 05 §9: everywhere but Log In, the form error sits above the primary. */}
-      <FormError message={formError} />
+      <FormError message={formError ?? (waiting ? limitError : undefined)} />
 
       <Button
         label={
