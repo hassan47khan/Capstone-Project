@@ -36,7 +36,8 @@ export type AuthStackParamList = {
   EmailConfirmed: { token?: string } | undefined;
   /** `email` prefills the form, from Reset Link Sent's "Wrong email?". */
   ForgotPassword: { email?: string } | undefined;
-  ResetLinkSent: { email: string };
+  /** `cooldown`: seconds before Resend, from the request that led here. */
+  ResetLinkSent: { email: string; cooldown?: number };
   /** `token` arrives from the emailed link: subtrak://reset-password?token=… */
   CreateNewPassword: { token: string };
   PasswordResetSuccess: undefined;

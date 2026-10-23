@@ -10,24 +10,18 @@
  */
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { authApi } from '@/api/endpoints';
-import { ApiError, messageFor } from '@/api/errors';
-import { Button, useToast } from '@/components';
+import { Button } from '@/components';
 import type { AuthStackParamList } from '@/navigation/types';
 import { makeStyles, spacing } from '@/theme';
 
 import { AuthShell, FormError } from './AuthShell';
+import { backLabelFor } from './backLabel';
 import { StatusIcon } from './StatusIcon';
-import {
-  formatCountdown,
-  RATE_LIMIT_FALLBACK_SECONDS,
-  useCountdown,
-} from './useCountdown';
-import { DEFAULT_RESEND_COOLDOWN_SECONDS, openMailApp } from './VerifyEmailSentScreen';
+import { formatCountdown } from './useCountdown';
+import { useResendWithCooldown } from './useResendWithCooldown';
 
 export const RESET_SENT_COPY = {
   title: 'Check your email',
@@ -43,39 +37,15 @@ type Route = RouteProp<AuthStackParamList, 'ResetLinkSent'>;
 export function ResetLinkSentScreen() {
   const styles = useStyles();
   const navigation = useNavigation<Navigation>();
-  const { email } = useRoute<Route>().params;
-  const toast = useToast();
-  const cooldown = useCountdown();
-  const [formError, setFormError] = useState<string>();
-
-  const resend = useMutation({
-    mutationFn: authApi.requestPasswordReset,
-    onSuccess: (response) => {
-      // The contract returns cooldown_seconds; the hand-written client types
-      // this response as { sent }, so it is read defensively.
-      const seconds = (response as { cooldown_seconds?: number }).cooldown_seconds;
-      cooldown.start(seconds ?? DEFAULT_RESEND_COOLDOWN_SECONDS);
-      toast.show(RESET_SENT_COPY.resent, 'success');
-    },
-    onError: (error) => {
-      if (error instanceof ApiError && error.status === 429) {
-        setFormError(error.message);
-        cooldown.start(RATE_LIMIT_FALLBACK_SECONDS);
-      } else if (error instanceof ApiError && error.isOffline) {
-        toast.show(RESET_SENT_COPY.offline);
-      } else {
-        setFormError(messageFor(error));
-      }
-    },
+  // `cooldown` comes from the request Forgot Password just made, so Resend
+  // starts disabled rather than inviting a 429.
+  const { email, cooldown } = useRoute<Route>().params;
+  const resend = useResendWithCooldown({
+    send: authApi.requestPasswordReset,
+    resentMessage: RESET_SENT_COPY.resent,
+    offlineMessage: RESET_SENT_COPY.offline,
+    initialCooldown: cooldown,
   });
-
-  const waiting = cooldown.remaining > 0;
-
-  const onResend = () => {
-    if (waiting || resend.isPending) return;
-    setFormError(undefined);
-    resend.mutate({ email });
-  };
 
   return (
     <AuthShell
@@ -86,26 +56,27 @@ export function ResetLinkSentScreen() {
           {RESET_SENT_COPY.sentTo} <Text style={styles.email}>{email}</Text>.
         </>
       }
-      backLabel={navigation.canGoBack() ? 'Log In' : undefined}
+      // Names the screen goBack() returns to: Forgot password, normally.
+      backLabel={backLabelFor(navigation)}
       onBack={() => navigation.goBack()}
       testID="reset-link-sent-screen"
     >
-      <FormError message={formError} />
+      <FormError message={resend.error} />
 
       <Button
         label="Open Mail app"
-        onPress={() =>
-          openMailApp().catch(() => toast.show(RESET_SENT_COPY.mailUnavailable))
-        }
+        onPress={() => resend.openMail(RESET_SENT_COPY.mailUnavailable)}
         fullWidth
         testID="reset-open-mail"
       />
       <Button
-        label={waiting ? `Resend in ${formatCountdown(cooldown.remaining)}` : 'Resend'}
+        label={
+          resend.waiting ? `Resend in ${formatCountdown(resend.remaining)}` : 'Resend'
+        }
         variant="secondary"
-        onPress={onResend}
-        disabled={waiting}
-        loading={resend.isPending}
+        onPress={() => resend.resend({ email })}
+        disabled={resend.waiting || resend.pending}
+        loading={resend.pending}
         loadingLabel="Resending the reset link"
         fullWidth
         testID="reset-resend"

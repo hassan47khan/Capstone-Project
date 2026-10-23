@@ -5,7 +5,7 @@
  */
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { Linking, Text } from 'react-native';
 
@@ -133,6 +133,52 @@ describe('Forgot your password? (Figma "Forgot Password")', () => {
 });
 
 describe('Check your email, reset (05 §4 over the frame)', () => {
+  it("starts Resend disabled with the cooldown Forgot password's request returned", async () => {
+    server.use(
+      http.post('*/auth/password-reset/request', () =>
+        HttpResponse.json({ cooldown_seconds: 45 }),
+      ),
+    );
+    await renderFlow('ForgotPassword');
+    await fireEvent.changeText(screen.getByTestId('forgot-email'), 'a@subtrak.test');
+
+    await fireEvent.press(screen.getByTestId('forgot-submit'));
+
+    expect(await screen.findByText('Resend in 0:45')).toBeOnTheScreen();
+    expect(screen.getByTestId('reset-resend')).toBeDisabled();
+  });
+
+  it('the back button names Forgot password, where it goes', async () => {
+    await renderFlow('ForgotPassword');
+    await fireEvent.changeText(screen.getByTestId('forgot-email'), 'a@subtrak.test');
+    await fireEvent.press(screen.getByTestId('forgot-submit'));
+    await screen.findByTestId('reset-link-sent-screen');
+
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Back to Forgot password' }),
+    );
+
+    expect(
+      await screen.findByRole('header', { name: FORGOT_COPY.title }),
+    ).toBeOnTheScreen();
+  });
+
+  it('disables Resend while the request is in flight', async () => {
+    server.use(
+      http.post('*/auth/password-reset/request', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return HttpResponse.json({ cooldown_seconds: 30 });
+      }),
+    );
+    await renderFlow('ResetLinkSent', { email: 'a@subtrak.test' });
+
+    await fireEvent.press(screen.getByTestId('reset-resend'));
+
+    await waitFor(() => expect(screen.getByTestId('reset-resend')).toBeBusy());
+    expect(screen.getByTestId('reset-resend')).toBeDisabled();
+    expect(await screen.findByText('Resend in 0:30')).toBeOnTheScreen();
+  });
+
   it('makes Open Mail app the primary, not Resend Reset Link', async () => {
     await renderFlow('ResetLinkSent', { email: 'a@subtrak.test' });
 

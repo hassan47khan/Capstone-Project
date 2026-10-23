@@ -23,6 +23,7 @@ import {
   RATE_LIMIT_FALLBACK_SECONDS,
   useCountdown,
 } from './useCountdown';
+import { cooldownFrom } from './useResendWithCooldown';
 import { isValidEmail } from './validation';
 
 export const FORGOT_COPY = {
@@ -53,7 +54,13 @@ export function ForgotPasswordScreen() {
 
   const request = useMutation({
     mutationFn: authApi.requestPasswordReset,
-    onSuccess: () => navigation.navigate('ResetLinkSent', { email: trimmed }),
+    // Pass the server's wait along, so Resend on the next screen starts
+    // disabled instead of inviting a 429.
+    onSuccess: (response) =>
+      navigation.navigate('ResetLinkSent', {
+        email: trimmed,
+        cooldown: cooldownFrom(response),
+      }),
     onError: (error) => {
       if (error instanceof ApiError && error.status === 429) {
         setFormError(error.message);
