@@ -433,7 +433,7 @@ describe('the full tree is navigable (03 §1)', () => {
       expect(screen.getByRole('header', { name: expectedTitle })).toBeOnTheScreen(),
     );
     // Pushed over Log in, so there is somewhere to go back to.
-    expect(screen.getByRole('button', { name: 'Back to Log in' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Back to Log In' })).toBeOnTheScreen();
   });
 
   it('Settings rows lead to the Settings modals', async () => {

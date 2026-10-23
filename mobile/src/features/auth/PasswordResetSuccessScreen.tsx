@@ -19,7 +19,7 @@ export function PasswordResetSuccessScreen() {
       title="Password updated"
       phase="Phase 2 — handoff 05 (Epic A)"
       stories="US-3"
-      backLabel={navigation.canGoBack() ? 'Log in' : undefined}
+      backLabel={navigation.canGoBack() ? 'Log In' : undefined}
       onBack={() => navigation.goBack()}
     />
   );

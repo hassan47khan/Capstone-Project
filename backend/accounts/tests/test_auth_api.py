@@ -77,6 +77,12 @@ def test_login_for_an_unverified_email_is_403(anon, contract):
     assert contract(response, "/auth/login")["error"]["code"] == "email_not_verified"
 
 
+def test_login_email_is_case_insensitive(anon):
+    response = anon.post("/api/v1/auth/login", {"email": "Alex.Kim@Example.com", "password": "x"})
+
+    assert response.status_code == 200
+
+
 def test_any_demo_user_can_log_in(anon):
     response = anon.post("/api/v1/auth/login", {"email": "sam@example.com", "password": "x"})
 

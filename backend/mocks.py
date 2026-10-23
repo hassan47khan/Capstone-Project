@@ -167,6 +167,8 @@ def resend_verification(email: str) -> dict:
 
 
 def login(email: str, password: str) -> dict:
+    # Emails are stored lower-cased (spec section 4), so match them that way.
+    email = email.strip().lower()
     if email == UNVERIFIED_EMAIL:
         raise ApiError(403, "email_not_verified", "Verify your email address before you log in.")
     if email not in {user.email for user in seed.DEMO_USERS}:

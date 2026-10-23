@@ -9,6 +9,12 @@ import { useCallback, useEffect, useState } from 'react';
 
 const SECOND_MS = 1000;
 
+/**
+ * The wait for a 429 or a 423 lockout until the client exposes the server's
+ * Retry-After. Shared by every auth screen that can be rate limited.
+ */
+export const RATE_LIMIT_FALLBACK_SECONDS = 60;
+
 export interface Countdown {
   /** Whole seconds left; 0 when nothing is pending. */
   remaining: number;

@@ -187,7 +187,7 @@ describe('submitting (US-2)', () => {
     },
   );
 
-  it('us2_locked_account_shows_the_lockout_message', async () => {
+  it('us2_locked_account_shows_the_lockout_message_and_disables_log_in', async () => {
     await renderLogin();
     await fillIn(MOCK_EMAILS.locked, MOCK_PASSWORD);
 
@@ -195,6 +195,55 @@ describe('submitting (US-2)', () => {
 
     expect(await screen.findByTestId('form-error')).toHaveTextContent(
       'Too many failed attempts. Try again in 15 minutes.',
+    );
+    expect(screen.getByTestId('login-submit')).toBeDisabled();
+    expect(
+      screen.getByText(`Try again in ${formatCountdown(RATE_LIMIT_FALLBACK_SECONDS)}`),
+    ).toBeOnTheScreen();
+  });
+
+  it('clears the lockout banner and re-enables Log In when the countdown ends', async () => {
+    await renderLogin();
+    await fillIn(MOCK_EMAILS.locked, MOCK_PASSWORD);
+    await submit();
+    await screen.findByTestId('form-error');
+
+    // Jump past the wait; the countdown's next one-second tick sees it.
+    const later = Date.now() + (RATE_LIMIT_FALLBACK_SECONDS + 1) * 1000;
+    const now = jest.spyOn(Date, 'now').mockReturnValue(later);
+    try {
+      await waitFor(() => expect(screen.queryByTestId('form-error')).toBeNull(), {
+        timeout: 3000,
+      });
+      expect(screen.getByTestId('login-submit')).toBeEnabled();
+      expect(screen.queryByText(/^Try again in/)).toBeNull();
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('shows the message as a banner when a 400 names no field on this form', async () => {
+    server.use(
+      http.post('*/auth/login', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'validation_error',
+              message: 'Something about this request is off.',
+              fields: { non_field_errors: ['Something about this request is off.'] },
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    await renderLogin();
+    await fillIn(MOCK_EMAILS.full, MOCK_PASSWORD);
+
+    await submit();
+
+    expect(await screen.findByTestId('form-error')).toHaveTextContent(
+      'Something about this request is off.',
     );
   });
 

@@ -9,13 +9,15 @@
  *                             saying whether the email or the password was wrong
  *   email_not_verified      → straight to Verify Email Sent with the email
  *                             prefilled; no error shown
- *   account_locked (423)    → the server's lockout message
- *   throttled (429)         → the server's message, and Log in disabled behind
- *                             a visible countdown
+ *   account_locked (423)    → the server's lockout message, and Log In
+ *   throttled (429)           disabled behind a visible countdown; the banner
+ *                             clears when the countdown ends
+ *   other 400                 messages under their fields, or the banner when
+ *                             none of them is a field here
  *   offline                 → a toast; everything typed is kept
  *
- * The countdown on a 429 is RATE_LIMIT_FALLBACK_SECONDS: the client does not
- * surface Retry-After yet, so the screen cannot know the server's real wait.
+ * The countdown is RATE_LIMIT_FALLBACK_SECONDS: the client does not surface
+ * Retry-After yet, so the screen cannot know the server's real wait.
  *
  * Not here yet: biometric unlock (05 §5) needs expo-local-authentication,
  * which is a new dependency and lands in its own change.
@@ -27,14 +29,19 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { authApi } from '@/api/endpoints';
-import { ApiError, fieldError, messageFor } from '@/api/errors';
+import { ApiError, messageFor } from '@/api/errors';
 import { Button, TextField, useToast } from '@/components';
 import type { AuthStackParamList } from '@/navigation/types';
 import { useSession } from '@/session/SessionContext';
 import { makeStyles, spacing } from '@/theme';
 
 import { AuthShell, FormError } from './AuthShell';
-import { formatCountdown, useCountdown } from './useCountdown';
+import { formErrorsFrom } from './formErrors';
+import {
+  formatCountdown,
+  RATE_LIMIT_FALLBACK_SECONDS,
+  useCountdown,
+} from './useCountdown';
 import { isValidEmail } from './validation';
 
 export const LOGIN_COPY = {
@@ -44,8 +51,8 @@ export const LOGIN_COPY = {
   offline: "Couldn't reach SubTrak. Check your connection.",
 } as const;
 
-/** Used for a 429 until the client exposes the server's Retry-After. */
-export const RATE_LIMIT_FALLBACK_SECONDS = 60;
+// Re-exported for the screens that first imported it from here.
+export { RATE_LIMIT_FALLBACK_SECONDS };
 
 type Navigation = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -60,6 +67,9 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [emailTouched, setEmailTouched] = useState(false);
   const [formError, setFormError] = useState<string>();
+  // Shown only while the 423/429 countdown runs, so it clears when Log In
+  // comes back.
+  const [limitError, setLimitError] = useState<string>();
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>(
     {},
   );
@@ -77,16 +87,15 @@ export function LoginScreen() {
         navigation.navigate('VerifyEmailSent', { email: trimmedEmail });
       } else if (error.code === 'invalid_credentials') {
         setFormError(LOGIN_COPY.invalidCredentials);
-      } else if (error.status === 429) {
-        setFormError(error.message);
+      } else if (error.status === 429 || error.code === 'account_locked') {
+        setLimitError(error.message);
         cooldown.start(RATE_LIMIT_FALLBACK_SECONDS);
       } else if (error.isOffline) {
         toast.show(LOGIN_COPY.offline);
       } else if (error.fields) {
-        setFieldErrors({
-          email: fieldError(error, 'email'),
-          password: fieldError(error, 'password'),
-        });
+        const { fields, banner } = formErrorsFrom(error, ['email', 'password'] as const);
+        setFieldErrors(fields);
+        setFormError(banner);
       } else {
         setFormError(error.message);
       }
@@ -125,7 +134,7 @@ export function LoginScreen() {
       }
     >
       {/* 05 §5: a wrong-credentials message sits above the fields. */}
-      <FormError message={formError} />
+      <FormError message={formError ?? (waiting ? limitError : undefined)} />
 
       <TextField
         label="Email address"

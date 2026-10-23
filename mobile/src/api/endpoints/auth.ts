@@ -9,7 +9,7 @@
  *   These endpoints are reached when there is no valid session, and a 401 from
  *   them means "wrong password", not "token expired". Marking them anonymous
  *   stops the client's refresh-and-retry logic from firing, which would both
- *   waste a round trip and turn a clear "Incorrect email or password" into a
+ *   waste a round trip and turn a clear "Email or password is incorrect." into a
  *   confusing sign-out.
  *
  * Nothing here logs. These payloads contain passwords and reset tokens.
@@ -45,10 +45,10 @@ export function register(body: RegisterRequest): Promise<RegisterResponse> {
  * Exchanges credentials for a token pair (US-2).
  *
  * Failure modes the Log in screen must handle:
- *   401 invalid_credentials  — "Incorrect email or password" (same for an
+ *   401 invalid_credentials  — "Email or password is incorrect." (same for an
  *                              unknown email, so the endpoint cannot be used to
  *                              discover who is registered)
- *   401 email_not_verified   — correct password, unverified account; route to
+ *   403 email_not_verified   — correct password, unverified account; route to
  *                              Confirm email
  *   423 account_locked       — too many failed attempts; show the lockout copy
  */
