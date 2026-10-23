@@ -20,10 +20,10 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
-import { authApi } from '@/api/endpoints';
+import { authApi, meApi } from '@/api/endpoints';
 import { ApiError } from '@/api/errors';
 import { queryKeys } from '@/api/queryKeys';
 import type { TokenPair } from '@/api/types';
@@ -32,7 +32,7 @@ import type { AuthStackParamList } from '@/navigation/types';
 import { useSession } from '@/session/SessionContext';
 import { makeStyles, spacing } from '@/theme';
 
-import { AuthShell } from './AuthShell';
+import { AuthShell, FormError } from './AuthShell';
 import { StatusIcon } from './StatusIcon';
 
 export const CONFIRMED_COPY = {
@@ -46,6 +46,7 @@ export const CONFIRMED_COPY = {
   invalidBody: 'It may have been used already. Log in, or send yourself a new link.',
   offline: "Couldn't reach SubTrak",
   offlineBody: 'Check your connection and try again.',
+  continueFailed: "We couldn't finish signing you in. Try again.",
 } as const;
 
 type Navigation = NativeStackNavigationProp<AuthStackParamList, 'EmailConfirmed'>;
@@ -76,13 +77,29 @@ export function EmailConfirmedScreen() {
     mutate({ token });
   }, [token, mutate]);
 
+  const [continueError, setContinueError] = useState<string>();
+
   const onContinue = async () => {
-    if (isTokenPair(verify.data)) {
-      await signIn(verify.data);
-    } else if (status === 'authenticated') {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.session.profile() });
-    } else {
-      navigation.navigate('Login');
+    setContinueError(undefined);
+    try {
+      if (isTokenPair(verify.data)) {
+        await signIn(verify.data);
+      } else if (status === 'authenticated') {
+        // The auth gate moves on by itself once /me says verified. If it does
+        // not yet (server lag), go back to Check your email rather than leave
+        // Continue doing nothing.
+        const profile = await queryClient.fetchQuery({
+          queryKey: queryKeys.session.profile(),
+          queryFn: meApi.getProfile,
+          staleTime: 0,
+        });
+        if (!profile.email_verified) navigation.navigate('VerifyEmailSent');
+      } else {
+        navigation.navigate('Login');
+      }
+    } catch {
+      // signIn (secure store) or /me failed: say so; Continue tries again.
+      setContinueError(CONFIRMED_COPY.continueFailed);
     }
   };
 
@@ -154,6 +171,7 @@ export function EmailConfirmedScreen() {
       onBack={onBack}
       testID="email-confirmed-screen"
     >
+      <FormError message={continueError} />
       <Button
         label="Continue"
         onPress={onContinue}

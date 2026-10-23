@@ -90,12 +90,11 @@ export function VerifyEmailSentScreen() {
     if (status === 'authenticated') {
       // Abandoning this unverified session: discard the token (no biometric
       // park), or Face ID would restore it and loop back to this screen.
-      if (to === 'Register') {
-        parkAuthRoute({ name: 'Register', params: registerParams });
-        await signOut({ park: false });
-        return;
-      }
+      // Signing out remounts the Auth stack at Log In, so there is nothing to
+      // navigate here; Register is parked for the remounted stack instead.
+      if (to === 'Register') parkAuthRoute({ name: 'Register', params: registerParams });
       await signOut({ park: false });
+      return;
     }
     if (to === 'Register') navigation.navigate('Register', registerParams);
     else navigation.navigate('Login');

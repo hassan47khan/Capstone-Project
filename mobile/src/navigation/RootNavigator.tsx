@@ -25,7 +25,7 @@
  */
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { useAuthGate } from '@/session/useAuthGate';
 import { useTheme } from '@/theme';
@@ -41,15 +41,7 @@ import type { RootStackParamList } from './types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function AuthAtLogin() {
-  // A route parked just before sign-out (pendingAuthRoute), such as Register
-  // from "Wrong email?", replaces Log In as the first screen, once.
-  const [parked] = useState(takePendingAuthRoute);
-  return (
-    <AuthNavigator
-      initialRouteName={parked?.name ?? 'Login'}
-      initialParams={parked?.params}
-    />
-  );
+  return <AuthNavigator initialRouteName="Login" />;
 }
 
 function AuthAtVerify() {
@@ -84,6 +76,25 @@ export function RootNavigator() {
 
   useEffect(replayPendingLink, [replayPendingLink]);
 
+  /**
+   * Opens an Auth route parked just before sign-out (pendingAuthRoute), such
+   * as Register from "Wrong email?", once the remounted Auth stack is there.
+   * Consumed in an effect, like the pending link above: an impure useState
+   * initializer could run twice under StrictMode and drop it. Any route's
+   * params go through, not only Register's.
+   */
+  const replayPendingAuthRoute = useCallback(() => {
+    if (decision !== 'auth' || !navigationRef.isReady()) return;
+    const parked = takePendingAuthRoute();
+    if (!parked) return;
+    navigationRef.navigate('Auth', {
+      screen: parked.name,
+      params: parked.params,
+    } as RootStackParamList['Auth']);
+  }, [decision, navigationRef]);
+
+  useEffect(replayPendingAuthRoute, [replayPendingAuthRoute]);
+
   if (decision === 'splash') {
     return null;
   }
@@ -93,7 +104,10 @@ export function RootNavigator() {
       ref={navigationRef}
       theme={navigationTheme}
       linking={linking}
-      onReady={replayPendingLink}
+      onReady={() => {
+        replayPendingLink();
+        replayPendingAuthRoute();
+      }}
       // Shown if the deep-link handler is resolving a cold-start URL. Null keeps
       // the splash rather than flashing an empty screen.
       fallback={null}

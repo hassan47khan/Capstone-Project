@@ -9,7 +9,11 @@ import { Linking, Text } from 'react-native';
 
 import type { AuthStackParamList } from '@/navigation/types';
 import { MOCK_EMAILS, MOCK_PASSWORD } from '@/test/fixtures';
-import { createTestQueryClient, renderWithProviders } from '@/test/render';
+import {
+  createTestQueryClient,
+  declaredTouchHeight,
+  renderWithProviders,
+} from '@/test/render';
 import { server } from '@/test/server';
 import { sizes } from '@/theme';
 
@@ -309,10 +313,17 @@ describe('submitting (US-1)', () => {
 it('gives the Terms and Privacy links a 44pt touch target', async () => {
   await renderRegister();
 
-  for (const id of ['register-terms-link', 'register-privacy-link', 'register-terms']) {
-    const { hitSlop } = screen.getByTestId(id).props;
-    expect(sizes.icon + 2 * hitSlop).toBeGreaterThanOrEqual(sizes.minTouch);
+  // The links' own height, as rendered: no hitSlop to lean on.
+  for (const id of ['register-terms-link', 'register-privacy-link']) {
+    const link = screen.getByTestId(id);
+    expect(declaredTouchHeight(link.props.style)).toBeGreaterThanOrEqual(sizes.minTouch);
+    expect(link.props.hitSlop).toBeUndefined();
   }
+  // The checkbox: its drawn height plus the hitSlop on each side.
+  const box = screen.getByTestId('register-terms');
+  expect(
+    declaredTouchHeight(box.props.style) + 2 * box.props.hitSlop,
+  ).toBeGreaterThanOrEqual(sizes.minTouch);
 });
 
 describe('navigation', () => {

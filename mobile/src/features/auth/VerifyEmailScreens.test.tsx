@@ -235,7 +235,7 @@ describe('Check your email (05 §4)', () => {
     );
   });
 
-  it('Back to Log In signs a signed-in user out first', async () => {
+  it('Back to Log In signs a signed-in user out and leaves navigation to the gate', async () => {
     await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
     await renderAt('VerifyEmailSent', undefined);
     expect(screen.getByTestId('session-status')).toHaveTextContent('authenticated');
@@ -245,7 +245,9 @@ describe('Check your email (05 §4)', () => {
     await waitFor(() =>
       expect(screen.getByTestId('session-status')).toHaveTextContent('unauthenticated'),
     );
-    expect(await screen.findByTestId('stub')).toHaveTextContent('Login');
+    // Signing out remounts the Auth stack at Log In (RootNavigator); this
+    // screen navigates nowhere itself.
+    expect(screen.queryByTestId('stub')).toBeNull();
   });
 });
 
@@ -307,6 +309,68 @@ describe('Email confirmed (05 §8)', () => {
     await fireEvent.press(screen.getByTestId('confirmed-continue'));
 
     expect(screen.getByTestId('session-status')).toHaveTextContent('authenticated');
+  });
+
+  it('a signed-in user whose /me still says unverified goes back to Check your email', async () => {
+    server.use(
+      http.get('*/me', () =>
+        HttpResponse.json({
+          id: 'u1',
+          email: MOCK_EMAILS.full,
+          name: null,
+          email_verified: false,
+        }),
+      ),
+    );
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    await renderAt('EmailConfirmed', { token: 'good' });
+    await screen.findByRole('header', { name: CONFIRMED_COPY.title });
+
+    await fireEvent.press(screen.getByTestId('confirmed-continue'));
+
+    expect(
+      await screen.findByRole('header', { name: VERIFY_COPY.title }),
+    ).toBeOnTheScreen();
+  });
+
+  it('shows an error, and stays, when /me cannot be refetched', async () => {
+    await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
+    await renderAt('EmailConfirmed', { token: 'good' });
+    await screen.findByRole('header', { name: CONFIRMED_COPY.title });
+    server.use(http.get('*/me', () => HttpResponse.error()));
+
+    await fireEvent.press(screen.getByTestId('confirmed-continue'));
+
+    expect(await screen.findByTestId('form-error')).toHaveTextContent(
+      CONFIRMED_COPY.continueFailed,
+    );
+    expect(screen.getByTestId('confirmed-continue')).toBeEnabled();
+  });
+
+  it('shows an error when signing in with the returned tokens fails', async () => {
+    server.use(
+      http.post('*/auth/verify-email', () =>
+        HttpResponse.json({
+          access: `mock-access-${MOCK_EMAILS.full}`,
+          refresh: `mock-refresh-${MOCK_EMAILS.full}`,
+        }),
+      ),
+    );
+    const store = jest
+      .spyOn(tokenStore, 'setTokens')
+      .mockRejectedValue(new Error('keychain'));
+    try {
+      await renderAt('EmailConfirmed', { token: 'good' });
+      await screen.findByRole('header', { name: CONFIRMED_COPY.title });
+
+      await fireEvent.press(screen.getByTestId('confirmed-continue'));
+
+      expect(await screen.findByTestId('form-error')).toHaveTextContent(
+        CONFIRMED_COPY.continueFailed,
+      );
+    } finally {
+      store.mockRestore();
+    }
   });
 
   it('us1_expired_link_offers_a_new_one_as_the_primary', async () => {

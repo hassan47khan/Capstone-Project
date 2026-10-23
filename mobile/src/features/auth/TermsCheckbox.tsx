@@ -7,8 +7,8 @@
  *
  * The box and the sentence are separate targets on purpose: tapping a link
  * opens the document, it does not tick the box. The two links are their own
- * pressables (a nested <Text> cannot take hitSlop), each padded out to the
- * 44pt minimum the same way the box is.
+ * pressables (a nested <Text> cannot take hitSlop), each at least 44pt tall
+ * with the text centred, so the target is real, not padded out by hitSlop.
  */
 import { Check } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
@@ -55,11 +55,10 @@ export function TermsCheckbox({
         <Text style={styles.label}>I agree to the</Text>
         <Pressable
           onPress={onOpenTerms}
-          hitSlop={HIT_SLOP}
           accessibilityRole="link"
           accessibilityLabel="Terms"
           accessibilityHint="Opens the Terms of Service"
-          style={({ pressed }) => pressed && styles.pressed}
+          style={({ pressed }) => [styles.linkTarget, pressed && styles.pressed]}
           testID="register-terms-link"
         >
           <Text style={styles.link}>Terms</Text>
@@ -67,11 +66,10 @@ export function TermsCheckbox({
         <Text style={styles.label}>and</Text>
         <Pressable
           onPress={onOpenPrivacy}
-          hitSlop={HIT_SLOP}
           accessibilityRole="link"
           accessibilityLabel="Privacy Policy"
           accessibilityHint="Opens the Privacy Policy"
-          style={({ pressed }) => pressed && styles.pressed}
+          style={({ pressed }) => [styles.linkTarget, pressed && styles.pressed]}
           testID="register-privacy-link"
         >
           <Text style={styles.link}>Privacy Policy</Text>
@@ -114,6 +112,11 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   link: {
     ...typography.labelSemibold,
     color: colors.accent,
+  },
+  // The links' own 44pt touch target (mobile/CLAUDE.md rule 3).
+  linkTarget: {
+    minHeight: sizes.minTouch,
+    justifyContent: 'center',
   },
   pressed: {
     opacity: opacity.pressed,

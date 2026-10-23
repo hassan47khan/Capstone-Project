@@ -5,8 +5,9 @@
  * keyed Auth stack from Verify Email Sent to a fresh one at Log In, so a
  * `navigate('Register', …)` issued just before or after `signOut()` lands on
  * an unmounted navigator and is lost. A screen that needs to end up somewhere
- * else parks the route here first; the remounted stack opens on it, once.
- * The same idea as pendingLink, for in-app intents rather than URLs.
+ * else parks the route here first; RootNavigator navigates to it, with its
+ * params, once the remounted stack is up. The same idea as pendingLink, for
+ * in-app intents rather than URLs.
  */
 import type { AuthStackParamList } from './types';
 

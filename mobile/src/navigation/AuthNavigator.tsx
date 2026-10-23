@@ -31,30 +31,16 @@ const Stack = createNativeStackNavigator<AuthStackParamList>();
 export interface AuthNavigatorProps {
   /** Which screen the stack opens on. */
   initialRouteName?: keyof AuthStackParamList;
-  /** Params for that first screen, such as Register's prefilled email. */
-  initialParams?: object;
 }
 
-export function AuthNavigator({
-  initialRouteName = 'Login',
-  initialParams,
-}: AuthNavigatorProps) {
-  // Only the first screen gets them; every other screen gets its params from
-  // whoever navigates to it.
-  const paramsFor = (name: keyof AuthStackParamList) =>
-    name === initialRouteName ? initialParams : undefined;
-
+export function AuthNavigator({ initialRouteName = 'Login' }: AuthNavigatorProps) {
   return (
     <Stack.Navigator
       initialRouteName={initialRouteName}
       screenOptions={{ headerShown: false }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen
-        name="Register"
-        component={RegisterScreen}
-        initialParams={paramsFor('Register')}
-      />
+      <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="VerifyEmailSent" component={VerifyEmailSentScreen} />
       <Stack.Screen name="EmailConfirmed" component={EmailConfirmedScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />

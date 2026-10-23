@@ -159,8 +159,9 @@ describe('auth gate (03 §5)', () => {
 
     await fireEvent.press(screen.getByTestId('verify-wrong-email'));
 
-    await waitFor(() => expect(title()).toBe('Create your account'));
-    expect(screen.getByTestId('register-email').props.value).toBe(MOCK_EMAILS.full);
+    await waitFor(() =>
+      expect(screen.getByTestId('register-email').props.value).toBe(MOCK_EMAILS.full),
+    );
     expect(await tokenStore.getRefreshToken()).toBeNull();
   });
 
