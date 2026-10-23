@@ -15,11 +15,7 @@ How the mock answers
   - Writes run the real operation, read the result, then put the data back as
     it was (`_discarded`), so a mock create or edit returns exactly what the
     real one will, and the dataset never drifts between calls.
-  - Register and verify accept any well-formed input. Login accepts any
-    password for a demo email (Alex, Jordan or Sam) and signs in as Alex with
-    a real JWT; any other email is wrong credentials, and UNVERIFIED_EMAIL
-    answers 403 email_not_verified so the client's route to Verify Email Sent
-    can be exercised. No password check, rate limit or email yet.
+  - Auth is real since slice 3 (accounts.auth, accounts.tokens).
   - Extractions, shared plans and Gmail have no models yet (they are the 11
     owner's, §6a). Their payloads are fixed here, dated from SEED_TODAY, with
     money computed by the engine.
@@ -31,8 +27,6 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from bson import ObjectId
 from django.utils import timezone
-from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User, rules_for
 from core.contract import ApiError, money, not_found, rounded
@@ -43,10 +37,6 @@ from subscriptions.services import trials as trial_math
 from subscriptions.services.cycles import Cycle, add_months, schedule
 
 TODAY = seed.SEED_TODAY
-# Logs in as an account whose email is not verified yet (mock only).
-UNVERIFIED_EMAIL = "unverified@example.com"
-# How long the client keeps Resend disabled after a send (05 §4).
-RESEND_COOLDOWN_SECONDS = 60
 REMINDER_INTERVAL = timedelta(hours=24)
 # A trial this many days or fewer from its end is "later"; beyond it, "far" (11 §2.5).
 TRIAL_LATER_DAYS = 14
@@ -68,11 +58,6 @@ def demo_user() -> User:
 
 def _context(user: User) -> presenters.Context:
     return presenters.Context.for_user(user, today=TODAY)
-
-
-def _tokens(user: User) -> dict:
-    refresh = RefreshToken.for_user(user)
-    return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
 
 def _owned(user: User, subscription_id: str, *, include_deleted=False) -> Subscription:
@@ -149,57 +134,6 @@ def _pending_trial(sub: Subscription) -> bool:
 def _rates_as_of() -> date | None:
     latest = FxRate.objects.order_by("-as_of").first()
     return latest.as_of.date() if latest else None
-
-
-# Auth (04 §5) -----------------------------------------------------------------
-
-
-def register(email: str, password: str) -> dict:
-    return {"email": email, "verification_sent": True}
-
-
-def verify_email(token: str) -> dict:
-    return _tokens(demo_user())
-
-
-def resend_verification(email: str) -> dict:
-    return {"cooldown_seconds": RESEND_COOLDOWN_SECONDS}
-
-
-def login(email: str, password: str) -> dict:
-    # Emails are stored lower-cased (spec section 4), so match them that way.
-    email = email.strip().lower()
-    if email == UNVERIFIED_EMAIL:
-        raise ApiError(403, "email_not_verified", "Verify your email address before you log in.")
-    if email not in {user.email for user in seed.DEMO_USERS}:
-        # One message whether the email or the password was wrong (05 §5).
-        raise ApiError(401, "invalid_credentials", "Email or password is incorrect.")
-    return _tokens(demo_user())
-
-
-def refresh(token: str) -> dict:
-    """Rotates: every refresh returns a new refresh token as well."""
-    expired = ApiError(401, "token_invalid", "Your session has expired. Log in again.")
-    try:
-        old = RefreshToken(token)
-    except TokenError:
-        raise expired from None
-    user = User.objects.filter(pk=old["user_id"]).first()
-    if user is None:
-        raise expired
-    return _tokens(user)
-
-
-def logout(token: str) -> None:
-    return None
-
-
-def request_password_reset(email: str) -> dict:
-    return {"cooldown_seconds": RESEND_COOLDOWN_SECONDS}
-
-
-def confirm_password_reset(token: str, password: str) -> None:
-    return None
 
 
 # Subscriptions (04 §5) --------------------------------------------------------

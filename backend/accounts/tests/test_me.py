@@ -14,6 +14,13 @@ def user():
     return User.objects.create_user(email="Sam@Example.com", password="s3cret!pass", name="Sam")
 
 
+def versioned(user):
+    """An access token as the API issues them, with the `tv` claim."""
+    token = AccessToken.for_user(user)
+    token["tv"] = user.token_version
+    return token
+
+
 def client_with(token):
     client = APIClient()
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
@@ -32,7 +39,7 @@ def test_me_rejects_malformed_token():
 
 @pytest.mark.django_db
 def test_me_rejects_expired_token(user):
-    token = AccessToken.for_user(user)
+    token = versioned(user)
     token.set_exp(lifetime=-timedelta(seconds=1))
 
     assert client_with(token).get("/api/v1/me/").status_code == 401
@@ -40,7 +47,7 @@ def test_me_rejects_expired_token(user):
 
 @pytest.mark.django_db
 def test_me_rejects_token_for_deleted_user(user):
-    token = AccessToken.for_user(user)
+    token = versioned(user)
     user.delete()
 
     assert client_with(token).get("/api/v1/me/").status_code == 401
@@ -48,7 +55,7 @@ def test_me_rejects_token_for_deleted_user(user):
 
 @pytest.mark.django_db
 def test_me_returns_profile_for_valid_token(user):
-    response = client_with(AccessToken.for_user(user)).get("/api/v1/me/")
+    response = client_with(versioned(user)).get("/api/v1/me/")
 
     assert response.status_code == 200
     # Exactly the UserProfile shape the mobile client expects, and nothing
@@ -66,7 +73,7 @@ def test_me_reports_verified_email(user):
     user.email_verified_at = timezone.now()
     user.save()
 
-    response = client_with(AccessToken.for_user(user)).get("/api/v1/me/")
+    response = client_with(versioned(user)).get("/api/v1/me/")
 
     assert response.json()["email_verified"] is True
 
@@ -74,7 +81,7 @@ def test_me_reports_verified_email(user):
 @pytest.mark.django_db
 def test_me_without_trailing_slash_is_served_not_redirected(user):
     # The mobile client requests `/me`; a 301 would drop PATCH bodies later.
-    response = client_with(AccessToken.for_user(user)).get("/api/v1/me")
+    response = client_with(versioned(user)).get("/api/v1/me")
 
     assert response.status_code == 200
     assert response.json()["email"] == "sam@example.com"

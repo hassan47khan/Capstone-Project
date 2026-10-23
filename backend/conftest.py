@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from django.core.cache import cache
 from jsonschema import Draft202012Validator
 from rest_framework.test import APIClient
 
@@ -13,9 +14,19 @@ API_PREFIX = "/api/v1"
 
 
 @pytest.fixture(autouse=True)
-def seed_today(settings):
+def pinned_settings(settings):
     """Every test runs on SEED_TODAY, the day the canonical figures are for."""
     settings.SUBTRAK_TODAY = SEED_TODAY
+    # A fast hasher: the tests check the rules around passwords, not PBKDF2.
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
+@pytest.fixture(autouse=True)
+def fresh_cache():
+    """Rate-limit counters and resend cooldowns live in the cache."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture
