@@ -17,13 +17,18 @@ import type { AuthStackParamList } from '@/navigation/types';
 import { SessionProvider, useSession } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
 import { MOCK_EMAILS, MOCK_PASSWORD } from '@/test/fixtures';
-import { createTestQueryClient, renderWithProviders } from '@/test/render';
+import { renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 import { sizes } from '@/theme';
 
 import { AUTH_NAV_BAR_HEIGHT } from './AuthShell';
-import { LOGIN_COPY, LoginScreen, RATE_LIMIT_FALLBACK_SECONDS } from './LoginScreen';
-import { formatCountdown, useCountdown } from './useCountdown';
+import { LOGIN_COPY, LoginScreen } from './LoginScreen';
+import { authTestQueryClient } from './testClient';
+import {
+  formatCountdown,
+  RATE_LIMIT_FALLBACK_SECONDS,
+  useCountdown,
+} from './useCountdown';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
@@ -42,18 +47,6 @@ function SessionStatus() {
   return <Text testID="session-status">{useSession().status}</Text>;
 }
 
-// TanStack keeps a finished mutation for five minutes by default (gcTime),
-// and that timer holds Jest open after the last test. createTestQueryClient
-// sets gcTime 0 for queries only, so this adds it for mutations.
-function loginQueryClient() {
-  const client = createTestQueryClient();
-  client.setDefaultOptions({
-    ...client.getDefaultOptions(),
-    mutations: { retry: false, gcTime: 0 },
-  });
-  return client;
-}
-
 async function renderLogin() {
   await renderWithProviders(
     <SessionProvider>
@@ -67,7 +60,7 @@ async function renderLogin() {
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
-    { queryClient: loginQueryClient() },
+    { queryClient: authTestQueryClient() },
   );
   await waitFor(() =>
     expect(screen.getByTestId('session-status')).toHaveTextContent('unauthenticated'),
