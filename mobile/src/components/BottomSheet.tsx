@@ -38,7 +38,7 @@
  *   backdrop  colors.scrim (black 70%, measured on both sheets)
  *   radius    radius.sheet (24), top corners only
  *   top edge  1px colors.border
- *   title     typography.displaySm (DM Serif 20/28)
+ *   title     typography.displayTitle (DM Serif 20/28)
  */
 import { AlertTriangle } from 'lucide-react-native';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -296,7 +296,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     backgroundColor: colors.border,
   },
   title: {
-    ...typography.displaySm,
+    ...typography.displayTitle,
   },
   message: {
     ...typography.bodyMd,
