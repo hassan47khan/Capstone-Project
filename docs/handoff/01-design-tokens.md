@@ -149,8 +149,10 @@ Load with `expo-font` before first paint; do not rely on system fallbacks.
 
 | Role | Family | Weight | Size | Tracking | Used for |
 |---|---|---|---|---|---|
-| `display.lg` | DM Serif Display | Regular | 28 | -0.6 | Large currency totals |
-| `display.md` | DM Serif Display | Regular | 24 | -0.4 | Screen + section titles |
+| `display.lg` | DM Serif Display | Regular | 32 | -0.6 | The hero currency total |
+| `display.md` | DM Serif Display | Regular | 24 | -0.4 | Screen titles, large amounts, empty and error states |
+| `display.title` | DM Serif Display | Regular | 20 | -0.3 | Screen header and bottom-sheet titles |
+| `display.sm` | DM Serif Display | Regular | 18 | -0.25 | Section headers inside a screen |
 | `body.lg` | DM Sans | Regular | 15 | — | Input text, button labels |
 | `body.md` | DM Sans | Regular | 14 | — | Body copy |
 | `label.md` | DM Sans | Medium | 14 | — | Settings row labels |
@@ -160,6 +162,30 @@ Load with `expo-font` before first paint; do not rely on system fallbacks.
 | `caption` | DM Sans | Regular | 12 | — | "Next bill: …", helper text |
 | `tab` | DM Sans | SemiBold | 11 | — | Tab bar labels |
 | ~~`micro`~~ | — | — | — | — | **Retired.** See below |
+
+### The display scale was extended on 2026-10-23
+
+This table originally listed two display roles, 28 and 24. The screens needed
+four, and because rule 6 forbids a literal, each one snapped to the nearest
+role and recorded the deviation in a `TODO(tokens)` comment. The table is what
+was wrong, so it was extended rather than the screens bent to it:
+
+- **`display.lg` 28 → 32.** 06 §2 draws Home's spend-card figure at 32/40.
+  `Amount size="hero"` was its only consumer and rendered it at 28, with no
+  marker of any kind — the largest number on the home screen was 4px small and
+  nothing said so. 28 was not kept as a separate role because nothing used it
+  for anything else; `Amount size="large"` is `display.md` 24.
+- **`display.sm` 18 is new.** 06 §2 draws all three of Home's section headers at
+  18/24. 02 §12's currency sheet measured 18 as well and was normalized up to
+  20 as drift; a value that appears across two handoffs is a step in the scale,
+  not drift.
+- **`display.title` 20 is the old `display.sm`,** renamed because it now sits
+  between two sizes and is defined by its job — screen headers (03 §4) and
+  bottom-sheet titles (02 §12) — rather than by being the small one.
+
+Its tracking, -0.25, is interpolated: the measured values are -0.6/28, -0.4/24
+and -0.3/20, which are not linear, so 18 was continued by eye. Confirm it
+against Figma at the next design pass.
 
 DM Sans is a variable font with an `opsz` axis. Figma sets `opsz: 14` throughout —
 set it once in the font config rather than per text node.
