@@ -3,15 +3,28 @@
  */
 import { headspaceDetail, netflixDetail } from '@/test/subscriptionFixtures';
 
+import type { HistoryEvent } from './api';
 import {
   buildPriceSeries,
   compareDecimal,
   daysBetween,
   describePriceHistory,
   formatMonthYear,
+  levelOf,
   monthsBefore,
+  normalizeDecimal,
   priceLevels,
 } from './priceHistory';
+import { utcToday } from './today';
+
+// A price_change event, for building histories in tests.
+const change = (at: string, from: string | null, to: string): HistoryEvent => ({
+  id: `evt-${at}`,
+  event_type: 'price_change',
+  occurred_at: at,
+  old_value: from === null ? null : { price: from },
+  new_value: { price: to },
+});
 
 describe('compareDecimal', () => {
   it('orders prices by value, not by text length', () => {
@@ -19,6 +32,15 @@ describe('compareDecimal', () => {
     expect(compareDecimal('15.49', '13.99')).toBeGreaterThan(0);
     expect(compareDecimal('15.49', '15.490')).toBe(0);
     expect(compareDecimal('0.99', '.99')).toBe(0);
+  });
+});
+
+describe('normalizeDecimal', () => {
+  it('gives equal values one spelling', () => {
+    expect(normalizeDecimal('15.50')).toBe('15.5');
+    expect(normalizeDecimal('015.5')).toBe('15.5');
+    expect(normalizeDecimal('15.00')).toBe('15');
+    expect(normalizeDecimal('.99')).toBe('0.99');
   });
 });
 
@@ -41,6 +63,7 @@ describe('buildPriceSeries', () => {
     const series = buildPriceSeries(netflixDetail.history, '15.49', '2026-10-23');
 
     expect(series.rangeStart).toBe('2025-10-23');
+    expect(series.lineStart).toBe('2025-10-23');
     expect(series.startPrice).toBe('13.99');
     expect(series.steps).toEqual([{ date: '2026-10-01', price: '15.49' }]);
   });
@@ -62,24 +85,91 @@ describe('buildPriceSeries', () => {
     expect(series.steps).toEqual([]);
   });
 
+  it('a change late in the day (UTC) is inside the window when today is UTC', () => {
+    // 02:00 UTC on Oct 23 is still Oct 22 in the Americas. The chart's "today"
+    // must come from the same clock as the event, or the change drops out.
+    const history = [change('2026-10-23T02:00:00Z', '13.99', '15.49')];
+    const today = utcToday(new Date('2026-10-23T02:30:00Z'));
+
+    expect(today).toBe('2026-10-23');
+    expect(buildPriceSeries(history, '15.49', today).steps).toEqual([
+      { date: '2026-10-23', price: '15.49' },
+    ]);
+  });
+
+  it("without a 'created' event, starts from the first change's old price", () => {
+    const history = [change('2026-10-01T00:00:00Z', '13.99', '15.49')];
+    const series = buildPriceSeries(history, '15.49', '2026-10-23');
+
+    expect(series.startPrice).toBe('13.99');
+    expect(series.lineStart).toBe(series.rangeStart);
+    expect(series.steps).toEqual([{ date: '2026-10-01', price: '15.49' }]);
+  });
+
+  it('with no earlier price at all, starts the line at the first change', () => {
+    const history = [
+      change('2026-05-01T00:00:00Z', null, '13.99'),
+      change('2026-10-01T00:00:00Z', null, '15.49'),
+    ];
+    const series = buildPriceSeries(history, '15.49', '2026-10-23');
+
+    expect(series.lineStart).toBe('2026-05-01');
+    expect(series.startPrice).toBe('13.99');
+    expect(series.steps).toEqual([{ date: '2026-10-01', price: '15.49' }]);
+  });
+});
+
+describe('priceLevels', () => {
   it('ranks prices so the higher one is drawn higher', () => {
     const series = buildPriceSeries(netflixDetail.history, '15.49', '2026-10-23');
     const levels = priceLevels(series);
-    expect(levels.get('13.99')).toBe(0);
-    expect(levels.get('15.49')).toBe(1);
+    expect(levelOf(levels, '13.99')).toBe(0);
+    expect(levelOf(levels, '15.49')).toBe(1);
+  });
+
+  it('treats "15.5" and "15.50" as the same level, however they are looked up', () => {
+    const history = [
+      change('2026-03-01T00:00:00Z', '15.5', '20.00'),
+      change('2026-06-01T00:00:00Z', '20.00', '15.50'),
+    ];
+    const levels = priceLevels(buildPriceSeries(history, '15.50', '2026-10-23'));
+
+    expect(levels.size).toBe(2);
+    expect(levelOf(levels, '15.5')).toBe(0);
+    expect(levelOf(levels, '15.50')).toBe(0);
+    expect(levelOf(levels, '20.00')).toBe(1);
   });
 });
 
 describe('describePriceHistory', () => {
-  it('us7_chart_text_summary_matches_the_spec', () => {
-    expect(describePriceHistory(netflixDetail.history, 'USD', '15.49')).toBe(
-      'Price history: $13.99 from March 2024, increased to $15.49 on October 1, 2026.',
+  it('us7_chart_text_summary_describes_what_the_chart_shows', () => {
+    const series = buildPriceSeries(netflixDetail.history, '15.49', '2026-10-23');
+    expect(describePriceHistory(series, 'USD')).toBe(
+      'Price history for the last 12 months: $13.99, increased to $15.49 on October 1, 2026.',
     );
   });
 
   it('describes a price that never changed', () => {
-    expect(describePriceHistory(headspaceDetail.history, 'USD', '12.99')).toBe(
-      'Price history: $12.99 from October 2025.',
+    const series = buildPriceSeries(headspaceDetail.history, '12.99', '2026-10-23');
+    expect(describePriceHistory(series, 'USD')).toBe(
+      'Price history for the last 12 months: $12.99, with no changes.',
+    );
+  });
+
+  it("says 'increased' for a rise even without a 'created' event", () => {
+    const history = [change('2026-10-01T00:00:00Z', '13.99', '15.49')];
+    const series = buildPriceSeries(history, '15.49', '2026-10-23');
+    expect(describePriceHistory(series, 'USD')).toContain('increased to $15.49');
+  });
+
+  it('says where the line starts when the earlier price is unknown', () => {
+    const history = [
+      change('2026-05-01T00:00:00Z', null, '13.99'),
+      change('2026-10-01T00:00:00Z', null, '12.99'),
+    ];
+    const series = buildPriceSeries(history, '12.99', '2026-10-23');
+    expect(describePriceHistory(series, 'USD')).toBe(
+      'Price history for the last 12 months: $13.99 from May 1, 2026, decreased to $12.99 on October 1, 2026.',
     );
   });
 });

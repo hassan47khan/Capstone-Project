@@ -5,7 +5,7 @@
  * is labelled with its new price and date.
  *
  * The drawing is hidden from screen readers; the text summary under it says
- * the same thing in words (07 §11).
+ * the same thing in words (07 §11), and is shown even when there is no chart.
  *
  * Motion (07 §10): the line draws left to right on first render. Under
  * reduced motion it appears at once.
@@ -22,6 +22,7 @@ import { makeStyles, spacing, useMotion, useTheme } from '@/theme';
 import {
   daysBetween,
   formatMonthYear,
+  levelOf,
   priceLevels,
   type PriceSeries,
   type PriceStep,
@@ -62,12 +63,13 @@ export function chartGeometry(series: PriceSeries, width: number): ChartGeometry
   const xOf = (date: string) =>
     (daysBetween(series.rangeStart, date) / totalDays) * width;
   const yOf = (price: string) =>
-    PAD_TOP + (1 - (levels.get(price) ?? 0) / topRank) * plotHeight;
+    PAD_TOP + (1 - levelOf(levels, price) / topRank) * plotHeight;
 
+  // Start where the series starts (later than the left edge if the opening price is unknown).
+  let lastX = xOf(series.lineStart);
   let y = yOf(series.startPrice);
-  let path = `M 0 ${y}`;
+  let path = `M ${lastX} ${y}`;
   let length = 0;
-  let lastX = 0;
   const points: ChartGeometry['points'] = [];
 
   for (const step of series.steps) {
@@ -121,11 +123,18 @@ export function PriceHistoryChart({
     }).start();
   }, [drawn, m, width]);
 
-  // No changes: say so, rather than drawing a flat line on an empty axis.
+  const summaryText = (
+    <Text style={styles.summary} testID={`${testID}-summary`}>
+      {summary}
+    </Text>
+  );
+
+  // No changes: say so instead of drawing a flat line, and keep the summary.
   if (series.steps.length === 0) {
     return (
       <Card style={styles.card} testID={`${testID}-empty`}>
         <Text style={styles.empty}>{PRICE_CHART_COPY.empty}</Text>
+        {summaryText}
       </Card>
     );
   }
@@ -157,21 +166,20 @@ export function PriceHistoryChart({
               })}
               testID={`${testID}-line`}
             />
-            {/* A dot where each change happened. */}
-            {geometry.points.map(({ x, y, step }) => (
+            {/* A dot where each change happened. Keyed by index: two changes can share a day. */}
+            {geometry.points.map(({ x, y }, index) => (
               <Circle
-                key={`dot-${step.date}`}
+                key={`dot-${index}`}
                 cx={x}
                 cy={y}
                 r={DOT_RADIUS}
                 fill={colors.accent}
               />
             ))}
-            {/* "$15.49 · Oct 1" beside each change. Right-aligned in the right
-                half so it never runs off the edge. */}
-            {geometry.points.map(({ x, y, step }) => (
+            {/* "$15.49 · Oct 1" beside each change, right-aligned in the right half. */}
+            {geometry.points.map(({ x, y, step }, index) => (
               <SvgText
-                key={`label-${step.date}`}
+                key={`label-${index}`}
                 x={x > width / 2 ? x - spacing.xs : x + spacing.xs}
                 y={y - spacing.sm}
                 textAnchor={x > width / 2 ? 'end' : 'start'}
@@ -196,10 +204,7 @@ export function PriceHistoryChart({
         <Text style={styles.axisLabel}>{PRICE_CHART_COPY.today}</Text>
       </View>
 
-      {/* The same data in words, for everyone (07 §11). */}
-      <Text style={styles.summary} testID={`${testID}-summary`}>
-        {summary}
-      </Text>
+      {summaryText}
     </Card>
   );
 }

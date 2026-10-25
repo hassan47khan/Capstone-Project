@@ -5,6 +5,10 @@
  *
  * No money math: prices stay decimal strings. We only ever ask "which price
  * is higher?", and answer it by comparing the digits as text.
+ *
+ * Dates: event times are UTC instants, so `today` must be a UTC date too
+ * (see utcToday in today.ts). Mixing in the phone's local date would push a
+ * change made late in the evening outside the window.
  */
 import { formatDateSpoken, formatMoney } from '@/api/format';
 import type { CurrencyCode, DateOnly, MoneyString } from '@/api/types';
@@ -35,6 +39,13 @@ const MONTHS_LONG = [
 function splitDecimal(value: MoneyString): { whole: string; fraction: string } {
   const [rawWhole = '0', rawFraction = ''] = value.trim().split('.');
   return { whole: rawWhole.replace(/^0+(?=\d)/, '') || '0', fraction: rawFraction };
+}
+
+// One spelling per value: "15.50", "15.5" and "015.5" all become "15.5".
+export function normalizeDecimal(value: MoneyString): MoneyString {
+  const { whole, fraction } = splitDecimal(value);
+  const trimmed = fraction.replace(/0+$/, '');
+  return trimmed ? `${whole}.${trimmed}` : whole;
 }
 
 /**
@@ -105,33 +116,49 @@ export interface PriceStep {
 export interface PriceSeries {
   rangeStart: DateOnly; // left edge: 12 months before today
   today: DateOnly; // right edge
-  startPrice: MoneyString; // the price at the left edge
-  steps: PriceStep[]; // changes inside the window, oldest first
+  // Where the line starts: rangeStart, or later if the price before the first
+  // change is unknown (then we don't invent an earlier segment).
+  lineStart: DateOnly;
+  startPrice: MoneyString; // the price at lineStart
+  steps: PriceStep[]; // changes after lineStart, up to today, oldest first
 }
 
-// The price it was created at, from the `created` event.
-function createdPrice(history: HistoryEvent[]): MoneyString | undefined {
-  return history.find((e) => e.event_type === 'created')?.new_value?.price;
+// A price change, with the price before it when the server sent one.
+interface PriceChange extends PriceStep {
+  previous: MoneyString | undefined;
 }
 
 // Every price change, oldest first.
-function priceChanges(history: HistoryEvent[]): PriceStep[] {
-  const steps: PriceStep[] = [];
+function priceChanges(history: HistoryEvent[]): PriceChange[] {
+  const changes: PriceChange[] = [];
   for (const event of history) {
     const price = event.new_value?.price;
     if (event.event_type === 'price_change' && price) {
-      steps.push({ date: dateOf(event.occurred_at), price });
+      changes.push({
+        date: dateOf(event.occurred_at),
+        price,
+        previous: event.old_value?.price,
+      });
     }
   }
-  return steps.sort((a, b) => a.date.localeCompare(b.date));
+  return changes.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// The first known price: from the `created` event, else the price before the first change.
+function openingPrice(
+  history: HistoryEvent[],
+  changes: PriceChange[],
+): MoneyString | undefined {
+  const created = history.find((e) => e.event_type === 'created')?.new_value?.price;
+  return created ?? changes[0]?.previous;
 }
 
 /**
  * The last 12 months of a subscription's price.
  *
  * @param history  the detail's history (any order)
- * @param current  today's billing price, used if the history is empty
- * @param today    today's calendar date
+ * @param current  today's billing price, used if the history has no prices
+ * @param today    today's date in UTC, the same clock as the events
  */
 export function buildPriceSeries(
   history: HistoryEvent[],
@@ -140,60 +167,82 @@ export function buildPriceSeries(
 ): PriceSeries {
   const rangeStart = monthsBefore(today, CHART_MONTHS);
   const changes = priceChanges(history);
+  const inWindow: PriceStep[] = changes
+    .filter((c) => c.date > rangeStart && c.date <= today)
+    .map(({ date, price }) => ({ date, price }));
 
-  // The price at the left edge: the original price, updated by every
-  // change that happened on or before that day.
-  let startPrice = createdPrice(history) ?? changes[0]?.price ?? current;
+  // The price at the left edge: the opening price, updated by every change
+  // on or before that day.
+  let startPrice = openingPrice(history, changes);
   for (const change of changes) {
     if (change.date <= rangeStart) startPrice = change.price;
   }
 
-  // Changes after the left edge, up to and including today.
-  const steps = changes.filter((c) => c.date > rangeStart && c.date <= today);
-  return { rangeStart, today, startPrice, steps };
+  if (startPrice !== undefined) {
+    return { rangeStart, today, lineStart: rangeStart, startPrice, steps: inWindow };
+  }
+
+  // Price before the first change is unknown: start the line at that change.
+  const [first, ...rest] = inWindow;
+  if (first) {
+    return {
+      rangeStart,
+      today,
+      lineStart: first.date,
+      startPrice: first.price,
+      steps: rest,
+    };
+  }
+
+  // No price events at all: a flat line at today's price.
+  return { rangeStart, today, lineStart: rangeStart, startPrice: current, steps: [] };
 }
 
 /**
  * Ranks each distinct price from lowest (0) up, so the chart can draw a
  * higher price higher. The line shows order, not scale: the exact prices
  * are written on the chart and in the text summary.
+ *
+ * Keyed by normalizeDecimal, so "15.5" and "15.50" share one level. Look
+ * prices up with levelOf, which normalizes the same way.
  */
 export function priceLevels(series: PriceSeries): Map<MoneyString, number> {
-  const distinct: MoneyString[] = [];
-  for (const price of [series.startPrice, ...series.steps.map((s) => s.price)]) {
-    if (!distinct.some((p) => compareDecimal(p, price) === 0)) distinct.push(price);
-  }
-  distinct.sort(compareDecimal);
-  return new Map(distinct.map((price, rank) => [price, rank]));
+  const distinct = new Set(
+    [series.startPrice, ...series.steps.map((s) => s.price)].map(normalizeDecimal),
+  );
+  const sorted = [...distinct].sort(compareDecimal);
+  return new Map(sorted.map((price, rank) => [price, rank]));
+}
+
+// A price's level from priceLevels (0 if somehow missing).
+export function levelOf(levels: Map<MoneyString, number>, price: MoneyString): number {
+  return levels.get(normalizeDecimal(price)) ?? 0;
 }
 
 // --- What a screen reader hears (07 §11) ------------------------------------
 
 /**
- * The whole price history as one sentence:
- * "Price history: $13.99 from March 2024, increased to $15.49 on October 1, 2026."
+ * The chart in one sentence, covering exactly what the chart shows:
+ * "Price history for the last 12 months: $13.99, increased to $15.49 on October 1, 2026."
  */
 export function describePriceHistory(
-  history: HistoryEvent[],
+  series: PriceSeries,
   currency: CurrencyCode,
-  current: MoneyString,
 ): string {
   const money = (price: MoneyString) => formatMoney(price, currency).display;
-  const created = history.find((e) => e.event_type === 'created');
-  const changes = priceChanges(history);
 
-  let price = createdPrice(history) ?? changes[0]?.price ?? current;
-  let sentence = `Price history: ${money(price)}`;
-  if (created) {
-    const { year, month } = parts(dateOf(created.occurred_at));
-    sentence += ` from ${MONTHS_LONG[month - 1]} ${year}`;
+  let sentence = `Price history for the last 12 months: ${money(series.startPrice)}`;
+  if (series.lineStart !== series.rangeStart) {
+    sentence += ` from ${formatDateSpoken(series.lineStart)}`;
   }
+  if (series.steps.length === 0) return `${sentence}, with no changes.`;
 
-  changes.forEach((change, index) => {
-    const direction = compareDecimal(change.price, price) > 0 ? 'increased' : 'decreased';
+  let price = series.startPrice;
+  series.steps.forEach((step, index) => {
+    const direction = compareDecimal(step.price, price) > 0 ? 'increased' : 'decreased';
     const joiner = index === 0 ? ', ' : ', then ';
-    sentence += `${joiner}${direction} to ${money(change.price)} on ${formatDateSpoken(change.date)}`;
-    price = change.price;
+    sentence += `${joiner}${direction} to ${money(step.price)} on ${formatDateSpoken(step.date)}`;
+    price = step.price;
   });
 
   return `${sentence}.`;
