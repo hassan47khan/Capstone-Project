@@ -9,9 +9,14 @@
  */
 import { minorUnits } from '@/api/format';
 import { invalidPriceMessage, isValidPrice } from '@/components';
-import type { Category } from '@/theme';
+import { CATEGORY_SLUGS, type Category } from '@/theme';
 
-import type { BillingCycle, CustomCycleUnit, SubscriptionInput } from './api';
+import type {
+  BillingCycle,
+  CustomCycleUnit,
+  SubscriptionDetail,
+  SubscriptionInput,
+} from './api';
 
 /** Everything the user can type or pick. */
 export interface FormValues {
@@ -174,4 +179,35 @@ export function formErrorsFromServer(
     if (field && messages[0]) errors[field] = messages[0];
   }
   return errors;
+}
+
+// Prefills the Edit form from a saved subscription.
+export function formFromDetail(detail: SubscriptionDetail): FormValues {
+  return {
+    name: detail.name,
+    price: detail.billing_price,
+    currency: detail.billing_currency,
+    category: CATEGORY_SLUGS.find((c) => c === detail.category?.slug) ?? null,
+    cycle: detail.billing_cycle,
+    customCount: detail.custom_cycle_count ?? 1,
+    customUnit: detail.custom_cycle_unit ?? 'months',
+    startDate: detail.start_date,
+    notes: detail.notes,
+    paymentLabel: detail.payment_label,
+  };
+}
+
+// Errors to show: the server's first, then ours for fields the user has left
+// (or all of them once a save has failed).
+export function visibleErrors(
+  errors: FormErrors,
+  serverErrors: FormErrors,
+  touched: Set<FormField>,
+  submitted: boolean,
+): FormErrors {
+  const shown: FormErrors = { ...serverErrors };
+  for (const [field, message] of Object.entries(errors) as [FormField, string][]) {
+    if (!shown[field] && (submitted || touched.has(field))) shown[field] = message;
+  }
+  return shown;
 }

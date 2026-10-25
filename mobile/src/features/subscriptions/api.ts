@@ -123,6 +123,18 @@ export function createSubscription(
   });
 }
 
+// Saves edits. A price, category or cycle change writes a history event on
+// the server; the client never writes history itself (07 §5).
+export function updateSubscription(
+  id: string,
+  input: SubscriptionInput,
+): Promise<SubscriptionDetail> {
+  return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: input,
+  });
+}
+
 // Loads one subscription. A 404 means "not found or not yours".
 export function getSubscription(id: string): Promise<SubscriptionDetail> {
   return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}`);

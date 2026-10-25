@@ -1,16 +1,20 @@
 /**
  * Tests for the Add / Edit form rules (07 §2, §3).
  */
+import { netflixDetail } from '@/test/subscriptionFixtures';
+
 import {
   EMPTY_FORM,
   FORM_COPY,
   describeCycle,
   fitsCurrency,
   formErrorsFromServer,
+  formFromDetail,
   isFormDirty,
   saveHint,
   toSubscriptionInput,
   validateForm,
+  visibleErrors,
   type FormValues,
 } from './formRules';
 
@@ -156,5 +160,39 @@ describe('describeCycle', () => {
     expect(cycle('yearly')).toBe('Yearly');
     expect(cycle('custom', 2, 'months')).toBe('Every 2 months');
     expect(cycle('custom', 1, 'weeks')).toBe('Every week');
+  });
+});
+
+describe('formFromDetail', () => {
+  it('prefills the edit form from a saved subscription', () => {
+    expect(formFromDetail(netflixDetail)).toEqual({
+      name: 'Netflix',
+      price: '15.49',
+      currency: 'USD',
+      category: 'entertainment',
+      cycle: 'monthly',
+      customCount: 1,
+      customUnit: 'months',
+      startDate: '2024-03-12',
+      notes: '',
+      paymentLabel: 'Visa ••4242',
+    });
+  });
+});
+
+describe('visibleErrors', () => {
+  const errors = { name: 'Name missing.', price: 'Price bad.' };
+
+  it('shows only errors for fields the user has left', () => {
+    expect(visibleErrors(errors, {}, new Set(['name']), false)).toEqual({
+      name: 'Name missing.',
+    });
+  });
+
+  it('shows every error after a failed save, with server messages winning', () => {
+    expect(visibleErrors(errors, { price: 'Server says no.' }, new Set(), true)).toEqual({
+      name: 'Name missing.',
+      price: 'Server says no.',
+    });
   });
 });

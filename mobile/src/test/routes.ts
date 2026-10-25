@@ -23,7 +23,7 @@
  *   discovered against the real thing.
  */
 
-import type { ApiErrorBody, Subscription, SubscriptionInput } from '@/api/types';
+import type { ApiErrorBody, Subscription } from '@/api/types';
 
 import { contractHomeFor } from './contractFixtures';
 import {
@@ -32,6 +32,7 @@ import {
   resetCreatedSubscriptions,
   subscriptionDetailFor,
   subscriptionListFor,
+  updateMockSubscription,
 } from './subscriptionFixtures';
 
 import {
@@ -481,49 +482,18 @@ export const routes: Route[] = [
   {
     method: 'PATCH',
     pattern: '/subscriptions/:id',
+    // Frozen contract shape (04 §5), same store as the other routes; writes history.
     handler: protectedRoute((request, account) => {
-      const list = subscriptionsFor(account.profile.email);
-      const index = list.findIndex((s) => s.id === request.params.id);
-      if (index === -1)
-        return fail(404, 'not_found', 'This subscription could not be found.');
-
-      const patch = (request.body ?? {}) as Partial<SubscriptionInput>;
-
-      if (
-        patch.price !== undefined &&
-        (!/^\d+(\.\d+)?$/.test(patch.price) || Number(patch.price) <= 0)
-      ) {
-        return fail(400, 'price_invalid', 'Enter a valid price greater than $0.', {
-          price: ['Enter a valid price greater than $0.'],
-        });
+      const result = updateMockSubscription(
+        account.profile.email,
+        request.params.id ?? '',
+        request.body,
+      );
+      if (!result) return fail(404, 'not_found', 'This subscription could not be found.');
+      if (result.error) {
+        return fail(400, result.error.code, result.error.message, result.error.fields);
       }
-
-      const previous = list[index]!;
-      const updated: Subscription = {
-        ...previous,
-        ...patch,
-        // Editing a price appends a revision but raises no alert, because the
-        // user made the change themselves (specification section 9).
-        revisions:
-          patch.price && patch.price !== previous.price
-            ? [
-                ...previous.revisions,
-                {
-                  changed_at: '2026-09-30T12:00:00Z',
-                  field: 'price',
-                  old: previous.price,
-                  new: patch.price,
-                },
-              ]
-            : previous.revisions,
-        monthly_equivalent: patch.price ?? previous.monthly_equivalent,
-      };
-
-      const next = [...list];
-      next[index] = updated;
-      setSubscriptions(account.profile.email, next);
-
-      return ok(updated);
+      return ok(result.detail);
     }),
   },
 

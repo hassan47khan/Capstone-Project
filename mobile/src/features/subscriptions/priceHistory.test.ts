@@ -173,3 +173,30 @@ describe('describePriceHistory', () => {
     );
   });
 });
+
+describe('two changes on the same day', () => {
+  it('are ordered by exact time, whatever order the history lists them in', () => {
+    // Newest first, as the API sends them: 15.49 at 00:00, then 16.99 at 12:00.
+    const history = [
+      change('2026-10-01T12:00:00Z', '15.49', '16.99'),
+      change('2026-10-01T00:00:00Z', '13.99', '15.49'),
+    ];
+    const series = buildPriceSeries(history, '16.99', '2026-10-23');
+
+    expect(series.startPrice).toBe('13.99');
+    expect(series.steps.map((s) => s.price)).toEqual(['15.49', '16.99']);
+    expect(describePriceHistory(series, 'USD')).toBe(
+      'Price history for the last 12 months: $13.99, increased to $15.49 on October 1, 2026, then increased to $16.99 on October 1, 2026.',
+    );
+  });
+});
+
+it('orders by real time even when timestamps are written differently', () => {
+  // "…00.500Z" is half a second AFTER "…00Z", though it sorts before it as text.
+  const history = [
+    change('2026-10-01T00:00:00.500Z', '15.49', '16.99'),
+    change('2026-10-01T00:00:00Z', '13.99', '15.49'),
+  ];
+  const series = buildPriceSeries(history, '16.99', '2026-10-23');
+  expect(series.steps.map((s) => s.price)).toEqual(['15.49', '16.99']);
+});

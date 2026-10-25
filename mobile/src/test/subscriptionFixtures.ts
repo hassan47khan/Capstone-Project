@@ -3,9 +3,11 @@
  * SEED_TODAY 2026-10-01). Written by hand to match what the backend seed
  * sends; the client never computes these figures.
  *
- * Used by the GET and POST /subscriptions mock routes in routes.ts.
+ * Used by the /subscriptions mock routes in routes.ts (list, detail, add,
+ * edit and delete all share this one store).
  */
 import type {
+  HistoryEvent,
   SubscriptionDetail,
   SubscriptionInput,
   SubscriptionRow,
@@ -135,19 +137,23 @@ const detailsByEmail: Record<string, SubscriptionDetail[]> = {
 let created: Record<string, SubscriptionDetail[]> = {};
 // Ids soft-deleted this session: gone from lists and detail (04 §2).
 let deleted = new Set<string>();
+// Edited copies by id; they replace the seed or added version.
+let edited: Record<string, SubscriptionDetail> = {};
 let nextId = 1;
 
 export function resetCreatedSubscriptions(): void {
   created = {};
   deleted = new Set();
+  edited = {};
   nextId = 1;
 }
 
-// Everything one account has: the seed fixtures plus anything added, minus deletes.
+// Everything one account has: the seed fixtures plus anything added, with
+// edits applied, minus deletes.
 function allFor(email: string): SubscriptionDetail[] {
-  return [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])].filter(
-    (s) => !deleted.has(s.id),
-  );
+  return [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])]
+    .filter((s) => !deleted.has(s.id))
+    .map((s) => edited[s.id] ?? s);
 }
 
 /** One subscription for one account, or null (the route turns that into a 404). */
@@ -308,4 +314,123 @@ export function createMockSubscription(email: string, body: unknown): CreateResu
 
   created[email] = [...(created[email] ?? []), detail];
   return { detail };
+}
+
+// Price > 0, checked as text: digits, optional fraction, some non-zero digit.
+function isPositivePrice(price: string): boolean {
+  return /^\d+(\.\d+)?$/.test(price) && /[1-9]/.test(price);
+}
+
+/**
+ * PATCH /subscriptions/:id for the mock API: applies the changes and, like the
+ * real server (04 §5), writes one history event each for a price, category or
+ * cycle change. Null when not found (the route turns that into a 404).
+ */
+export function updateMockSubscription(
+  email: string,
+  id: string,
+  body: unknown,
+): CreateResult | null {
+  const current = subscriptionDetailFor(email, id);
+  if (!current) return null;
+  const input = (body ?? {}) as Partial<SubscriptionInput>;
+
+  if (input.billing_price !== undefined && !isPositivePrice(input.billing_price)) {
+    return {
+      error: {
+        code: 'price_invalid',
+        message: PRICE_MESSAGE,
+        fields: { billing_price: [PRICE_MESSAGE] },
+      },
+    };
+  }
+  if (input.name !== undefined && !input.name.trim()) {
+    const message = 'Enter a subscription name.';
+    return { error: { code: 'validation_error', message, fields: { name: [message] } } };
+  }
+
+  const price = input.billing_price ?? current.billing_price;
+  const currency = input.billing_currency ?? current.billing_currency;
+  const cycle = input.billing_cycle ?? current.billing_cycle;
+  const count =
+    input.custom_cycle_count !== undefined
+      ? input.custom_cycle_count
+      : current.custom_cycle_count;
+  const unit =
+    input.custom_cycle_unit !== undefined
+      ? input.custom_cycle_unit
+      : current.custom_cycle_unit;
+  const slug = input.category ?? current.category?.slug ?? null;
+  // Later on the seed day than the seed's own events, so the order is clear.
+  const now = `${SEED_TODAY}T12:00:00Z`;
+
+  // One event per kind of change, newest first like the API.
+  const events: HistoryEvent[] = [];
+  const event = (
+    event_type: HistoryEvent['event_type'],
+    old_value: HistoryEvent['old_value'],
+    new_value: HistoryEvent['new_value'],
+  ) =>
+    events.unshift({
+      id: `evt-edit-${nextId++}`,
+      event_type,
+      occurred_at: now,
+      old_value,
+      new_value,
+    });
+
+  if (price !== current.billing_price) {
+    event('price_change', { price: current.billing_price }, { price });
+  }
+  if (slug !== (current.category?.slug ?? null)) {
+    event(
+      'category_change',
+      { category: current.category?.slug ?? null },
+      { category: slug },
+    );
+  }
+  const cycleChanged =
+    cycle !== current.billing_cycle ||
+    count !== current.custom_cycle_count ||
+    unit !== current.custom_cycle_unit;
+  if (cycleChanged) {
+    event(
+      'cycle_change',
+      {
+        billing_cycle: current.billing_cycle,
+        custom_cycle_count: current.custom_cycle_count,
+        custom_cycle_unit: current.custom_cycle_unit,
+      },
+      { billing_cycle: cycle, custom_cycle_count: count, custom_cycle_unit: unit },
+    );
+  }
+
+  const updated: SubscriptionDetail = {
+    ...current,
+    name: input.name?.trim() ?? current.name,
+    billing_price: price,
+    billing_currency: currency,
+    billing_cycle: cycle,
+    custom_cycle_count: count,
+    custom_cycle_unit: unit,
+    start_date: input.start_date ?? current.start_date,
+    category: Object.values(CATEGORIES).find((c) => c.slug === slug) ?? null,
+    notes: input.notes ?? current.notes,
+    payment_label: input.payment_label ?? current.payment_label,
+    // Same figure as before unless the price or cycle changed (mock can't do money math).
+    normalized_monthly:
+      price !== current.billing_price || cycleChanged
+        ? monthlyFor(
+            price,
+            cycle,
+            { custom_cycle_count: count, custom_cycle_unit: unit },
+            currency,
+          )
+        : current.normalized_monthly,
+    updated_at: now,
+    history: [...events, ...current.history],
+  };
+
+  edited[id] = updated;
+  return { detail: updated };
 }

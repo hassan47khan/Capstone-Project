@@ -126,9 +126,10 @@ export interface PriceSeries {
 // A price change, with the price before it when the server sent one.
 interface PriceChange extends PriceStep {
   previous: MoneyString | undefined;
+  at: string; // the exact instant, to order two changes on the same day
 }
 
-// Every price change, oldest first.
+// Every price change, oldest first (by exact time, not just the day).
 function priceChanges(history: HistoryEvent[]): PriceChange[] {
   const changes: PriceChange[] = [];
   for (const event of history) {
@@ -138,10 +139,12 @@ function priceChanges(history: HistoryEvent[]): PriceChange[] {
         date: dateOf(event.occurred_at),
         price,
         previous: event.old_value?.price,
+        at: event.occurred_at,
       });
     }
   }
-  return changes.sort((a, b) => a.date.localeCompare(b.date));
+  // Compare as times, not text: "…00Z" and "…00.123456Z" sort wrongly as text.
+  return changes.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 
 // The first known price: from the `created` event, else the price before the first change.
