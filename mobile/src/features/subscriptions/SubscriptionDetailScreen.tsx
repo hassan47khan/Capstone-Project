@@ -43,7 +43,7 @@ import { CATEGORY_SLUGS, makeStyles, sizes, spacing, type Category } from '@/the
 import { getSubscription, type SubscriptionDetail } from './api';
 import { PriceHistoryChart } from './PriceHistoryChart';
 import { buildPriceSeries, describePriceHistory } from './priceHistory';
-import { localToday } from './today';
+import { utcToday } from './today';
 
 export const DETAIL_COPY = {
   title: 'Subscription detail',
@@ -134,7 +134,7 @@ export function SubscriptionDetailScreen() {
         {header}
         <SkeletonGroup label={DETAIL_COPY.loading} testID="detail-loading">
           <View style={styles.hero}>
-            <Skeleton shape="mark" />
+            <Skeleton shape="mark" width={sizes.markLarge} height={sizes.markLarge} />
             <Skeleton width="50%" />
           </View>
           <Skeleton height={sizes.field * 4} />
@@ -149,7 +149,8 @@ export function SubscriptionDetailScreen() {
   const stale = detail.isError;
   const offline = stale && detail.error instanceof ApiError && detail.error.isOffline;
   const badge = statusBadge(sub);
-  const today = localToday();
+  // UTC, the same clock as the history events (see priceHistory.ts).
+  const series = buildPriceSeries(sub.history, sub.billing_price, utcToday());
 
   return (
     <Screen
@@ -191,13 +192,10 @@ export function SubscriptionDetailScreen() {
       <View style={styles.section}>
         <SectionHeader title={DETAIL_COPY.priceHistory} />
         <PriceHistoryChart
-          series={buildPriceSeries(sub.history, sub.billing_price, today)}
+          series={series}
           currency={sub.billing_currency}
-          summary={describePriceHistory(
-            sub.history,
-            sub.billing_currency,
-            sub.billing_price,
-          )}
+          // Describes the same 12 months the chart shows (07 §11).
+          summary={describePriceHistory(series, sub.billing_currency)}
         />
       </View>
 
