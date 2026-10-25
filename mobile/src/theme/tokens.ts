@@ -480,6 +480,39 @@ export const sizes = {
   toast: 44,
   /** Readable measure for centred prose (EmptyState). */
   proseWidth: 280,
+
+  // --- Screen-specific sizes from handoffs 05-07 ---------------------------
+  // Each of these was previously snapped to the nearest token above by the
+  // screen that needed it, because rule 6 forbids a literal and no token
+  // existed. The comment on each names the handoff it is measured from.
+
+  /** Auth brand bar — 05 §10. Taller than `header`, which it is not. */
+  authBar: 64,
+  /** Auth brand mark — 05 §10. */
+  markBrand: 30,
+  /**
+   * The auth confirmation screens' icon (05 §4): a 34px glyph in a 72px
+   * circle. The circle matches `markLarge` numerically but is not a service
+   * mark, so it gets its own name.
+   */
+  statusCircle: 72,
+  iconStatus: 34,
+  /**
+   * Home's category donut (06 §2.3): a 90px ring drawn with a 14px stroke,
+   * inside a 100px box.
+   */
+  donutBox: 100,
+  donutRing: 90,
+  donutStroke: 14,
+  /**
+   * The "Subscription added" icon (07 §3, node `4:3587`): a 32px check in an
+   * 80px `success` @ 10% circle. Same circle-and-glyph pair as
+   * `sheetIconCircle`/`iconAlert`.
+   */
+  successCircle: 80,
+  iconSuccess: 32,
+  /** Top padding of the success state (07 §3) — sides and bottom are tokens. */
+  successTop: 80,
 } as const;
 
 /** Opacities. */
@@ -521,6 +554,12 @@ export const motion = {
   toggle: 150,
   /** The cross-fade that replaces movement under reduced motion. */
   crossFade: 150,
+  /** The auth confirmation icon's scale-in (05 §10). */
+  statusIcon: 400,
+  /** Home's category donut sweeping from 0 on first render (06 §7). */
+  donutSweep: 600,
+  /** Form to success-state cross-fade on Add subscription (07 §12). */
+  successFade: 250,
 } as const;
 
 export const tokens = {

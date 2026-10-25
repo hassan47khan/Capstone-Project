@@ -19,11 +19,21 @@ import { createTestQueryClient, flattenStyle, renderWithProviders } from '@/test
 import { server } from '@/test/server';
 import { netflixDetail } from '@/test/subscriptionFixtures';
 
+import {
+  BILLING_CYCLES,
+  CUSTOM_CYCLE_UNITS,
+  HISTORY_EVENT_TYPES,
+  SUBSCRIPTION_STATUSES,
+  TRIAL_DECISIONS,
+} from './api';
 import { PRICE_CHART_COPY } from './PriceHistoryChart';
 import { DETAIL_COPY, SubscriptionDetailScreen } from './SubscriptionDetailScreen';
 
 // A fixed "today", so the 12-month chart window never drifts as time passes.
-jest.mock('./today', () => ({ localToday: () => '2026-10-23' }));
+jest.mock('./today', () => ({
+  localToday: () => '2026-10-23',
+  utcToday: () => '2026-10-23',
+}));
 
 // Loosely typed: the stub stands in for any route the screen opens.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,7 +106,7 @@ describe('Netflix with the seed data', () => {
     await renderDetail('sub-netflix');
 
     expect(await screen.findByTestId('price-chart-summary')).toHaveTextContent(
-      'Price history: $13.99 from March 2024, increased to $15.49 on October 1, 2026.',
+      'Price history for the last 12 months: $13.99, increased to $15.49 on October 1, 2026.',
     );
   });
 
@@ -172,28 +182,50 @@ describe('states (07 §9)', () => {
   });
 });
 
-describe('mock data matches the frozen contract', () => {
-  /**
-   * Guards against drift: if Chris changes backend/schema.yml, the fake
-   * Netflix must still carry every field the real API promises to send.
-   */
-  it('netflixDetail has every required SubscriptionDetail field', () => {
-    // Windows checkouts may use \r\n line endings; normalise to \n first.
-    const schema = readFileSync(
-      join(__dirname, '../../../../backend/schema.yml'),
-      'utf8',
-    ).replace(/\r\n/g, '\n');
-    // The `required:` list under `SubscriptionDetail:` in components.schemas.
-    const block = schema
-      .split('\n    SubscriptionDetail:\n')[1]!
-      .split(/\n    \w+:\n/)[0]!;
-    const required = block
-      .split('      required:\n')[1]!
+/**
+ * Guards against drift from backend/schema.yml: the field names AND the
+ * allowed values. If the backend changes either, these fail.
+ */
+describe('our types match the frozen contract', () => {
+  // Windows checkouts may use \r\n line endings; normalise to \n first.
+  const schema = readFileSync(
+    join(__dirname, '../../../../backend/schema.yml'),
+    'utf8',
+  ).replace(/\r\n/g, '\n');
+
+  // One schema under components.schemas, up to the next one.
+  const schemaBlock = (name: string) => {
+    const after = schema.split(`\n    ${name}:\n`)[1];
+    if (!after) throw new Error(`${name} not found in schema.yml`);
+    return after.split(/\n    \w+:\n/)[0]!;
+  };
+
+  // The "- value" lines of a list in a block (6-space indent).
+  const listItems = (text: string) =>
+    text
       .split('\n')
       .filter((line) => line.startsWith('      - '))
       .map((line) => line.replace('      - ', '').trim());
 
+  it('netflixDetail has every required SubscriptionDetail field', () => {
+    const required = listItems(
+      schemaBlock('SubscriptionDetail').split('      required:\n')[1]!,
+    );
+
     expect(required.length).toBeGreaterThan(20);
     expect(Object.keys(netflixDetail).sort()).toEqual(expect.arrayContaining(required));
+  });
+
+  it.each([
+    ['BillingCycleEnum', BILLING_CYCLES],
+    ['CustomCycleUnitEnum', CUSTOM_CYCLE_UNITS],
+    ['SubscriptionStatusEnum', SUBSCRIPTION_STATUSES],
+    ['TrialDecisionEnum', TRIAL_DECISIONS],
+    ['EventTypeEnum', HISTORY_EVENT_TYPES],
+  ])('%s has exactly our values', (name, ours) => {
+    const enumText = schemaBlock(name)
+      .split('      enum:\n')[1]!
+      .split('      type:')[0]!;
+    expect(listItems(enumText)).toEqual([...ours]);
   });
 });

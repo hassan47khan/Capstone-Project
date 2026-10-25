@@ -33,6 +33,9 @@ export interface Motion {
   pulse: number;
   toggle: number;
   crossFade: number;
+  statusIcon: number;
+  donutSweep: number;
+  successFade: number;
   easeOut: (value: number) => number;
   easeIn: (value: number) => number;
   easeInOut: (value: number) => number;
@@ -61,8 +64,12 @@ const reduced: Motion = {
   toast: motion.crossFade,
   toastRise: 0,
   modal: motion.crossFade,
+  successFade: motion.crossFade,
   pulse: 0,
   toggle: 0,
+  // Decorative entrances: the final state is drawn at once.
+  statusIcon: 0,
+  donutSweep: 0,
 };
 
 export function motionFor(reduceMotion: boolean): Motion {

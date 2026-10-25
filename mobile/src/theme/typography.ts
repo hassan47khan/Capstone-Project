@@ -64,32 +64,45 @@ export function createTypography(colors: ColorTokens) {
   return {
     // --- Display (DM Serif Display) ------------------------------------------
 
-    /** Large currency totals. */
+    /** The hero currency total — Home's spend card (06 §2, 32/40). */
     displayLg: {
       fontFamily: fontFamily.display,
-      fontSize: 28,
+      fontSize: 32,
+      lineHeight: 40,
       letterSpacing: -0.6,
       color: colors.text,
       ...numericVariant,
     },
+    /** Screen titles, `Amount size="large"`, empty and error states. */
+    displayMd: {
+      fontFamily: fontFamily.display,
+      fontSize: 24,
+      letterSpacing: -0.4,
+      color: colors.text,
+    },
     /**
-     * Screen header titles (03 §4) and bottom-sheet titles (02 §12). Sheets
-     * measured at 20/28 on the destructive sheet and 18 on the currency sheet;
-     * those are two drifted styles, so both normalize to the larger, as 02 §2
-     * does for the form fields.
+     * Screen header titles (03 §4) and bottom-sheet titles (02 §12). Named for
+     * its job rather than its size: it sits between `displayMd` and
+     * `displaySm`, and the 02 §12 sheets measured 20 on the destructive sheet.
      */
-    displaySm: {
+    displayTitle: {
       fontFamily: fontFamily.display,
       fontSize: 20,
       lineHeight: 28,
       letterSpacing: -0.3,
       color: colors.text,
     },
-    /** Section titles, empty and error states. */
-    displayMd: {
+    /**
+     * Section headers inside a screen — 06 §2 draws all three of Home's at
+     * 18/24. 02 §12's currency sheet measured 18 too and was normalized up to
+     * 20; this role is where that value belongs. Tracking is interpolated
+     * between `displayTitle` (-0.3) and nothing smaller, flagged in 01 §4.
+     */
+    displaySm: {
       fontFamily: fontFamily.display,
-      fontSize: 24,
-      letterSpacing: -0.4,
+      fontSize: 18,
+      lineHeight: 24,
+      letterSpacing: -0.25,
       color: colors.text,
     },
 
