@@ -5,7 +5,11 @@
  *
  * Used by the GET and POST /subscriptions mock routes in routes.ts.
  */
-import type { SubscriptionDetail, SubscriptionInput } from '@/features/subscriptions/api';
+import type {
+  SubscriptionDetail,
+  SubscriptionInput,
+  SubscriptionRow,
+} from '@/features/subscriptions/api';
 
 import { CATEGORIES, SEED_TODAY } from './contractFixtures';
 import { MOCK_EMAILS } from './fixtures';
@@ -129,11 +133,21 @@ const detailsByEmail: Record<string, SubscriptionDetail[]> = {
 // Subscriptions added during this app session or test, per account.
 // resetMockState() in routes.ts clears them between tests.
 let created: Record<string, SubscriptionDetail[]> = {};
+// Ids soft-deleted this session: gone from lists and detail (04 §2).
+let deleted = new Set<string>();
 let nextId = 1;
 
 export function resetCreatedSubscriptions(): void {
   created = {};
+  deleted = new Set();
   nextId = 1;
+}
+
+// Everything one account has: the seed fixtures plus anything added, minus deletes.
+function allFor(email: string): SubscriptionDetail[] {
+  return [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])].filter(
+    (s) => !deleted.has(s.id),
+  );
 }
 
 /** One subscription for one account, or null (the route turns that into a 404). */
@@ -141,8 +155,39 @@ export function subscriptionDetailFor(
   email: string,
   id: string,
 ): SubscriptionDetail | null {
-  const all = [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])];
-  return all.find((s) => s.id === id) ?? null;
+  return allFor(email).find((s) => s.id === id) ?? null;
+}
+
+// A list row is the detail without the detail-only fields.
+function toRow(detail: SubscriptionDetail): SubscriptionRow {
+  const row: Partial<SubscriptionDetail> = { ...detail };
+  delete row.total_spent_to_date;
+  delete row.saved_per_year;
+  delete row.history;
+  return row as SubscriptionRow;
+}
+
+/**
+ * GET /subscriptions for the mock API (contract `SubscriptionList`): soonest
+ * bill first, cancelled last, with the optional status and category filters.
+ */
+export function subscriptionListFor(email: string, query: Record<string, string>) {
+  const rows = allFor(email)
+    .filter((s) => !query.status || s.status === query.status)
+    .filter((s) => !query.category || s.category?.slug === query.category)
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'cancelled' ? 1 : -1;
+      return (a.next_bill_date ?? '9999').localeCompare(b.next_bill_date ?? '9999');
+    })
+    .map(toRow);
+  return { results: rows, next: null, count: rows.length };
+}
+
+/** DELETE /subscriptions/:id for the mock API: a soft delete. False when not found. */
+export function deleteMockSubscription(email: string, id: string): boolean {
+  if (!subscriptionDetailFor(email, id)) return false;
+  deleted.add(id);
+  return true;
 }
 
 type CreateResult =
@@ -189,8 +234,10 @@ export function createMockSubscription(email: string, body: unknown): CreateResu
   const category =
     Object.values(CATEGORIES).find((c) => c.slug === input.category) ?? null;
   const now = `${SEED_TODAY}T00:00:00Z`;
+  // One number for both ids, so sub_new_1 gets evt-new-1.
+  const n = nextId++;
   const detail: SubscriptionDetail = {
-    id: `sub_new_${nextId++}`,
+    id: `sub_new_${n}`,
     name: input.name!.trim(),
     billing_price: price,
     billing_currency: currency,
@@ -218,7 +265,7 @@ export function createMockSubscription(email: string, body: unknown): CreateResu
     saved_per_year: null,
     history: [
       {
-        id: `evt-new-${nextId}`,
+        id: `evt-new-${n}`,
         event_type: 'created',
         occurred_at: now,
         old_value: null,

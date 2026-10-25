@@ -28,8 +28,10 @@ import type { ApiErrorBody, Subscription, SubscriptionInput } from '@/api/types'
 import { contractHomeFor } from './contractFixtures';
 import {
   createMockSubscription,
+  deleteMockSubscription,
   resetCreatedSubscriptions,
   subscriptionDetailFor,
+  subscriptionListFor,
 } from './subscriptionFixtures';
 
 import {
@@ -443,19 +445,10 @@ export const routes: Route[] = [
   {
     method: 'GET',
     pattern: '/subscriptions',
-    handler: protectedRoute((request, account) => {
-      let results = subscriptionsFor(account.profile.email);
-
-      // Server-side filters the list screen relies on.
-      if (request.query.status) {
-        results = results.filter((s) => s.status === request.query.status);
-      }
-      if (request.query.category) {
-        results = results.filter((s) => s.category === request.query.category);
-      }
-
-      return ok({ results, next: null, count: results.length });
-    }),
+    // Frozen contract shape (04 §5), same store as POST and GET :id.
+    handler: protectedRoute((request, account) =>
+      ok(subscriptionListFor(account.profile.email, request.query)),
+    ),
   },
 
   {
@@ -538,6 +531,12 @@ export const routes: Route[] = [
     method: 'DELETE',
     pattern: '/subscriptions/:id',
     handler: protectedRoute((request, account) => {
+      // Contract store first (seed details and anything added); see subscriptionFixtures.ts.
+      if (deleteMockSubscription(account.profile.email, request.params.id ?? '')) {
+        return { status: 204, body: null };
+      }
+
+      // Pre-contract ids (e.g. sub_netflix in client.test.ts) still use the old list.
       const list = subscriptionsFor(account.profile.email);
       if (!list.some((s) => s.id === request.params.id)) {
         return fail(404, 'not_found', 'This subscription could not be found.');
