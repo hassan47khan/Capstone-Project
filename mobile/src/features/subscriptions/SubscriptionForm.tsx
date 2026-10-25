@@ -13,6 +13,7 @@ import {
   CategoryBadge,
   CurrencyField,
   DateField,
+  normalizePriceInput,
   Select,
   Stepper,
   TextField,
@@ -98,7 +99,10 @@ export function SubscriptionForm({
         label="Billing currency"
         options={CURRENCY_OPTIONS}
         value={values.currency}
-        onChange={(currency) => onChange({ currency })}
+        // Re-fit the typed price to the new currency's decimals (JPY has none).
+        onChange={(currency) =>
+          onChange({ currency, price: normalizePriceInput(values.price, currency) })
+        }
         disabled={disabled}
         testID="form-currency"
       />
@@ -119,34 +123,42 @@ export function SubscriptionForm({
         testID="form-category"
       />
 
-      {/* All five cycles, always (07 §2). */}
-      <BillingCycleField
-        value={values.cycle}
-        onChange={(cycle) => onChange({ cycle })}
-        testID="form-cycle"
-      />
+      {/* The cycle controls have no disabled prop, so lock touches here while saving. */}
+      <View
+        pointerEvents={disabled ? 'none' : 'auto'}
+        accessibilityState={{ disabled }}
+        style={styles.cycle}
+        testID="form-cycle-lock"
+      >
+        {/* All five cycles, always (07 §2). */}
+        <BillingCycleField
+          value={values.cycle}
+          onChange={(cycle) => onChange({ cycle })}
+          testID="form-cycle"
+        />
 
-      {/* Custom: "Every [n] [unit]", shown only when Custom is picked. */}
-      {values.cycle === 'custom' ? (
-        <View style={styles.customRow} testID="form-custom">
-          <Stepper
-            label="Every"
-            value={values.customCount}
-            onChange={(customCount) => onChange({ customCount })}
-            testID="form-custom-count"
-          />
-          <View style={styles.customUnit}>
-            <Select
-              label="Unit"
-              options={UNIT_OPTIONS}
-              value={values.customUnit}
-              onChange={(customUnit) => onChange({ customUnit })}
-              disabled={disabled}
-              testID="form-custom-unit"
+        {/* Custom: "Every [n] [unit]", shown only when Custom is picked. */}
+        {values.cycle === 'custom' ? (
+          <View style={styles.customRow} testID="form-custom">
+            <Stepper
+              label="Every"
+              value={values.customCount}
+              onChange={(customCount) => onChange({ customCount })}
+              testID="form-custom-count"
             />
+            <View style={styles.customUnit}>
+              <Select
+                label="Unit"
+                options={UNIT_OPTIONS}
+                value={values.customUnit}
+                onChange={(customUnit) => onChange({ customUnit })}
+                disabled={disabled}
+                testID="form-custom-unit"
+              />
+            </View>
           </View>
-        </View>
-      ) : null}
+        ) : null}
+      </View>
 
       <DateField
         label="Start date"
@@ -190,6 +202,10 @@ export function SubscriptionForm({
 
 const useStyles = makeStyles(() => ({
   form: {
+    gap: spacing.lg,
+  },
+  // Same spacing as the other fields, for the cycle + custom row group.
+  cycle: {
     gap: spacing.lg,
   },
   customRow: {

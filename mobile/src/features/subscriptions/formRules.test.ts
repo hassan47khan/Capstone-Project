@@ -4,8 +4,10 @@
 import {
   EMPTY_FORM,
   FORM_COPY,
+  fitsCurrency,
   formErrorsFromServer,
   isFormDirty,
+  saveHint,
   toSubscriptionInput,
   validateForm,
   type FormValues,
@@ -105,5 +107,36 @@ describe('formErrorsFromServer', () => {
         something_else: ['Ignored.'],
       }),
     ).toEqual({ price: 'Enter a valid price greater than $0.', startDate: 'Bad date.' });
+  });
+});
+
+describe('fitsCurrency', () => {
+  it('allows only as many decimals as the currency has', () => {
+    expect(fitsCurrency('12.99', 'USD')).toBe(true);
+    expect(fitsCurrency('12', 'JPY')).toBe(true);
+    expect(fitsCurrency('12.99', 'JPY')).toBe(false);
+    expect(fitsCurrency('1.234', 'KWD')).toBe(true); // 3-decimal currency
+  });
+
+  it('a JPY price with cents is invalid', () => {
+    expect(
+      validateForm({ ...headspace, price: '12.99', currency: 'JPY' }, TODAY).price,
+    ).toBe('Enter a valid price greater than ¥0.');
+  });
+});
+
+describe('saveHint', () => {
+  it('lists what to check, in form order', () => {
+    expect(saveHint(validateForm(EMPTY_FORM, TODAY))).toBe(
+      'To save, check: name, price, category and start date.',
+    );
+    expect(saveHint({ startDate: 'x' })).toBe('To save, check: start date.');
+    expect(saveHint({ price: 'x', category: 'y' })).toBe(
+      'To save, check: price and category.',
+    );
+  });
+
+  it('is null when the form is valid', () => {
+    expect(saveHint(validateForm(headspace, TODAY))).toBeNull();
   });
 });

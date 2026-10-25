@@ -3,7 +3,7 @@
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { Button, PixelRatio, Text } from 'react-native';
 
@@ -39,19 +39,6 @@ function Home({ navigation }: { navigation: { navigate: (name: string) => void }
   );
 }
 
-/**
- * The shared test client, plus instant clean-up of finished saves. Without it a
- * save keeps a 5-minute clean-up timer alive and Jest waits for it before exiting.
- */
-function testQueryClient() {
-  const client = createTestQueryClient();
-  client.setDefaultOptions({
-    ...client.getDefaultOptions(),
-    mutations: { retry: false, gcTime: 0 },
-  });
-  return client;
-}
-
 async function renderAdd() {
   await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
   await renderWithProviders(
@@ -64,7 +51,7 @@ async function renderAdd() {
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
-    { queryClient: testQueryClient(), reduceMotion: true },
+    { queryClient: createTestQueryClient(), reduceMotion: true },
   );
   await fireEvent.press(screen.getByText('Open add'));
   await screen.findByTestId('add-screen');
@@ -242,5 +229,171 @@ describe('closing (07 §1)', () => {
 
     await fireEvent.press(screen.getByText('Discard'));
     expect(await screen.findByText('Open add')).toBeOnTheScreen();
+  });
+});
+
+// Holds POST /subscriptions until release() is called, then lets the mock answer.
+function holdSaves() {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  server.use(
+    http.post('*/subscriptions', async () => {
+      await gate;
+      return undefined; // fall through to the normal mock route
+    }),
+  );
+  return () => act(async () => release());
+}
+
+describe('review fixes', () => {
+  it('a grey Save explains what is missing', async () => {
+    await renderAdd();
+
+    expect(screen.getByTestId('add-save-hint')).toHaveTextContent(
+      'To save, check: name, price, category and start date.',
+    );
+    await fillHeadspace();
+    expect(screen.queryByTestId('add-save-hint')).toBeNull();
+  });
+
+  it('a 400 for a field the form has no slot for still shows a message', async () => {
+    server.use(
+      http.post(
+        '*/subscriptions',
+        () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: 'validation_error',
+                message: 'That billing cycle is not supported.',
+                fields: { billing_cycle: ['That billing cycle is not supported.'] },
+              },
+            },
+            { status: 400 },
+          ),
+        { once: true },
+      ),
+    );
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByTestId('add-form-error')).toHaveTextContent(
+      'That billing cycle is not supported.',
+    );
+  });
+
+  it('retrying the same save reuses its Idempotency-Key', async () => {
+    const keys: (string | null)[] = [];
+    server.use(
+      http.post('*/subscriptions', ({ request }) => {
+        keys.push(request.headers.get('idempotency-key'));
+        if (keys.length === 1) {
+          return HttpResponse.json(
+            { error: { code: 'server_error', message: 'Down.' } },
+            { status: 503 },
+          );
+        }
+        return undefined; // second try: the normal mock route answers
+      }),
+    );
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-form-error');
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByTestId('stub')).toHaveTextContent(/^SubscriptionDetail/);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it('a changed form gets a new Idempotency-Key', async () => {
+    const keys: (string | null)[] = [];
+    server.use(
+      http.post('*/subscriptions', ({ request }) => {
+        keys.push(request.headers.get('idempotency-key'));
+        return HttpResponse.json(
+          { error: { code: 'server_error', message: 'Down.' } },
+          { status: 503 },
+        );
+      }),
+    );
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-form-error');
+    await fireEvent.changeText(screen.getByTestId('form-notes'), 'Family plan');
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-form-error');
+
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it('switching to a currency without cents trims the typed price', async () => {
+    await renderAdd();
+    await fireEvent.changeText(screen.getByTestId('form-price'), '12.99');
+
+    await choose('form-currency', 'JPY');
+
+    expect(screen.getByTestId('form-price').props.value).toBe('12');
+  });
+
+  it('the cycle fields are locked while saving', async () => {
+    const release = holdSaves();
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    // "Saving" switches on a moment after the press.
+    await waitFor(() => expect(screen.getByTestId('form-cycle-lock')).toBeDisabled());
+
+    await release();
+    await screen.findByTestId('stub');
+  });
+
+  it("can't be closed while saving, then moves on once saved", async () => {
+    const release = holdSaves();
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await waitFor(() => expect(screen.getByTestId('add-save')).toBeBusy());
+
+    // Pressing X mid-save does nothing: no "Discard?" (it couldn't be honoured).
+    await fireEvent.press(screen.getByLabelText('Close'));
+    expect(screen.queryByText('Discard changes?')).toBeNull();
+    expect(screen.getByTestId('add-screen')).toBeOnTheScreen();
+
+    await release();
+    expect(await screen.findByTestId('stub')).toHaveTextContent(/^SubscriptionDetail/);
+  });
+
+  it('after a failed save, closing works again (with the discard prompt)', async () => {
+    server.use(
+      http.post(
+        '*/subscriptions',
+        () =>
+          HttpResponse.json(
+            { error: { code: 'server_error', message: 'Down.' } },
+            { status: 503 },
+          ),
+        { once: true },
+      ),
+    );
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-form-error');
+
+    await fireEvent.press(screen.getByLabelText('Close'));
+    expect(screen.getByText('Discard changes?')).toBeOnTheScreen();
   });
 });
