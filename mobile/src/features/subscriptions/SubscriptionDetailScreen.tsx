@@ -339,7 +339,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     flexShrink: 1,
     textAlign: 'right',
   },
-  // TODO(tokens): 07 §4 says DM Serif 18/24; the nearest display token is 20/28.
+  // 07 §4: DM Serif 18/24.
   total: {
     ...typography.displaySm,
     color: colors.text,
