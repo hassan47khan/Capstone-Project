@@ -26,7 +26,7 @@
  *
  * Design tokens
  *   height      sizes.header (56)
- *   title       typography.displaySm (DM Serif Display 20/28), left-aligned.
+ *   title       typography.displayTitle (DM Serif Display 20/28), left-aligned.
  *               03 §4 normalizes the measured 18/20/24 titles to 20.
  *   back/close  sizes.headerButton (32), sizes.iconSmall (16) icon, colors.text
  *   trailing    sizes.headerButton (32) slot
@@ -138,7 +138,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     backgroundColor: colors.surface2,
   },
   title: {
-    ...typography.displaySm,
+    ...typography.displayTitle,
     flex: 1,
     textAlign: 'left',
   },
