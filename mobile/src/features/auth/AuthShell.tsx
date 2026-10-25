@@ -61,6 +61,9 @@ export interface AuthShellProps {
   /** One or two sentences under the heading. */
   subtitle?: ReactNode;
 
+  /** Drawn above the heading, such as the mail or check StatusIcon. */
+  icon?: ReactNode;
+
   /** Shown on a pushed screen; names where back goes, e.g. "Log in". */
   backLabel?: string;
   onBack?: () => void;
@@ -77,6 +80,7 @@ export interface AuthShellProps {
 export function AuthShell({
   title,
   subtitle,
+  icon,
   backLabel,
   onBack,
   children,
@@ -137,6 +141,7 @@ export function AuthShell({
       <View style={styles.center}>
         <Animated.View style={{ opacity: enter, transform: [{ translateY: rise }] }}>
           <Card style={styles.card}>
+            {icon}
             <View style={styles.headingGroup}>
               <Text
                 style={styles.heading}

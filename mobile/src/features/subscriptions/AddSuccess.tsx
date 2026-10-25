@@ -1,4 +1,4 @@
-// "Subscription added" screen shown after saving (07 §3).
+// "Subscription added" screen shown after saving (07 §3, Figma `4:3587`).
 import { Check } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Animated, Text, View } from 'react-native';
@@ -8,7 +8,7 @@ import { Button, Card, CategoryBadge, ServiceMark } from '@/components';
 import { CATEGORY_SLUGS, makeStyles, sizes, spacing, useMotion, useTheme } from '@/theme';
 
 import type { SubscriptionDetail } from './api';
-import { describeCycle } from './SubscriptionDetailScreen';
+import { describeCycle } from './formRules';
 
 export const SUCCESS_COPY = {
   title: 'Subscription added',
@@ -18,10 +18,6 @@ export const SUCCESS_COPY = {
   viewDashboard: 'View on Dashboard',
   addAnother: 'Add another',
 } as const;
-
-// 80px circle, 32px check. TODO(tokens): no size tokens for these.
-const CIRCLE = sizes.markLarge + spacing.sm;
-const CHECK = spacing.xxl + spacing.sm;
 
 export interface AddSuccessProps {
   created: SubscriptionDetail; // what the server sent back
@@ -40,7 +36,7 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
     if (!m.moves) return;
     Animated.timing(opacity, {
       toValue: 1,
-      duration: m.crossFade, // TODO(tokens): spec says 250ms
+      duration: m.successFade,
       easing: m.easeOut,
       useNativeDriver: true,
     }).start();
@@ -49,15 +45,26 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
   const price = formatMoney(created.billing_price, created.billing_currency).display;
   const cycle = describeCycle(created);
   const category = CATEGORY_SLUGS.find((c) => c === created.category?.slug) ?? null;
-  const monthly = created.normalized_monthly
-    ? formatMoney(created.normalized_monthly.amount, created.normalized_monthly.currency)
-        .display
-    : null;
+  // Only for non-monthly plans: on a monthly plan it would just repeat the price
+  // (same rule as the Detail screen's "Monthly equivalent" row).
+  const monthly =
+    created.billing_cycle !== 'monthly' && created.normalized_monthly
+      ? formatMoney(
+          created.normalized_monthly.amount,
+          created.normalized_monthly.currency,
+        ).display
+      : null;
 
   return (
     <Animated.View style={[styles.container, { opacity }]} testID="add-success">
-      <View style={styles.circle} accessibilityElementsHidden>
-        <Check size={CHECK} color={colors.success} />
+      {/* Decorative: hidden from screen readers on iOS and Android. */}
+      <View
+        style={styles.circle}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        testID="add-success-icon"
+      >
+        <Check size={sizes.iconSuccess} color={colors.success} />
       </View>
 
       <View style={styles.text}>
@@ -94,21 +101,25 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
         <View style={styles.divider} />
 
         <View style={styles.columns}>
-          <View accessible accessibilityLabel={`${SUCCESS_COPY.billingPrice}, ${price}`}>
+          <View
+            style={styles.column}
+            accessible
+            accessibilityLabel={`${SUCCESS_COPY.billingPrice}, ${price}`}
+          >
             <Text style={styles.label}>{SUCCESS_COPY.billingPrice}</Text>
             <Text style={styles.value}>{price}</Text>
           </View>
           <View
-            style={styles.right}
+            style={[styles.column, styles.right]}
             accessible
             accessibilityLabel={`${SUCCESS_COPY.frequency}, ${cycle}`}
           >
             <Text style={styles.label}>{SUCCESS_COPY.frequency}</Text>
-            <Text style={styles.value}>{cycle}</Text>
+            <Text style={[styles.value, styles.rightText]}>{cycle}</Text>
           </View>
         </View>
 
-        {/* Required: what it adds to the monthly total. */}
+        {/* Required: what a non-monthly plan adds to the monthly total. */}
         {monthly ? (
           <Text
             style={styles.monthly}
@@ -140,16 +151,17 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
 }
 
 const useStyles = makeStyles(({ colors, typography }) => ({
+  // 07 §3: top 80, gap 32 between blocks, bottom 32.
   container: {
     alignItems: 'center',
     gap: spacing.xxl + spacing.sm,
-    paddingTop: spacing.xxl * 3,
+    paddingTop: sizes.successTop,
     paddingBottom: spacing.xxl + spacing.sm,
   },
   circle: {
-    width: CIRCLE,
-    height: CIRCLE,
-    borderRadius: CIRCLE / 2,
+    width: sizes.successCircle,
+    height: sizes.successCircle,
+    borderRadius: sizes.successCircle / 2,
     backgroundColor: colors.successSurface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -188,12 +200,20 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     height: sizes.hairline,
     backgroundColor: colors.border,
   },
+  // Gap + shrinking columns, so large text wraps instead of overlapping.
   columns: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  column: {
+    flexShrink: 1,
   },
   right: {
     alignItems: 'flex-end',
+  },
+  rightText: {
+    textAlign: 'right',
   },
   label: {
     ...typography.sectionLabel,

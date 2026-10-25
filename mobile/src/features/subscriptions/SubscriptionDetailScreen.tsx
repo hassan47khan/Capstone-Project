@@ -41,9 +41,10 @@ import type { AppStackParamList } from '@/navigation/types';
 import { CATEGORY_SLUGS, makeStyles, sizes, spacing, type Category } from '@/theme';
 
 import { getSubscription, type SubscriptionDetail } from './api';
+import { describeCycle } from './formRules';
 import { PriceHistoryChart } from './PriceHistoryChart';
 import { buildPriceSeries, describePriceHistory } from './priceHistory';
-import { localToday } from './today';
+import { utcToday } from './today';
 
 export const DETAIL_COPY = {
   title: 'Subscription detail',
@@ -57,28 +58,7 @@ export const DETAIL_COPY = {
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'SubscriptionDetail'>;
 
-// --- Small helpers (exported so they can be tested) -------------------------
-
-const UNIT_SINGULAR = { days: 'day', weeks: 'week', months: 'month', years: 'year' };
-
-/** "Monthly", "Yearly", "Every 2 months", "Every week". */
-export function describeCycle(sub: SubscriptionDetail): string {
-  switch (sub.billing_cycle) {
-    case 'weekly':
-      return 'Weekly';
-    case 'monthly':
-      return 'Monthly';
-    case 'quarterly':
-      return 'Quarterly';
-    case 'yearly':
-      return 'Yearly';
-    case 'custom': {
-      const count = sub.custom_cycle_count ?? 1;
-      const unit = sub.custom_cycle_unit ?? 'months';
-      return count === 1 ? `Every ${UNIT_SINGULAR[unit]}` : `Every ${count} ${unit}`;
-    }
-  }
-}
+// --- Small helpers ------------------------------------------------------------
 
 /** The category slug as a known theme category, or null ("Uncategorized"). */
 function knownCategory(slug: string | undefined): Category | null {
@@ -134,7 +114,7 @@ export function SubscriptionDetailScreen() {
         {header}
         <SkeletonGroup label={DETAIL_COPY.loading} testID="detail-loading">
           <View style={styles.hero}>
-            <Skeleton shape="mark" />
+            <Skeleton shape="mark" width={sizes.markLarge} height={sizes.markLarge} />
             <Skeleton width="50%" />
           </View>
           <Skeleton height={sizes.field * 4} />
@@ -149,7 +129,8 @@ export function SubscriptionDetailScreen() {
   const stale = detail.isError;
   const offline = stale && detail.error instanceof ApiError && detail.error.isOffline;
   const badge = statusBadge(sub);
-  const today = localToday();
+  // UTC, the same clock as the history events (see priceHistory.ts).
+  const series = buildPriceSeries(sub.history, sub.billing_price, utcToday());
 
   return (
     <Screen
@@ -191,13 +172,10 @@ export function SubscriptionDetailScreen() {
       <View style={styles.section}>
         <SectionHeader title={DETAIL_COPY.priceHistory} />
         <PriceHistoryChart
-          series={buildPriceSeries(sub.history, sub.billing_price, today)}
+          series={series}
           currency={sub.billing_currency}
-          summary={describePriceHistory(
-            sub.history,
-            sub.billing_currency,
-            sub.billing_price,
-          )}
+          // Describes the same 12 months the chart shows (07 §11).
+          summary={describePriceHistory(series, sub.billing_currency)}
         />
       </View>
 
@@ -341,7 +319,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     flexShrink: 1,
     textAlign: 'right',
   },
-  // TODO(tokens): 07 §4 says DM Serif 18/24; the nearest display token is 20/28.
+  // 07 §4: DM Serif 18/24.
   total: {
     ...typography.displaySm,
     color: colors.text,

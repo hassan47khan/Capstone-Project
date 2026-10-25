@@ -5,18 +5,40 @@
  * Kept in this folder for now so we don't edit someone else's folder.
  */
 import type { CategoryRef, ContractMoney, ServiceMarkRef } from '@/api/analyticsTypes';
-import { request } from '@/api/client';
+import { newIdempotencyKey, request } from '@/api/client';
 import type { CurrencyCode, DateOnly, Instant, MoneyString } from '@/api/types';
 
+// Each enum is a real list (not just a type) so a test can check it against
+// backend/schema.yml. Keep the order the schema uses.
+
 // How often it bills. "custom" uses custom_cycle_count + custom_cycle_unit.
-export type BillingCycle = 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom';
-export type CustomCycleUnit = 'days' | 'weeks' | 'months' | 'years';
-export type SubscriptionStatus = 'active' | 'cancelled';
-export type TrialDecision = 'none' | 'keep' | 'remind' | 'decision';
+export const BILLING_CYCLES = [
+  'weekly',
+  'monthly',
+  'quarterly',
+  'yearly',
+  'custom',
+] as const;
+export type BillingCycle = (typeof BILLING_CYCLES)[number];
+
+export const CUSTOM_CYCLE_UNITS = ['days', 'weeks', 'months', 'years'] as const;
+export type CustomCycleUnit = (typeof CUSTOM_CYCLE_UNITS)[number];
+
+export const SUBSCRIPTION_STATUSES = ['active', 'cancelled'] as const;
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+export const TRIAL_DECISIONS = ['none', 'keep', 'remind'] as const;
+export type TrialDecision = (typeof TRIAL_DECISIONS)[number];
 
 // The kinds of change recorded in a subscription's history.
-export type HistoryEventType =
-  'created' | 'price_change' | 'category_change' | 'cycle_change' | 'cancelled';
+export const HISTORY_EVENT_TYPES = [
+  'created',
+  'price_change',
+  'category_change',
+  'cycle_change',
+  'cancelled',
+] as const;
+export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
 // What a history event changed. Only the changed fields are present.
 export interface HistoryValue {
@@ -88,10 +110,17 @@ export interface SubscriptionInput {
 }
 
 // Adds a subscription. A 400 carries per-field messages in error.fields.
+// Pass the SAME idempotencyKey when retrying the same save, so a retry after a
+// dropped connection can't create it twice.
 export function createSubscription(
   input: SubscriptionInput,
+  idempotencyKey: string = newIdempotencyKey(),
 ): Promise<SubscriptionDetail> {
-  return request<SubscriptionDetail>('/subscriptions', { method: 'POST', body: input });
+  return request<SubscriptionDetail>('/subscriptions', {
+    method: 'POST',
+    body: input,
+    idempotencyKey,
+  });
 }
 
 // Loads one subscription. A 404 means "not found or not yours".

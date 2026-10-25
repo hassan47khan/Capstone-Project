@@ -7,6 +7,7 @@
  * No money math: the price stays the decimal string the user typed (already
  * tidied by CurrencyField). The server checks it again and does every sum.
  */
+import { minorUnits } from '@/api/format';
 import { invalidPriceMessage, isValidPrice } from '@/components';
 import type { Category } from '@/theme';
 
@@ -64,11 +65,68 @@ export type FormErrors = Partial<Record<FormField, string>>;
 export function validateForm(values: FormValues, today: string): FormErrors {
   const errors: FormErrors = {};
   if (!values.name.trim()) errors.name = FORM_COPY.nameRequired;
-  if (!isValidPrice(values.price)) errors.price = invalidPriceMessage(values.currency);
+  if (!isValidPrice(values.price) || !fitsCurrency(values.price, values.currency)) {
+    errors.price = invalidPriceMessage(values.currency);
+  }
   if (!values.category) errors.category = FORM_COPY.categoryRequired;
   if (!values.startDate) errors.startDate = FORM_COPY.startRequired;
   else if (values.startDate > today) errors.startDate = FORM_COPY.startInFuture;
   return errors;
+}
+
+const UNIT_SINGULAR = { days: 'day', weeks: 'week', months: 'month', years: 'year' };
+
+/** "Monthly", "Yearly", "Every 2 months", "Every week". Shared by Detail and Add. */
+export function describeCycle(
+  sub: Pick<
+    SubscriptionInput,
+    'billing_cycle' | 'custom_cycle_count' | 'custom_cycle_unit'
+  >,
+): string {
+  switch (sub.billing_cycle) {
+    case 'weekly':
+      return 'Weekly';
+    case 'monthly':
+      return 'Monthly';
+    case 'quarterly':
+      return 'Quarterly';
+    case 'yearly':
+      return 'Yearly';
+    case 'custom': {
+      const count = sub.custom_cycle_count ?? 1;
+      const unit = sub.custom_cycle_unit ?? 'months';
+      return count === 1 ? `Every ${UNIT_SINGULAR[unit]}` : `Every ${count} ${unit}`;
+    }
+  }
+}
+
+// No more decimals than the currency has: "12.99" is fine in USD, not in JPY.
+export function fitsCurrency(price: string, currency: string): boolean {
+  const fraction = price.split('.')[1] ?? '';
+  return fraction.length <= minorUnits(currency);
+}
+
+// Short names for the hint under a disabled Save, in form order.
+const HINT_NAMES: [FormField, string][] = [
+  ['name', 'name'],
+  ['price', 'price'],
+  ['category', 'category'],
+  ['startDate', 'start date'],
+];
+
+/**
+ * Why Save is disabled, e.g. "To save, check: category and start date."
+ * Null when nothing is wrong. (07 §3 keeps Save disabled until valid; this
+ * says why, so a grey button isn't a dead end.)
+ */
+export function saveHint(errors: FormErrors): string | null {
+  const names = HINT_NAMES.filter(([field]) => errors[field]).map(([, name]) => name);
+  if (names.length === 0) return null;
+  const list =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `To save, check: ${list}.`;
 }
 
 /** True when anything differs from where the form started. */

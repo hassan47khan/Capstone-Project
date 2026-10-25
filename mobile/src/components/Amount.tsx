@@ -22,7 +22,7 @@
  *   renders no decimal point at all rather than a bare trailing dot.
  *
  * Design tokens
- *   hero       typography.displayLg (28)
+ *   hero       typography.displayLg (32)
  *   large      typography.displayMd (24)
  *   row        typography.price (DM Sans Bold 16, accent) — no split
  *   compact    typography.labelMd (DM Sans Medium 14, text) — the trailing
