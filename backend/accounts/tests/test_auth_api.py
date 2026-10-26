@@ -9,6 +9,7 @@ from datetime import timedelta
 
 import pytest
 from django.core import mail
+from django.db import connection
 from django.db.models import QuerySet
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -302,8 +303,10 @@ def test_the_lock_ends_after_15_minutes(anon, alex):
 
 
 def test_failures_older_than_10_minutes_do_not_count(anon, alex):
-    old = timezone.now() - timedelta(minutes=11)
-    LoginFailures.objects.create(email_digest=auth._digest(ALEX), failed_at=[old] * 4)
+    ended = timezone.now() - timedelta(minutes=1)
+    LoginFailures.objects.create(
+        email_digest=auth._digest(ALEX), count=4, window_ends=ended, expires_at=ended
+    )
 
     assert fail(anon, 1) == [401]
     assert login(anon).status_code == 200
@@ -315,6 +318,37 @@ def test_a_success_clears_the_failures(anon, alex):
 
     assert fail(anon, 4) == [401] * 4
     assert login(anon).status_code == 200
+
+
+def test_a_failure_racing_to_create_the_row_still_counts(anon, alex, monkeypatch):
+    # A parallel failure inserted the row between our check and our insert.
+    fail(anon, 1)
+    monkeypatch.setattr(QuerySet, "exists", lambda self: False)
+
+    assert fail(anon, 1) == [401]
+    assert failures().get().count == 2
+
+
+def test_a_row_expires_when_its_window_or_its_lock_ends(anon, alex):
+    now = timezone.now()
+    before = now.replace(microsecond=now.microsecond // 1000 * 1000)  # BSON keeps ms
+    fail(anon, 1)
+    row = failures().get()
+    assert row.expires_at == row.window_ends
+    assert timedelta(minutes=10) <= row.window_ends - before < timedelta(minutes=11)
+
+    fail(anon, 4)
+
+    row = failures().get()
+    assert row.expires_at == row.locked_until
+    assert timedelta(minutes=15) <= row.locked_until - before < timedelta(minutes=16)
+
+
+def test_mongodb_deletes_rows_past_expires_at(db):
+    indexes = connection.get_collection("login_failures").index_information()
+
+    ttl = [i for i in indexes.values() if i["key"] == [("expires_at", 1)]]
+    assert len(ttl) == 1 and ttl[0]["expireAfterSeconds"] == 0
 
 
 def test_failed_logins_store_only_a_digest_of_the_email(anon, db):
