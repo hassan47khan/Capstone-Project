@@ -764,7 +764,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
-  /api/v1/me/:
+  /api/v1/me:
     get:
       operationId: me_retrieve
       description: GET and PATCH /me.
