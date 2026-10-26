@@ -344,6 +344,19 @@ def test_a_row_expires_when_its_window_or_its_lock_ends(anon, alex):
     assert timedelta(minutes=15) <= row.locked_until - before < timedelta(minutes=16)
 
 
+def test_a_failure_racing_the_lock_does_not_shorten_it(anon, alex):
+    fail(anon, 5)
+    locked = failures().get()
+
+    # Passed the lock check before the lock landed, but runs just after it.
+    auth._record_failure(ALEX, locked.window_ends + timedelta(milliseconds=5))
+
+    row = failures().get()
+    assert row.locked_until == locked.locked_until
+    assert row.expires_at == locked.expires_at
+    assert row.expires_at >= row.locked_until
+
+
 def test_mongodb_deletes_rows_past_expires_at(db):
     indexes = connection.get_collection("login_failures").index_information()
 

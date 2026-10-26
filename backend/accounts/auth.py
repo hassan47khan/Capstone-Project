@@ -194,18 +194,22 @@ def _record_failure(email: str, now: datetime) -> ApiError:
     """Count a failed login for `email`, account or not, and return the 401.
 
     Every step is one conditional update, so parallel failures all count and
-    only one of them sets the lock.
+    only one of them sets the lock. A failure that raced past the lock check
+    while another request was locking leaves the lock alone: the window and
+    the lock are only rewritten once no lock is live, so `expires_at` never
+    falls before `locked_until` and the TTL cannot end a lock early.
     """
     rows = LoginFailures.objects.filter(email_digest=_digest(email))
+    unlocked = rows.exclude(locked_until__gt=now)
     window = {"window_ends": now + LOCKOUT_WINDOW, "expires_at": now + LOCKOUT_WINDOW}
     if not rows.exists():
         try:
             LoginFailures.objects.create(email_digest=_digest(email), **window)
         except IntegrityError:
             pass  # A parallel failure created it first; count against that row.
-    rows.filter(window_ends__lte=now).update(count=0, **window)
+    unlocked.filter(window_ends__lte=now).update(count=0, **window)
     rows.update(count=F("count") + 1)
-    rows.filter(count__gte=LOCKOUT_FAILURES).update(
+    unlocked.filter(count__gte=LOCKOUT_FAILURES).update(
         count=0,
         window_ends=now,
         locked_until=now + LOCKOUT_DURATION,
