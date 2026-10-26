@@ -764,10 +764,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
-  /api/v1/me/:
+  /api/v1/me:
     get:
       operationId: me_retrieve
-      description: The signed-in user's profile. Authentication comes from the defaults.
+      description: GET and PATCH /me.
       tags:
       - me
       security:
@@ -779,6 +779,43 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserProfile'
           description: ''
+    patch:
+      operationId: me_update
+      description: Change the name, or record that first-run onboarding is done.
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
   /api/v1/shared-plans:
     get:
       operationId: shared_plans_list
@@ -1802,6 +1839,17 @@ components:
       required:
       - password
       - token
+    PatchedProfileUpdateRequest:
+      type: object
+      description: PATCH /me. Every field is optional; send only what changes.
+      properties:
+        name:
+          type:
+          - string
+          - 'null'
+          maxLength: 150
+        has_completed_first_run:
+          type: boolean
     PatchedSubscriptionInputRequest:
       type: object
       description: POST /subscriptions, PATCH /subscriptions/{id} (partial), POST
@@ -1979,6 +2027,25 @@ components:
           - integer
           - 'null'
           description: Trials only.
+        billing_cycle:
+          allOf:
+          - $ref: '#/components/schemas/BillingCycleEnum'
+          description: |-
+            The cycle in effect on effective_on, e.g. for a '/mo' suffix.
+
+            * `weekly` - weekly
+            * `monthly` - monthly
+            * `quarterly` - quarterly
+            * `yearly` - yearly
+            * `custom` - custom
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
       required:
       - annual_change
       - days_left
@@ -2615,6 +2682,11 @@ components:
         unconverted_count:
           type: integer
           description: Subscriptions left out because their currency has no FX rate.
+        converted:
+          type: boolean
+          description: True when a counted subscription is billed in another currency,
+            so the totals include converted amounts. Show the 'converted at' note
+            only then.
         rates_as_of:
           type:
           - string
@@ -2818,6 +2890,25 @@ components:
           allOf:
           - $ref: '#/components/schemas/Money'
           description: What is charged, in the billing currency.
+        billing_cycle:
+          allOf:
+          - $ref: '#/components/schemas/BillingCycleEnum'
+          description: |-
+            The cycle in effect on this date.
+
+            * `weekly` - weekly
+            * `monthly` - monthly
+            * `quarterly` - quarterly
+            * `yearly` - yearly
+            * `custom` - custom
+        custom_cycle_count:
+          type:
+          - integer
+          - 'null'
+        custom_cycle_unit:
+          oneOf:
+          - $ref: '#/components/schemas/CustomCycleUnitEnum'
+          - $ref: '#/components/schemas/NullEnum'
         is_trial:
           type: boolean
           description: True when this bill is a trial converting.
@@ -2860,9 +2951,15 @@ components:
         email_verified:
           type: boolean
           readOnly: true
+        has_completed_first_run:
+          type: boolean
+          readOnly: true
+          description: False until the app has shown first-run onboarding; set with
+            PATCH /me.
       required:
       - email
       - email_verified
+      - has_completed_first_run
       - id
       - name
   securitySchemes:

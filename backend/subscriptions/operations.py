@@ -9,8 +9,8 @@ PriceHistoryEvent (handoff 04 §5, §6).
 from datetime import date, datetime, time
 from decimal import Decimal
 
-from django.db import transaction
 from django.utils import timezone
+from django_mongodb_backend import transaction
 
 from .models import FxRate, PriceHistoryEvent, Subscription
 from .services import money

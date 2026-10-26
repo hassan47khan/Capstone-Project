@@ -7,6 +7,7 @@ from django_mongodb_backend.fields import (
     ObjectIdField,
 )
 from django_mongodb_backend.indexes import EmbeddedFieldIndex
+from django_mongodb_backend.managers import MongoManager
 from django_mongodb_backend.models import EmbeddedModel
 
 from .services.cycles import CUSTOM_UNITS, CYCLES, Cycle
@@ -87,7 +88,7 @@ class Sharing(EmbeddedModel):
     participants = EmbeddedModelArrayField(Participant, max_size=20, default=list)
 
 
-class VisibleSubscriptionManager(models.Manager):
+class VisibleSubscriptionManager(MongoManager):
     """Leaves soft-deleted subscriptions out, so no screen can forget to (handoff 04 §2)."""
 
     def get_queryset(self):
@@ -155,7 +156,7 @@ class Subscription(models.Model):
     # Includes soft-deleted rows. Only Restore, purge and history should use it.
     # DJ012 is a false positive: ruff reads VisibleSubscriptionManager() above
     # as a field, not a manager.
-    all_objects = models.Manager()  # noqa: DJ012
+    all_objects = MongoManager()  # noqa: DJ012
 
     class Meta:
         db_table = "subscriptions"
@@ -227,6 +228,9 @@ class PriceHistoryEvent(models.Model):
     occurred_at = models.DateTimeField()
     old_value = models.JSONField(null=True, blank=True)
     new_value = models.JSONField(null=True, blank=True)
+
+    # MongoManager adds raw_aggregate, which the analytics pipelines use.
+    objects = MongoManager()
 
     class Meta:
         db_table = "price_history_events"

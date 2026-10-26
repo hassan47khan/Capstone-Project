@@ -235,6 +235,16 @@ def test_seed_demo_command(db):
     )
     assert "$45.98/mo" in out.getvalue()
     assert "$22.98/mo" in out.getvalue()
+    # Only the command gives the demo users a password they can log in with.
+    assert all(u.check_password(seed.DEMO_PASSWORD) for u in seed_users())
+
+
+def test_loading_the_dataset_any_other_way_leaves_no_usable_password(demo):
+    assert not any(u.has_usable_password() for u in seed_users())
+
+
+def seed_users():
+    return User.objects.filter(email__in=[u.email for u in seed.DEMO_USERS])
 
 
 def test_convert_trials_command(demo):
