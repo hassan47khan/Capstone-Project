@@ -38,8 +38,9 @@ def categories(db):
 
 @pytest.fixture
 def alex(db):
-    """Alex Kim, with the whole canonical dataset loaded (04 §4)."""
-    return seed.load_demo(today=SEED_TODAY)[seed.ALEX.email]
+    """Alex Kim, with the whole canonical dataset loaded (04 §4), as `seed_demo`
+    leaves it: the demo users log in with DEMO_PASSWORD."""
+    return seed.load_demo(today=SEED_TODAY, password=seed.DEMO_PASSWORD)[seed.ALEX.email]
 
 
 @pytest.fixture

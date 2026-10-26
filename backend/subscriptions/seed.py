@@ -20,8 +20,11 @@ from .models import Category, FxRate, ServiceCatalogEntry, Subscription
 from .services.cycles import Cycle, add_months
 
 SEED_TODAY = date(2026, 10, 1)
-# Every demo user logs in with this. Local and demo databases only: the seed
-# deletes and recreates its users, so never run it against shared data.
+# Every demo user logs in with this once `seed_demo` has run. Local and demo
+# databases only: the seed deletes and recreates its users, so never run it
+# against shared data. Only that command sets it; anything else that loads the
+# dataset (the 04 §6a mocks, on a request) leaves the demo users with no usable
+# password, so a fixture can never become a login.
 DEMO_PASSWORD = "subtrak-demo"
 
 # slug, display name, key into the mobile theme's category colours. Labels and
@@ -276,8 +279,11 @@ def _seed_netflix(owner, categories, *, today: date) -> Subscription:
 
 
 @transaction.atomic
-def load_demo(*, today: date = SEED_TODAY) -> dict[str, User]:
+def load_demo(*, today: date = SEED_TODAY, password: str | None = None) -> dict[str, User]:
     """Reset and load the whole demo dataset. Safe to run any number of times.
+
+    The demo users get `password` if one is given, and an unusable password
+    otherwise, so they cannot log in until `seed_demo` sets DEMO_PASSWORD.
 
     Removes only what it owns: the demo users (their subscriptions, history,
     settings and rules go with them), the catalog and the seeded FX rates.
@@ -289,7 +295,7 @@ def load_demo(*, today: date = SEED_TODAY) -> dict[str, User]:
 
     users = {}
     for demo in DEMO_USERS:
-        user = User.objects.create_user(email=demo.email, name=demo.name, password=DEMO_PASSWORD)
+        user = User.objects.create_user(email=demo.email, name=demo.name, password=password)
         user.email_verified_at = operations.at_start_of(today)
         user.save(update_fields=["email_verified_at"])
         settings_for(user)

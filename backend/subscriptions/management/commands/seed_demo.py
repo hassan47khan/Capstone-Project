@@ -20,7 +20,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, today, **options):
-        users = load_demo(today=today)
+        users = load_demo(today=today, password=DEMO_PASSWORD)
         rates = operations.fx_rates()
         self.stdout.write(
             f"Seeded the demo dataset anchored on {today}. Every demo user's password is "

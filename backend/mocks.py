@@ -9,7 +9,9 @@ function here changes nothing outside it.
 How the mock answers
   - The signed-in user is always Alex Kim from the canonical dataset (04 §4),
     and "today" is always SEED_TODAY (2026-10-01). The dataset is loaded on
-    first use if it is not in the database already.
+    first use if it is not in the database already, with no usable password:
+    a request must never create an account anyone can log in to. Only
+    `seed_demo` gives the demo users DEMO_PASSWORD.
   - Every figure is computed from that data through the money engine and
     `subscriptions.operations`, never typed in: Alex's $129.20, the category
     rollup, EUR 118.56, trials left out of totals, trial progress.
@@ -48,7 +50,8 @@ Decision = Subscription.TrialDecision
 
 
 def demo_user() -> User:
-    """Alex Kim, loading the canonical dataset the first time it is needed."""
+    """Alex Kim, loading the canonical dataset the first time it is needed.
+    Loaded this way, the demo users cannot log in (see seed.DEMO_PASSWORD)."""
     user = User.objects.filter(email=seed.ALEX.email).first()
     if user is None:
         user = seed.load_demo(today=TODAY)[seed.ALEX.email]
