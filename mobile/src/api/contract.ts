@@ -42,6 +42,7 @@ export type EmailTokenRequestBody = Schemas['EmailTokenRequest'];
 export type PasswordResetConfirmRequestBody = Schemas['PasswordResetConfirmRequest'];
 export type ContractTokenPair = Schemas['TokenPair'];
 export type ContractUserProfile = Schemas['UserProfile'];
+export type PatchedProfileUpdateRequest = Schemas['PatchedProfileUpdateRequest'];
 
 // --- Subscriptions -----------------------------------------------------------
 export type ContractSubscription = Schemas['Subscription'];

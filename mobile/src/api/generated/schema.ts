@@ -392,21 +392,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/me/": {
+    "/api/v1/me": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** @description The signed-in user's profile. Authentication comes from the defaults. */
+        /** @description GET and PATCH /me. */
         get: operations["me_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** @description Change the name, or record that first-run onboarding is done. */
+        patch: operations["me_update"];
         trace?: never;
     };
     "/api/v1/shared-plans": {
@@ -807,6 +808,11 @@ export interface components {
             token: string;
             password: string;
         };
+        /** @description PATCH /me. Every field is optional; send only what changes. */
+        PatchedProfileUpdateRequest: {
+            name?: string | null;
+            has_completed_first_run?: boolean;
+        };
         /** @description POST /subscriptions, PATCH /subscriptions/{id} (partial), POST /extractions/{id}/confirm. */
         PatchedSubscriptionInputRequest: {
             name?: string;
@@ -892,6 +898,18 @@ export interface components {
             direction: components["schemas"]["PriceChangeDirectionEnum"] | components["schemas"]["NullEnum"];
             /** @description Trials only. */
             days_left: number | null;
+            /**
+             * @description The cycle in effect on effective_on, e.g. for a '/mo' suffix.
+             *
+             *     * `weekly` - weekly
+             *     * `monthly` - monthly
+             *     * `quarterly` - quarterly
+             *     * `yearly` - yearly
+             *     * `custom` - custom
+             */
+            billing_cycle?: components["schemas"]["BillingCycleEnum"];
+            custom_cycle_count?: number | null;
+            custom_cycle_unit?: components["schemas"]["CustomCycleUnitEnum"] | components["schemas"]["NullEnum"];
         };
         /**
          * @description * `up` - up
@@ -1161,6 +1179,8 @@ export interface components {
             pending_trials_monthly: components["schemas"]["Money"];
             /** @description Subscriptions left out because their currency has no FX rate. */
             unconverted_count: number;
+            /** @description True when a counted subscription is billed in another currency, so the totals include converted amounts. Show the 'converted at' note only then. */
+            converted?: boolean;
             /** Format: date */
             rates_as_of: string | null;
             /** @description Largest first. */
@@ -1252,6 +1272,18 @@ export interface components {
             amount: components["schemas"]["Money"] | null;
             /** @description What is charged, in the billing currency. */
             billing_amount: components["schemas"]["Money"];
+            /**
+             * @description The cycle in effect on this date.
+             *
+             *     * `weekly` - weekly
+             *     * `monthly` - monthly
+             *     * `quarterly` - quarterly
+             *     * `yearly` - yearly
+             *     * `custom` - custom
+             */
+            billing_cycle?: components["schemas"]["BillingCycleEnum"];
+            custom_cycle_count?: number | null;
+            custom_cycle_unit?: components["schemas"]["CustomCycleUnitEnum"] | components["schemas"]["NullEnum"];
             /** @description True when this bill is a trial converting. */
             is_trial: boolean;
         };
@@ -1269,6 +1301,8 @@ export interface components {
             readonly email: string;
             readonly name: string | null;
             readonly email_verified: boolean;
+            /** @description False until the app has shown first-run onboarding; set with PATCH /me. */
+            readonly has_completed_first_run: boolean;
         };
     };
     responses: never;
@@ -2115,6 +2149,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+        };
+    };
+    me_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedProfileUpdateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedProfileUpdateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedProfileUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

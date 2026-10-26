@@ -9,6 +9,7 @@
  * else's settings by accident.
  */
 
+import type { PatchedProfileUpdateRequest } from '../contract';
 import { request } from '../client';
 import type {
   CurrencyOption,
@@ -23,10 +24,14 @@ export function getProfile(): Promise<UserProfile> {
   return request<UserProfile>('/me');
 }
 
-/** Updates name or email. Changing an email re-triggers verification server-side. */
-export function updateProfile(
-  body: Partial<Pick<UserProfile, 'name' | 'email'>>,
-): Promise<UserProfile> {
+/**
+ * Changes the name, or records that first-run onboarding is done.
+ *
+ * The contract's PATCH /me takes `name` and `has_completed_first_run` only;
+ * email is not changeable here, because changing it would have to re-run
+ * verification and that is its own flow.
+ */
+export function updateProfile(body: PatchedProfileUpdateRequest): Promise<UserProfile> {
   return request<UserProfile>('/me', { method: 'PATCH', body });
 }
 
