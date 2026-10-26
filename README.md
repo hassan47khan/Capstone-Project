@@ -194,7 +194,7 @@ lives in `backend/schema.yml` and is also served at runtime.
 | Endpoint | Auth | Description |
 |----------|------|-------------|
 | `GET /api/v1/health/`     | public | Liveness. Reports MongoDB; 503 when it is unreachable |
-| `GET /api/v1/me/`         | JWT    | The signed-in user's profile |
+| `GET`/`PATCH /api/v1/me`  | JWT    | The signed-in user's profile |
 | `GET /api/v1/schema/`     | public | OpenAPI 3.0 document for this server |
 | `/admin/`                 | staff  | Django admin |
 | `/`                       | public | Placeholder landing page |
