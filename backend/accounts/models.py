@@ -28,8 +28,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     SubTrak account, keyed by email (spec sections 4 and 6).
 
     Settings and notification preferences live in their own collections
-    (UserSettings, NotificationRule); this model holds identity, the lockout
-    state and the token version.
+    (UserSettings, NotificationRule); this model holds identity and the token
+    version. Failed logins are counted per email in LoginFailures, not here,
+    so an email with no account locks out the same way.
     """
 
     email = models.EmailField(unique=True)
@@ -43,10 +44,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     # accounts.tokens rejects a mismatch, so a bump ends every session at once
     # (spec section 6).
     token_version = models.PositiveIntegerField(default=0)
-    # The last five failed logins, newest last, and the lockout they caused:
-    # five inside 10 minutes lock the account for 15 (spec section 6).
-    failed_logins = ArrayField(models.DateTimeField(), default=list, blank=True)
-    locked_until = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
@@ -165,6 +162,27 @@ class RevokedRefreshToken(models.Model):
 
     def __str__(self):
         return self.jti
+
+
+class LoginFailures(models.Model):
+    """Recent failed logins for one email, and the lockout they caused: five
+    inside 10 minutes lock it for 15 (spec section 6).
+
+    Keyed by the SHA-256 of the normalized email, whether or not an account
+    has it, so an unknown email locks exactly like a known one and the 423
+    reveals nothing. The digest also keeps typed-in emails out of the database.
+    """
+
+    email_digest = models.CharField(max_length=64, unique=True)
+    # The last five failures, newest last.
+    failed_at = ArrayField(models.DateTimeField(), default=list, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "login_failures"
+
+    def __str__(self):
+        return self.email_digest
 
 
 def settings_for(user) -> UserSettings:

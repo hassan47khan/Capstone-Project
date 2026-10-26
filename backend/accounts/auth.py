@@ -3,9 +3,10 @@ handoff 04 §5, 05).
 
 Rules that keep the endpoints from revealing which emails have accounts:
 login says "Email or password is incorrect." for an unknown email and a wrong
-password alike, and reveals an unverified account only once the password is
-right; resend and password reset answer the same whether or not the account
-exists. Register's 409 is the accepted exception (05 §3).
+password alike, locks an unknown email after five failures just as it locks a
+known one, and reveals an unverified account only once the password is right;
+resend and password reset answer the same whether or not the account exists.
+Register's 409 is the accepted exception (05 §3).
 """
 
 import hashlib
@@ -18,13 +19,14 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.core.cache import cache
 from django.core.mail import send_mail
+from django.db import IntegrityError
 from django.utils import timezone
 from django_mongodb_backend import transaction
 
 from core.contract import ApiError
 
 from . import tokens
-from .models import EmailLinkToken, User, rules_for, settings_for
+from .models import EmailLinkToken, LoginFailures, User, rules_for, settings_for
 
 Purpose = EmailLinkToken.Purpose
 
@@ -142,19 +144,23 @@ def _cooldown(purpose: str, email: str) -> dict:
 # Endpoints --------------------------------------------------------------------
 
 
+def _duplicate_email() -> ApiError:
+    message = "An account with this email already exists."
+    return ApiError(409, "duplicate_email", message, fields={"email": [message]})
+
+
 def register(email: str, password: str) -> dict:
     email = normalize(email)
     if User.objects.filter(email=email).exists():
-        raise ApiError(
-            409,
-            "duplicate_email",
-            "An account with this email already exists.",
-            fields={"email": ["An account with this email already exists."]},
-        )
-    with transaction.atomic():
-        user = User.objects.create_user(email=email, password=password)
-        settings_for(user)
-        rules_for(user)
+        raise _duplicate_email()
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(email=email, password=password)
+            settings_for(user)
+            rules_for(user)
+    except IntegrityError:
+        # Two registrations raced past the check; the unique index caught the second.
+        raise _duplicate_email() from None
     _send_link(user, Purpose.VERIFY_EMAIL)
     return {"email": email, "verification_sent": True}
 
@@ -178,37 +184,48 @@ def resend_verification(email: str) -> dict:
     return cooldown
 
 
-def _locked(user: User, now: datetime) -> ApiError:
-    wait = _plural(_minutes(user.locked_until - now), "minute")
+def _locked(failures: LoginFailures, now: datetime) -> ApiError:
+    wait = _plural(_minutes(failures.locked_until - now), "minute")
     return ApiError(423, "account_locked", f"Too many failed attempts. Try again in {wait}.")
 
 
-def _record_failure(user: User, now: datetime) -> None:
-    recent = [at for at in user.failed_logins if now - at < LOCKOUT_WINDOW]
-    user.failed_logins = [*recent, now][-LOCKOUT_FAILURES:]
-    if len(user.failed_logins) >= LOCKOUT_FAILURES:
-        user.locked_until = now + LOCKOUT_DURATION
-        user.failed_logins = []
-    user.save(update_fields=["failed_logins", "locked_until"])
+def _record_failure(email: str, now: datetime) -> ApiError:
+    """Count a failed login for `email`, account or not, and return the 401."""
+    failures = LoginFailures.objects.get_or_create(email_digest=_digest(email))[0]
+    recent = [at for at in failures.failed_at if now - at < LOCKOUT_WINDOW]
+    failures.failed_at = [*recent, now][-LOCKOUT_FAILURES:]
+    if len(failures.failed_at) >= LOCKOUT_FAILURES:
+        failures.locked_until = now + LOCKOUT_DURATION
+        failures.failed_at = []
+    failures.save(update_fields=["failed_at", "locked_until"])
+    return ApiError(401, "invalid_credentials", INVALID_CREDENTIALS)
+
+
+def _clear_failures(email: str) -> None:
+    LoginFailures.objects.filter(email_digest=_digest(email)).delete()
 
 
 def login(email: str, password: str) -> dict:
-    """Lockout first, then the password, then verification (spec section 6)."""
+    """Lockout first, then the password, then verification (spec section 6).
+
+    The lockout is per email, not per account, so an unknown email answers
+    401 and then 423 exactly as a known one does.
+    """
     now = timezone.now()
-    user = User.objects.filter(email=normalize(email)).first()
-    if user is not None and user.locked_until and user.locked_until > now:
-        raise _locked(user, now)
+    email = normalize(email)
+    failures = LoginFailures.objects.filter(email_digest=_digest(email)).first()
+    if failures is not None and failures.locked_until and failures.locked_until > now:
+        raise _locked(failures, now)
+    user = User.objects.filter(email=email).first()
     if user is None:
         make_password(password)  # as slow as a wrong password, so timing says nothing
-        raise ApiError(401, "invalid_credentials", INVALID_CREDENTIALS)
+        raise _record_failure(email, now)
     if not user.check_password(password) or not user.is_active:
-        _record_failure(user, now)
-        raise ApiError(401, "invalid_credentials", INVALID_CREDENTIALS)
+        raise _record_failure(email, now)
     if not user.email_verified:
         raise ApiError(403, "email_not_verified", "Verify your email address before you log in.")
-    if user.failed_logins or user.locked_until:
-        user.failed_logins, user.locked_until = [], None
-        user.save(update_fields=["failed_logins", "locked_until"])
+    if failures is not None:
+        _clear_failures(email)
     return tokens.issue_pair(user)
 
 
@@ -227,5 +244,5 @@ def confirm_password_reset(token: str, password: str) -> None:
     user = link.user
     user.set_password(password)
     user.token_version += 1
-    user.failed_logins, user.locked_until = [], None
-    user.save(update_fields=["password", "token_version", "failed_logins", "locked_until"])
+    user.save(update_fields=["password", "token_version"])
+    _clear_failures(user.email)

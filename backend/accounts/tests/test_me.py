@@ -109,6 +109,19 @@ def test_patch_me_records_first_run_and_the_name(user, contract, path):
 
 
 @pytest.mark.django_db
+def test_patch_me_keeps_a_cleared_name_apart_from_null(user, contract):
+    client = client_with(versioned(user))
+
+    cleared = client.patch("/api/v1/me", {"name": ""}, format="json")
+
+    assert contract(cleared, "/me/")["name"] == ""
+    assert User.objects.get(pk=user.pk).name == ""
+    unset = client.patch("/api/v1/me", {"name": None}, format="json")
+    assert unset.json()["name"] is None
+    assert User.objects.get(pk=user.pk).name is None
+
+
+@pytest.mark.django_db
 def test_patch_me_validates(user, contract):
     response = client_with(versioned(user)).patch("/api/v1/me/", {"name": "x" * 151}, format="json")
 

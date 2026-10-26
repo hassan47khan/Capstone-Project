@@ -1847,7 +1847,6 @@ components:
           type:
           - string
           - 'null'
-          minLength: 1
           maxLength: 150
         has_completed_first_run:
           type: boolean

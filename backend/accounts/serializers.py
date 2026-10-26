@@ -29,7 +29,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class ProfileUpdateSerializer(serializers.Serializer):
     """PATCH /me. Every field is optional; send only what changes."""
 
-    name = serializers.CharField(max_length=150, allow_null=True, required=False)
+    # "" (cleared) and null (never set) are different values (User.name).
+    name = serializers.CharField(max_length=150, allow_null=True, allow_blank=True, required=False)
     has_completed_first_run = serializers.BooleanField(required=False)
 
 

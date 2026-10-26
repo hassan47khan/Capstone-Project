@@ -9,11 +9,12 @@ from datetime import timedelta
 
 import pytest
 from django.core import mail
+from django.db.models import QuerySet
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts import auth, tokens
-from accounts.models import EmailLinkToken, RevokedRefreshToken, User
+from accounts.models import EmailLinkToken, LoginFailures, RevokedRefreshToken, User
 from accounts.serializers import PASSWORD_MESSAGE
 from accounts.throttles import AuthEmailThrottle, AuthIPThrottle
 from subscriptions.seed import DEMO_PASSWORD
@@ -81,6 +82,17 @@ def test_register_with_an_existing_email_is_409(anon, contract, alex):
 
     assert response.status_code == 409
     assert contract(response, "/auth/register")["error"]["code"] == "duplicate_email"
+
+
+def test_a_registration_that_races_past_the_check_is_still_409(anon, contract, alex, monkeypatch):
+    # Both requests saw no account; the unique index stops the second.
+    monkeypatch.setattr(QuerySet, "exists", lambda self: False)
+
+    response = post(anon, "/auth/register", {"email": ALEX, "password": PASSWORD})
+
+    assert response.status_code == 409
+    assert contract(response, "/auth/register")["error"]["code"] == "duplicate_email"
+    assert User.objects.filter(email=ALEX).count() == 1
 
 
 @pytest.mark.parametrize(
@@ -226,6 +238,17 @@ def test_login_needs_a_password(anon, contract):
     ]
 
 
+def test_demo_users_loaded_by_a_request_cannot_log_in(anon, db):
+    # A fresh database: the 04 §6a mocks seed the demo dataset on first use.
+    someone = User.objects.create_user(email=NEW, password=PASSWORD)
+    client = APIClient()
+    client.force_authenticate(someone)
+    assert client.get("/api/v1/trials").status_code == 200
+    assert User.objects.filter(email=ALEX).exists()
+
+    assert login(anon, ALEX, DEMO_PASSWORD).status_code == 401
+
+
 def test_auth_endpoints_ignore_a_stale_token(anon, alex):
     anon.credentials(HTTP_AUTHORIZATION="Bearer expired.or.garbage")
 
@@ -235,8 +258,12 @@ def test_auth_endpoints_ignore_a_stale_token(anon, alex):
 # Lockout (spec section 6: five failures in 10 minutes lock for 15) ---------------
 
 
-def fail(client, times):
-    return [login(client, password="wrong-password").status_code for _ in range(times)]
+def fail(client, times, email=ALEX):
+    return [login(client, email, "wrong-password").status_code for _ in range(times)]
+
+
+def failures(email=ALEX):
+    return LoginFailures.objects.filter(email_digest=auth._digest(email))
 
 
 def test_five_failures_lock_the_account_even_for_the_right_password(anon, contract, alex):
@@ -251,16 +278,32 @@ def test_five_failures_lock_the_account_even_for_the_right_password(anon, contra
     }
 
 
+def test_an_unknown_email_locks_exactly_like_a_known_one(anon, contract, alex):
+    known, unknown = fail(anon, 6), fail(anon, 6, "nobody@example.com")
+
+    assert known == unknown == [401] * 5 + [423]
+    assert contract(login(anon, "Nobody@Example.com", "x"), "/auth/login")["error"] == {
+        "code": "account_locked",
+        "message": "Too many failed attempts. Try again in 15 minutes.",
+    }
+
+
+def test_the_lockout_is_per_email(anon, alex):
+    fail(anon, 5, "nobody@example.com")
+
+    assert login(anon).status_code == 200
+
+
 def test_the_lock_ends_after_15_minutes(anon, alex):
     fail(anon, 5)
-    User.objects.filter(email=ALEX).update(locked_until=timezone.now() - timedelta(seconds=1))
+    failures().update(locked_until=timezone.now() - timedelta(seconds=1))
 
     assert login(anon).status_code == 200
 
 
 def test_failures_older_than_10_minutes_do_not_count(anon, alex):
     old = timezone.now() - timedelta(minutes=11)
-    User.objects.filter(email=ALEX).update(failed_logins=[old] * 4)
+    LoginFailures.objects.create(email_digest=auth._digest(ALEX), failed_at=[old] * 4)
 
     assert fail(anon, 1) == [401]
     assert login(anon).status_code == 200
@@ -272,6 +315,14 @@ def test_a_success_clears_the_failures(anon, alex):
 
     assert fail(anon, 4) == [401] * 4
     assert login(anon).status_code == 200
+
+
+def test_failed_logins_store_only_a_digest_of_the_email(anon, db):
+    fail(anon, 1, "nobody@example.com")
+
+    stored = LoginFailures.objects.get()
+    assert stored.email_digest == auth._digest("nobody@example.com")
+    assert "nobody" not in str(LoginFailures.objects.values().get())
 
 
 # Rate limits (handoff 04 §5) -----------------------------------------------------
@@ -296,6 +347,21 @@ def test_login_trips_the_rate_limit(anon, contract, monkeypatch, throttle, email
         "message": "Too many attempts. Try again in 1 minute.",
     }
     assert response["Retry-After"]
+
+
+def test_rotating_x_forwarded_for_does_not_reset_the_ip_limit(anon, monkeypatch):
+    monkeypatch.setattr(AuthIPThrottle, "THROTTLE_RATES", {"auth_ip": "2/min"})
+
+    codes = [
+        anon.post(
+            "/api/v1/auth/login",
+            {"email": f"{n}@example.com", "password": "x"},
+            HTTP_X_FORWARDED_FOR=f"203.0.113.{n}",
+        ).status_code
+        for n in range(3)
+    ]
+
+    assert codes == [401, 401, 429]
 
 
 def test_register_is_rate_limited_too(anon, monkeypatch):
