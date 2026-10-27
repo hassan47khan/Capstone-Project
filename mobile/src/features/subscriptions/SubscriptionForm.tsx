@@ -72,12 +72,18 @@ export interface SubscriptionFormProps {
 export function SubscriptionForm({
   values,
   errors,
-  onChange,
+  onChange: report,
   onBlur,
   disabled = false,
   onHistory,
 }: SubscriptionFormProps) {
   const styles = useStyles();
+  // While saving, ignore every change, however it arrives. The Stepper and the
+  // cycle control have no disabled prop, and a screen reader's adjust gesture
+  // reaches their onChange even when touches are blocked.
+  const onChange = (patch: Partial<FormValues>) => {
+    if (!disabled) report(patch);
+  };
   const { colors } = useTheme();
 
   return (
@@ -94,8 +100,13 @@ export function SubscriptionForm({
           style={styles.historyLink}
           testID="form-history"
         >
-          <History size={sizes.iconSmall} color={colors.accent} />
-          <Text style={styles.historyText}>History</Text>
+          <History
+            size={sizes.iconSmall}
+            color={disabled ? colors.textMuted : colors.accent}
+          />
+          <Text style={[styles.historyText, disabled && styles.historyTextDisabled]}>
+            History
+          </Text>
         </Pressable>
       ) : null}
 
@@ -150,7 +161,8 @@ export function SubscriptionForm({
         testID="form-category"
       />
 
-      {/* The cycle controls have no disabled prop, so lock touches here while saving. */}
+      {/* The cycle controls have no disabled prop: block touches here while saving
+          (onChange above also ignores a screen reader's adjust gesture). */}
       <View
         pointerEvents={disabled ? 'none' : 'auto'}
         accessibilityState={{ disabled }}
@@ -240,6 +252,10 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   historyText: {
     ...typography.captionStrong,
     color: colors.accent,
+  },
+  // Muted while saving, like the other locked fields.
+  historyTextDisabled: {
+    color: colors.textMuted,
   },
   // Same spacing as the other fields, for the cycle + custom row group.
   cycle: {

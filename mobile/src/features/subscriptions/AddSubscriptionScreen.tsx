@@ -7,7 +7,9 @@
  *
  * States (07 §9)
  *   idle        Save disabled until the form is valid, with a hint saying why
- *   error       each field's message shows after it loses focus (or on Save)
+ *   error       each field's message shows after it loses focus (07 §3); Save
+ *               stays disabled until the form is valid, and a hint under it
+ *               names what's missing (covers pickers never opened)
  *   saving      Save shows a spinner; fields are locked; the form can't be
  *               closed (X, swipe or Android back) until the server answers.
  *               07 §9 says the X "still dismisses with a warning", but a sent
@@ -22,6 +24,9 @@
  *
  * Retries reuse the same Idempotency-Key while the form is unchanged, so a
  * save retried after a dropped connection can't create the subscription twice.
+ * After a timeout or lost connection we can't know whether the save landed, so
+ * the key stays pinned even if the form is then edited: a server that already
+ * saved it returns that subscription instead of making a second one.
  *
  * Not built yet: the service picker (no catalog endpoint), the duplicate-name
  * warning, and queueing a save made offline.
@@ -65,6 +70,8 @@ export const ADD_COPY = {
   save: 'Save',
   saving: 'Saving subscription',
   offline: "You're offline, so this wasn't saved. Connect and try again.",
+  timeout:
+    "We couldn't confirm this saved. Check your subscriptions before adding it again, or try Save once more.",
 } as const;
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -73,6 +80,9 @@ type Navigation = NativeStackNavigationProp<AppStackParamList>;
 interface Attempt {
   body: string;
   key: string;
+  // The request may have reached the server (timeout, dropped connection):
+  // keep this key for every retry, edited or not.
+  unsure: boolean;
 }
 
 export function AddSubscriptionScreen() {
@@ -83,8 +93,6 @@ export function AddSubscriptionScreen() {
   const [values, setValues] = useState<FormValues>(EMPTY_FORM);
   // Fields the user has left; their errors are shown from then on.
   const [touched, setTouched] = useState<Set<FormField>>(new Set());
-  // After a failed save, every error shows, touched or not.
-  const [submitted, setSubmitted] = useState(false);
   // Errors the server sent back for particular fields.
   const [serverErrors, setServerErrors] = useState<FormErrors>({});
   // A problem not tied to one field (offline, server down, unknown field).
@@ -113,7 +121,6 @@ export function AddSubscriptionScreen() {
   const resetForm = () => {
     setValues(EMPTY_FORM);
     setTouched(new Set());
-    setSubmitted(false);
     setServerErrors({});
     setFormError(undefined);
     lastAttempt.current = null;
@@ -135,15 +142,16 @@ export function AddSubscriptionScreen() {
     },
     onError: (error) => {
       saving.current = false;
+      // No answer from the server: it may or may not have saved.
       if (error instanceof ApiError && error.isOffline) {
-        setFormError(ADD_COPY.offline);
+        if (lastAttempt.current) lastAttempt.current.unsure = true;
+        setFormError(error.code === 'timeout' ? ADD_COPY.timeout : ADD_COPY.offline);
         return;
       }
       const fieldErrors =
         error instanceof ApiError ? formErrorsFromServer(error.fields) : {};
       if (Object.keys(fieldErrors).length > 0) {
         setServerErrors(fieldErrors);
-        setSubmitted(true);
       } else {
         // No field to show it on (e.g. billing_cycle, non_field_errors): use the banner.
         setFormError(messageFor(error));
@@ -158,7 +166,7 @@ export function AddSubscriptionScreen() {
   // has left (or all of them after a failed save).
   const shown: FormErrors = { ...serverErrors };
   for (const [field, message] of Object.entries(errors) as [FormField, string][]) {
-    if (!shown[field] && (submitted || touched.has(field))) shown[field] = message;
+    if (!shown[field] && touched.has(field)) shown[field] = message;
   }
 
   const change = (patch: Partial<FormValues>) => {
@@ -179,10 +187,15 @@ export function AddSubscriptionScreen() {
     if (!valid || create.isPending) return;
     const input = toSubscriptionInput(values);
     const body = JSON.stringify(input);
-    // Same form as the last try: reuse its key. Anything changed: a new key.
-    const key =
-      lastAttempt.current?.body === body ? lastAttempt.current.key : newIdempotencyKey();
-    lastAttempt.current = { body, key };
+    // Same form as the last try, or the last try may have landed: reuse its
+    // key. Otherwise a new key.
+    const last = lastAttempt.current;
+    const reuse = last && (last.unsure || last.body === body);
+    const key = reuse ? last.key : newIdempotencyKey();
+    lastAttempt.current = { body, key, unsure: last?.unsure ?? false };
+    // A fresh attempt: drop the last one's banner and server messages.
+    setFormError(undefined);
+    setServerErrors({});
     saving.current = true;
     create.mutate({ input, key });
   };

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+from django_mongodb_backend.fields import ArrayField
 
 from .services.timezones import DEFAULT_SEND_TIME
 
@@ -26,9 +27,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     """
     SubTrak account, keyed by email (spec sections 4 and 6).
 
-    Lockout, settings and notification preferences arrive with the stories
-    that need them; this model holds only what the /me endpoint and the JWT
-    revocation design depend on.
+    Settings and notification preferences live in their own collections
+    (UserSettings, NotificationRule); this model holds identity and the token
+    version. Failed logins are counted per email in LoginFailures, not here,
+    so an email with no account locks out the same way.
     """
 
     email = models.EmailField(unique=True)
@@ -38,9 +40,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     # A timestamp rather than a flag, as the spec's users collection defines;
     # the API exposes it as the boolean `email_verified`.
     email_verified_at = models.DateTimeField(null=True, blank=True)
-    # Bumped by password reset and "log out everywhere". Spec section 6 has
-    # tokens carry it as a `tv` claim and rejects a mismatch; that check is a
-    # follow-up, so for now nothing reads this field.
+    # Bumped by password reset. Every token carries it as a `tv` claim, and
+    # accounts.tokens rejects a mismatch, so a bump ends every session at once
+    # (spec section 6).
     token_version = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -61,6 +63,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def email_verified(self):
         return self.email_verified_at is not None
+
+    @property
+    def has_completed_first_run(self):
+        return settings_for(self).has_completed_first_run
 
 
 class UserSettings(models.Model):
@@ -111,6 +117,72 @@ class NotificationRule(models.Model):
 
     def __str__(self):
         return f"notification rules for {self.user}"
+
+
+class EmailLinkToken(models.Model):
+    """A verification or password-reset link (spec section 6).
+
+    Only the SHA-256 of the token is stored. A token is single-use, and issuing
+    a new one for the same purpose ends the ones before it.
+    """
+
+    class Purpose(models.TextChoices):
+        VERIFY_EMAIL = "verify_email"
+        PASSWORD_RESET = "password_reset"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
+    purpose = models.CharField(max_length=20, choices=Purpose.choices)
+    digest = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "email_link_tokens"
+        indexes = [models.Index(fields=["user", "purpose"], name="link_tokens_user_purpose")]
+
+    def __str__(self):
+        return f"{self.purpose} for {self.user}"
+
+
+class RevokedRefreshToken(models.Model):
+    """A refresh token that no longer works: rotated by /auth/refresh or ended
+    by /auth/logout. simplejwt's blacklist app cannot run on MongoDB (its
+    models hard-code integer ids), so this is the same idea keyed by `jti`.
+    Password reset does not list tokens here; it bumps `token_version`."""
+
+    jti = models.CharField(max_length=64, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
+    # When the token would have expired anyway; rows past it can be purged.
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "revoked_refresh_tokens"
+
+    def __str__(self):
+        return self.jti
+
+
+class LoginFailures(models.Model):
+    """Recent failed logins for one email, and the lockout they caused: five
+    inside 10 minutes lock it for 15 (spec section 6).
+
+    Keyed by the SHA-256 of the normalized email, whether or not an account
+    has it, so an unknown email locks exactly like a known one and the 423
+    reveals nothing. The digest also keeps typed-in emails out of the database.
+    """
+
+    email_digest = models.CharField(max_length=64, unique=True)
+    # The last five failures, newest last.
+    failed_at = ArrayField(models.DateTimeField(), default=list, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "login_failures"
+
+    def __str__(self):
+        return self.email_digest
 
 
 def settings_for(user) -> UserSettings:

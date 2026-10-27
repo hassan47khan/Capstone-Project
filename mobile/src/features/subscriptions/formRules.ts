@@ -11,6 +11,8 @@ import { minorUnits } from '@/api/format';
 import { invalidPriceMessage, isValidPrice } from '@/components';
 import { CATEGORY_SLUGS, type Category } from '@/theme';
 
+import { compareDecimal } from './priceHistory';
+
 import type {
   BillingCycle,
   CustomCycleUnit,
@@ -157,6 +159,36 @@ export function toSubscriptionInput(values: FormValues): SubscriptionInput {
     notes: values.notes.trim(),
     payment_label: values.paymentLabel.trim(),
   };
+}
+
+/**
+ * Only the fields that differ from where the form started, as the API would
+ * receive them (07 §5). Edit sends just these: PATCH is partial, so a field
+ * the user didn't touch is never written back, even if it changed on the
+ * server since the form opened. Compared as sent, not as typed, so a hidden
+ * custom count on a monthly plan, or "15.5" vs "15.50", isn't a change. The
+ * three cycle fields always travel together.
+ */
+export function changedInput(
+  values: FormValues,
+  initial: FormValues,
+): Partial<SubscriptionInput> {
+  const now = toSubscriptionInput(values);
+  const before = toSubscriptionInput(initial);
+  const changed: Partial<SubscriptionInput> = {};
+  const keys = Object.keys(now) as (keyof SubscriptionInput)[];
+  for (const key of keys) {
+    const differs =
+      key === 'billing_price'
+        ? compareDecimal(now.billing_price, before.billing_price) !== 0
+        : now[key] !== before[key];
+    if (differs) Object.assign(changed, { [key]: now[key] });
+  }
+  const cycleKeys = ['billing_cycle', 'custom_cycle_count', 'custom_cycle_unit'] as const;
+  if (cycleKeys.some((key) => key in changed)) {
+    for (const key of cycleKeys) Object.assign(changed, { [key]: now[key] });
+  }
+  return changed;
 }
 
 /** Which form field each API field's error belongs to. */

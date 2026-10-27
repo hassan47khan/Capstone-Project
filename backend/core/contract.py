@@ -62,12 +62,14 @@ class ErrorSerializer(serializers.Serializer):
 class ApiError(exceptions.APIException):
     """An error with a product meaning: its own status, code and user-facing message."""
 
-    def __init__(self, status_code: int, code: str, message: str, fields=None):
+    def __init__(self, status_code: int, code: str, message: str, fields=None, retry_after=None):
         super().__init__(detail=message, code=code)
         self.status_code = status_code
         self.code = code
         self.message = message
         self.fields = fields
+        # Seconds, sent as the Retry-After header on a 429.
+        self.retry_after = retry_after
 
 
 def not_found() -> ApiError:
@@ -135,6 +137,8 @@ def handle_exception(exc, context):
         body = {"code": exc.code, "message": exc.message}
         if exc.fields:
             body["fields"] = exc.fields
+        if exc.retry_after is not None:
+            response["Retry-After"] = str(exc.retry_after)
     elif isinstance(exc, exceptions.ValidationError):
         body = _validation_body(_flatten(exc.detail))
     else:

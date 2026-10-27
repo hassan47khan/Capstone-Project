@@ -7,6 +7,8 @@
  * edit and delete all share this one store).
  */
 import type {
+  BillingCycle,
+  CustomCycleUnit,
   HistoryEvent,
   SubscriptionDetail,
   SubscriptionInput,
@@ -15,6 +17,7 @@ import type {
 
 import { CATEGORIES, SEED_TODAY } from './contractFixtures';
 import { MOCK_EMAILS } from './fixtures';
+import { alexSeedDetails, rosaSeedDetails } from './subscriptionSeed';
 
 const usd = (amount: string) => ({ amount, currency: 'USD' });
 
@@ -127,9 +130,12 @@ export const headspaceDetail: SubscriptionDetail = {
   ],
 };
 
-// Which account owns which details. Anyone else gets a 404.
+// Which account owns which details. Anyone else gets a 404. Alex has all 11
+// seed subscriptions, so every Home link (contractFixtures.ts) opens one.
 const detailsByEmail: Record<string, SubscriptionDetail[]> = {
-  [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail],
+  [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail, ...alexSeedDetails],
+  // Rosa: one plan in a currency with no exchange rate (US-4).
+  [MOCK_EMAILS.missingRate]: rosaSeedDetails,
 };
 
 // Subscriptions added during this app session or test, per account.
@@ -139,13 +145,24 @@ let created: Record<string, SubscriptionDetail[]> = {};
 let deleted = new Set<string>();
 // Edited copies by id; they replace the seed or added version.
 let edited: Record<string, SubscriptionDetail> = {};
-let nextId = 1;
+let nextId = 1; // sub_new_<n> and its evt-new-<n>
+let nextEventId = 1; // edit and cancel events, counted on their own
+let clock = 0; // seconds past the seed's noon, one per write
+
+// The time of the next write: always later than the last, like a real server
+// stamping "now" (with microseconds, as the server sends them).
+function nextInstant(): string {
+  const at = new Date(Date.UTC(2026, 9, 1, 12, 0, clock++));
+  return at.toISOString().replace('Z', '000Z');
+}
 
 export function resetCreatedSubscriptions(): void {
   created = {};
   deleted = new Set();
   edited = {};
   nextId = 1;
+  nextEventId = 1;
+  clock = 0;
 }
 
 // Everything one account has: the seed fixtures plus anything added, with
@@ -205,6 +222,57 @@ type CreateResult =
 
 const PRICE_MESSAGE = 'Enter a valid price greater than $0.';
 
+// --- Dates the server works out (dates, not money, so the mock can) -----------
+
+// Bill steps per cycle, as backend/subscriptions/services/cycles.py.
+function stepOf(
+  cycle: BillingCycle,
+  count: number | null,
+  unit: CustomCycleUnit | null,
+): { days: number } | { months: number } {
+  if (cycle === 'weekly') return { days: 7 };
+  if (cycle === 'quarterly') return { months: 3 };
+  if (cycle === 'yearly') return { months: 12 };
+  if (cycle === 'custom') {
+    const n = count ?? 1;
+    if (unit === 'days') return { days: n };
+    if (unit === 'weeks') return { days: 7 * n };
+    if (unit === 'years') return { months: 12 * n };
+    return { months: n };
+  }
+  return { months: 1 };
+}
+
+// The k-th bill after `start`, anchored on start (Jan 31 monthly: Feb 28, Mar 31).
+function nthBill(start: string, step: { days: number } | { months: number }, k: number) {
+  const [y = 0, m = 1, d = 1] = start.split('-').map(Number);
+  if ('days' in step) {
+    return new Date(Date.UTC(y, m - 1, d + step.days * k)).toISOString().slice(0, 10);
+  }
+  const index = y * 12 + (m - 1) + step.months * k;
+  const year = Math.floor(index / 12);
+  const month = index % 12;
+  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(d, last))).toISOString().slice(0, 10);
+}
+
+/**
+ * The first bill on or after the seed's today, like next_bill_date() on the
+ * server. Simplification: past cycle changes aren't replayed; the schedule
+ * runs from start_date on the current cycle.
+ */
+export function nextBillDateFor(
+  start: string,
+  cycle: BillingCycle,
+  count: number | null,
+  unit: CustomCycleUnit | null,
+): string {
+  const step = stepOf(cycle, count, unit);
+  let k = 0;
+  while (nthBill(start, step, k) < SEED_TODAY) k += 1;
+  return nthBill(start, step, k);
+}
+
 // Monthly equivalents the real server gives for non-monthly plans (mock can't do money math).
 // One known answer per billing cycle, from 04 §3.1's factors, rounded at the end.
 const KNOWN_MONTHLY: Record<string, string> = {
@@ -233,9 +301,10 @@ function monthlyFor(
  * POST /subscriptions for the mock API: checks what the real server checks
  * (04 §5) and keeps the new subscription so GET /subscriptions/:id finds it.
  *
- * The mock can't do the server's money math, so the figures it would compute
- * are left empty (null): no total spent, no next bill date, and a monthly
- * equivalent only when it is known (see monthlyFor and KNOWN_MONTHLY).
+ * The mock can't do the server's money math, so the money figures it would
+ * compute are left empty (null): no total spent, and a monthly equivalent only
+ * when it is known (see monthlyFor and KNOWN_MONTHLY). The next bill date is a
+ * date, not money, so it is worked out like the server does.
  */
 export function createMockSubscription(email: string, body: unknown): CreateResult {
   const input = (body ?? {}) as Partial<SubscriptionInput>;
@@ -275,7 +344,12 @@ export function createMockSubscription(email: string, body: unknown): CreateResu
     custom_cycle_count: input.custom_cycle_count ?? null,
     custom_cycle_unit: input.custom_cycle_unit ?? null,
     start_date: input.start_date!,
-    next_bill_date: null,
+    next_bill_date: nextBillDateFor(
+      input.start_date!,
+      cycle,
+      input.custom_cycle_count ?? null,
+      input.custom_cycle_unit ?? null,
+    ),
     category,
     notes: input.notes ?? '',
     payment_label: input.payment_label ?? '',
@@ -288,7 +362,6 @@ export function createMockSubscription(email: string, body: unknown): CreateResu
     trial_decision: 'none',
     counts_toward_totals: true,
     normalized_monthly: monthlyFor(price, cycle, input, currency),
-
     service_mark: null,
     created_at: now,
     updated_at: now,
@@ -324,7 +397,8 @@ function isPositivePrice(price: string): boolean {
 /**
  * PATCH /subscriptions/:id for the mock API: applies the changes and, like the
  * real server (04 §5), writes one history event each for a price, category or
- * cycle change. Null when not found (the route turns that into a 404).
+ * cycle change, and works out the next bill date again. Null when not found
+ * (the route turns that into a 404).
  */
 export function updateMockSubscription(
   email: string,
@@ -361,8 +435,9 @@ export function updateMockSubscription(
       ? input.custom_cycle_unit
       : current.custom_cycle_unit;
   const slug = input.category ?? current.category?.slug ?? null;
-  // Later on the seed day than the seed's own events, so the order is clear.
-  const now = `${SEED_TODAY}T12:00:00Z`;
+  const startDate = input.start_date ?? current.start_date;
+  // One time for the whole edit, later than any earlier write (server: now()).
+  const now = nextInstant();
 
   // One event per kind of change, newest first like the API.
   const events: HistoryEvent[] = [];
@@ -372,7 +447,7 @@ export function updateMockSubscription(
     new_value: HistoryEvent['new_value'],
   ) =>
     events.unshift({
-      id: `evt-edit-${nextId++}`,
+      id: `evt-edit-${nextEventId++}`,
       event_type,
       occurred_at: now,
       old_value,
@@ -413,7 +488,12 @@ export function updateMockSubscription(
     billing_cycle: cycle,
     custom_cycle_count: count,
     custom_cycle_unit: unit,
-    start_date: input.start_date ?? current.start_date,
+    start_date: startDate,
+    // Recomputed, never trusted (server: refresh_next_bill_date). None once cancelled.
+    next_bill_date:
+      current.status === 'active'
+        ? nextBillDateFor(startDate, cycle, count, unit)
+        : current.next_bill_date,
     category: Object.values(CATEGORIES).find((c) => c.slug === slug) ?? null,
     notes: input.notes ?? current.notes,
     payment_label: input.payment_label ?? current.payment_label,

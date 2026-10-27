@@ -20,6 +20,8 @@ itself the first thing to fix.
 | Category taxonomy (2026-10-19) | Handoff 04's seven: entertainment, productivity, ai-tools, cloud-storage, news-media, health-wellness, other. Spec enum amended. See [[Open Decisions#2026-10-19 Figma retheme and handoffs 01-03|2026-10-19 decision record]]. |
 | Slice owners (2026-10-22) | `04` to Chris. `04 §6a` still Rafi, `src/api` still Hassan, and `05`–`11` unchanged: Chris `05`–`06`, Ankit `07`–`09`, Rafi `10`–`11`. See the [[Open Decisions#2026-10-22 Slice owner for 04|2026-10-22 decision record]]. |
 | Appearance source (2026-10-19) | The Figma file `kyUS7F8bg4x7GpcPEF4UDN` replaces the PDF prototype. |
+| Email provider (2026-10-25) | Resend, chosen by Hassan. Carries verify-email, password reset and the shared-plan "Remind" mail (`04 §5`, `11 §2.6`). The API key lives in the gitignored `backend/.env`, never in the repo. Not wired yet: `backend/` mail sending is slice 3 (Chris). Open sub-question: send from `onboarding@resend.dev` (own address only) or verify a domain before the demo. |
+| Hosted database (2026-10-25) | MongoDB Atlas cluster `subtrak` with an IP allowlist, set up by Hassan. Connection string is `MONGODB_URI` in `backend/.env`. Local dev and CI still use the Docker replica set. |
 
 ## Still open
 

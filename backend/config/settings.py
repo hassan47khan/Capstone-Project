@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -38,6 +38,12 @@ if not SECRET_KEY:
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
+
+# Pins "today" for every user (core/clock.py), e.g. SUBTRAK_TODAY=2026-10-01 to
+# demo the seed dataset as of SEED_TODAY. Unset, today is each user's local date.
+SUBTRAK_TODAY = (
+    date.fromisoformat(os.environ["SUBTRAK_TODAY"]) if os.environ.get("SUBTRAK_TODAY") else None
+)
 
 
 # Application definition
@@ -161,26 +167,42 @@ MAILERS = {
         "BACKEND": "django.core.mail.backends.console.EmailBackend",
     },
 }
+DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "SubTrak <no-reply@subtrak.app>")
+
+# Verification and reset emails link into the app (mobile/src/navigation/linking.ts).
+APP_LINK_PREFIX = os.environ.get("SUBTRAK_APP_LINK_PREFIX", "subtrak://")
+
+
+# Cache: holds the auth rate-limit counters and resend cooldowns. Per process,
+# which is enough for one server; a shared cache (Redis) comes with Celery.
+
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 
 # REST API
 # Every endpoint requires a valid JWT unless it opts out (health does).
 
 REST_FRAMEWORK = {
+    # simplejwt plus the token_version check (accounts/authentication.py).
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.authentication.VersionedJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     # One error shape for every endpoint: {"error": {"code", "message", "fields"}}.
     "EXCEPTION_HANDLER": "core.contract.handle_exception",
+    # Login, register and both resends (accounts/throttles.py).
+    "DEFAULT_THROTTLE_RATES": {"auth_ip": "30/min", "auth_email": "10/min"},
 }
 
-# Lifetimes from spec section 6. The token_version ("tv") claim check is a
-# follow-up; this spike only proves the token round trip.
+# Lifetimes from spec section 6. Refresh tokens rotate, and a used one is
+# revoked by jti; a `tv` claim ends every session on password reset. Both live
+# in accounts/tokens.py, because simplejwt's blacklist app cannot run on MongoDB.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "UPDATE_LAST_LOGIN": False,
 }
 
 SPECTACULAR_SETTINGS = {
