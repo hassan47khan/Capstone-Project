@@ -540,3 +540,118 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     ],
   },
 ];
+
+/**
+ * Rosa (the "missing exchange rate" account): one USD plan and one in ARS, a
+ * currency the server has no rate for. Created in the same scratch database
+ * through operations.create_subscription, then read back via GET
+ * /subscriptions/{id}. Note the ARS plan's real answer: normalized_monthly and
+ * total_spent_to_date are both null. (The real server also requires a
+ * category, so Civic Weekly is News & Media, not uncategorized.)
+ */
+export const rosaSeedDetails: SubscriptionDetail[] = [
+  // Civic Weekly
+  {
+    id: 'sub-civic-weekly',
+    name: 'Civic Weekly',
+    billing_price: '6.00',
+    billing_currency: 'USD',
+    billing_cycle: 'monthly',
+    custom_cycle_count: null,
+    custom_cycle_unit: null,
+    start_date: '2026-09-05',
+    next_bill_date: '2026-10-05',
+    category: {
+      slug: 'news-media',
+      display_name: 'News & Media',
+      color_token_key: 'newsMedia',
+    },
+    notes: '',
+    payment_label: '',
+    status: 'active',
+    cancelled_on: null,
+    is_trial: false,
+    trial_ends_on: null,
+    trial_length_days: null,
+    trial_reminder_enabled: true,
+    trial_decision: 'none',
+    counts_toward_totals: true,
+    normalized_monthly: {
+      amount: '6.00',
+      currency: 'USD',
+    },
+    service_mark: null,
+    created_at: '2026-09-05T00:00:00Z',
+    updated_at: '2026-09-05T00:00:00Z',
+    total_spent_to_date: {
+      amount: '6.00',
+      currency: 'USD',
+    },
+    saved_per_year: null,
+    history: [
+      {
+        id: 'evt-civic-weekly-1',
+        event_type: 'created',
+        occurred_at: '2026-09-05T00:00:00Z',
+        old_value: null,
+        new_value: {
+          price: '6.00',
+          currency: 'USD',
+          category: 'news-media',
+          billing_cycle: 'monthly',
+          custom_cycle_count: null,
+          custom_cycle_unit: null,
+        },
+      },
+    ],
+  },
+  // Fútbol Pass
+  {
+    id: 'sub-f-tbol-pass',
+    name: 'Fútbol Pass',
+    billing_price: '4500.00',
+    billing_currency: 'ARS',
+    billing_cycle: 'monthly',
+    custom_cycle_count: null,
+    custom_cycle_unit: null,
+    start_date: '2026-09-11',
+    next_bill_date: '2026-10-11',
+    category: {
+      slug: 'entertainment',
+      display_name: 'Entertainment',
+      color_token_key: 'entertainment',
+    },
+    notes: '',
+    payment_label: '',
+    status: 'active',
+    cancelled_on: null,
+    is_trial: false,
+    trial_ends_on: null,
+    trial_length_days: null,
+    trial_reminder_enabled: true,
+    trial_decision: 'none',
+    counts_toward_totals: true,
+    normalized_monthly: null,
+    service_mark: null,
+    created_at: '2026-09-11T00:00:00Z',
+    updated_at: '2026-09-11T00:00:00Z',
+    total_spent_to_date: null,
+    saved_per_year: null,
+    history: [
+      {
+        id: 'evt-f-tbol-pass-1',
+        event_type: 'created',
+        occurred_at: '2026-09-11T00:00:00Z',
+        old_value: null,
+        new_value: {
+          price: '4500.00',
+          currency: 'ARS',
+          category: 'entertainment',
+          billing_cycle: 'monthly',
+          custom_cycle_count: null,
+          custom_cycle_unit: null,
+        },
+      },
+    ],
+  },
+];
