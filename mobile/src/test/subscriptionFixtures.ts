@@ -3,7 +3,7 @@
  * SEED_TODAY 2026-10-01). Written by hand to match what the backend seed
  * sends; the client never computes these figures.
  *
- * Used by the GET and POST /subscriptions mock routes in routes.ts.
+ * Used by the GET, POST and DELETE /subscriptions mock routes in routes.ts.
  */
 import type {
   SubscriptionDetail,
@@ -13,6 +13,7 @@ import type {
 
 import { CATEGORIES, SEED_TODAY } from './contractFixtures';
 import { MOCK_EMAILS } from './fixtures';
+import { alexSeedDetails } from './subscriptionSeed';
 
 const usd = (amount: string) => ({ amount, currency: 'USD' });
 
@@ -125,9 +126,10 @@ export const headspaceDetail: SubscriptionDetail = {
   ],
 };
 
-// Which account owns which details. Anyone else gets a 404.
+// Which account owns which details. Anyone else gets a 404. Alex has all 11
+// seed subscriptions, so every Home link (contractFixtures.ts) opens one.
 const detailsByEmail: Record<string, SubscriptionDetail[]> = {
-  [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail],
+  [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail, ...alexSeedDetails],
 };
 
 // Subscriptions added during this app session or test, per account.

@@ -17,7 +17,9 @@ import { lightColors } from '@/theme';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient, flattenStyle, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
-import { netflixDetail } from '@/test/subscriptionFixtures';
+import { alexUpcoming, alexUrgent } from '@/test/contractFixtures';
+import { handleMockRequest } from '@/test/routes';
+import { netflixDetail, subscriptionDetailFor } from '@/test/subscriptionFixtures';
 
 import {
   BILLING_CYCLES,
@@ -141,6 +143,43 @@ describe('Headspace (every 2 months, no price changes)', () => {
     await renderDetail('sub-headspace');
 
     expect(await screen.findByText(PRICE_CHART_COPY.empty)).toBeOnTheScreen();
+  });
+});
+
+describe('every subscription Home links to (review of #121)', () => {
+  // Home opens Detail with these ids; each must be a real subscription, not "Not found".
+  const homeIds = [
+    ...alexUpcoming.items.map((bill) => bill.subscription_id),
+    ...alexUrgent.items.map((item) => item.subscription_id),
+  ];
+
+  it.each([...new Set(homeIds)])('%s has a detail', (id) => {
+    expect(subscriptionDetailFor(MOCK_EMAILS.full, id)?.id).toBe(id);
+  });
+
+  it('a subscription that began inside the 12 months says so (real seed: New York Times)', async () => {
+    await renderDetail('sub-new-york-times');
+    expect(await screen.findByTestId('price-chart-summary')).toHaveTextContent(
+      'Price history for the last 12 months: $4.25 from February 8, 2026, with no changes.',
+    );
+  });
+
+  it('a trial shows the Trial badge (real seed: Hulu)', async () => {
+    await renderDetail('sub-hulu');
+    expect(await screen.findByTestId('detail-status')).toHaveTextContent('Trial');
+  });
+
+  it('a deleted subscription is Not found afterwards, not still shown', async () => {
+    // The same route the app's DELETE goes through.
+    const response = handleMockRequest({
+      method: 'DELETE',
+      path: '/subscriptions/sub-spotify',
+      headers: { authorization: `Bearer mock-access-${MOCK_EMAILS.full}` },
+    });
+    expect(response.status).toBe(204);
+
+    await renderDetail('sub-spotify');
+    expect(await screen.findByText('Not found')).toBeOnTheScreen();
   });
 });
 

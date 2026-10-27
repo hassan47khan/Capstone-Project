@@ -20,6 +20,7 @@ import {
   formatDateShort,
   formatMoney,
   formatRelativeDays,
+  formatTimeOfDay,
   formatUnconverted,
   minorUnits,
 } from './format';
@@ -227,5 +228,20 @@ describe('relative days', () => {
 
   it('marks a past date overdue rather than showing a negative count', () => {
     expect(formatRelativeDays('2026-09-29', '2026-09-30')).toBe('overdue');
+  });
+});
+
+describe('formatTimeOfDay', () => {
+  // Local-clock dates, so the test passes in any time zone.
+  const at = (h: number, m: number) => new Date(2026, 9, 1, h, m).getTime();
+
+  it('uses a 12-hour clock with AM/PM and two-digit minutes', () => {
+    expect(formatTimeOfDay(at(15, 5))).toBe('3:05 PM');
+    expect(formatTimeOfDay(at(9, 30))).toBe('9:30 AM');
+  });
+
+  it('shows midnight and noon as 12', () => {
+    expect(formatTimeOfDay(at(0, 0))).toBe('12:00 AM');
+    expect(formatTimeOfDay(at(12, 0))).toBe('12:00 PM');
   });
 });

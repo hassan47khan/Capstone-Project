@@ -48,7 +48,8 @@ it('filters by category slug', () => {
   const names = subscriptionListFor(ALEX, { category: 'productivity' }).results.map(
     (r) => r.name,
   );
-  expect(names).toEqual(['Figma']);
+  // Alex's two seed productivity plans, soonest bill first, then the new one.
+  expect(names).toEqual(['Notion AI', 'Adobe CC', 'Figma']);
 });
 
 it('a deleted subscription leaves the list and detail', () => {
