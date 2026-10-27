@@ -1,5 +1,7 @@
-"""Auth endpoints (handoff 04 §5). Requests are validated for real; the answers
-come from `mocks` until slice 3 adds tokens, mail and rate limits."""
+"""Auth endpoints (handoff 04 §5). The rules are in accounts.auth and the
+session tokens in accounts.tokens; these views validate and serialize."""
+
+import math
 
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
@@ -8,21 +10,24 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-import mocks
-from core.contract import errors
+from core.contract import ApiError, errors
 
+from . import auth, tokens
+from .models import settings_for
 from .serializers import (
     CooldownSerializer,
     EmailSerializer,
     EmailTokenSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
+    ProfileUpdateSerializer,
     RefreshSerializer,
     RegisterResponseSerializer,
     RegisterSerializer,
     TokenPairSerializer,
     UserProfileSerializer,
 )
+from .throttles import AuthEmailThrottle, AuthIPThrottle
 
 NO_CONTENT = OpenApiResponse(description="Done; no body.")
 
@@ -34,6 +39,31 @@ class MeView(RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class ProfileView(MeView):
+    """GET and PATCH /me."""
+
+    @extend_schema(
+        operation_id="me_update",
+        tags=["me"],
+        request=ProfileUpdateSerializer,
+        responses={200: UserProfileSerializer, **errors(400, 401)},
+    )
+    def patch(self, request):
+        """Change the name, or record that first-run onboarding is done."""
+        serializer = ProfileUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        user = request.user
+        if "name" in data:
+            user.name = data["name"]
+            user.save(update_fields=["name"])
+        if "has_completed_first_run" in data:
+            prefs = settings_for(user)
+            prefs.has_completed_first_run = data["has_completed_first_run"]
+            prefs.save(update_fields=["has_completed_first_run"])
+        return Response(UserProfileSerializer(user).data)
 
 
 class AuthMeView(MeView):
@@ -51,6 +81,13 @@ class PublicView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
 
+    def throttled(self, request, wait):
+        wait = math.ceil(wait or 60)
+        minutes = math.ceil(wait / 60)
+        unit = "minute" if minutes == 1 else "minutes"
+        message = f"Too many attempts. Try again in {minutes} {unit}."  # 05 §5
+        raise ApiError(429, "throttled", message, retry_after=wait)
+
     @staticmethod
     def valid(serializer_class, request) -> dict:
         serializer = serializer_class(data=request.data)
@@ -58,7 +95,13 @@ class PublicView(APIView):
         return serializer.validated_data
 
 
-class RegisterView(PublicView):
+class LimitedView(PublicView):
+    """Rate limited per IP and per email."""
+
+    throttle_classes = [AuthIPThrottle, AuthEmailThrottle]
+
+
+class RegisterView(LimitedView):
     @extend_schema(
         operation_id="auth_register",
         tags=["auth"],
@@ -71,7 +114,7 @@ class RegisterView(PublicView):
         409 `duplicate_email`: "An account with this email already exists."
         """
         data = self.valid(RegisterSerializer, request)
-        body = mocks.register(data["email"], data["password"])
+        body = auth.register(data["email"], data["password"])
         return Response(RegisterResponseSerializer(body).data, status=status.HTTP_201_CREATED)
 
 
@@ -88,10 +131,10 @@ class VerifyEmailView(PublicView):
         400 `token_expired` ("This link has expired.") or `token_invalid`.
         """
         data = self.valid(EmailTokenSerializer, request)
-        return Response(TokenPairSerializer(mocks.verify_email(data["token"])).data)
+        return Response(TokenPairSerializer(auth.verify_email(data["token"])).data)
 
 
-class ResendVerificationView(PublicView):
+class ResendVerificationView(LimitedView):
     @extend_schema(
         operation_id="auth_resend_verification",
         tags=["auth"],
@@ -102,10 +145,10 @@ class ResendVerificationView(PublicView):
         """Send a new verification link. Always 200 for a well-formed email, so it
         cannot be used to discover accounts."""
         data = self.valid(EmailSerializer, request)
-        return Response(CooldownSerializer(mocks.resend_verification(data["email"])).data)
+        return Response(CooldownSerializer(auth.resend_verification(data["email"])).data)
 
 
-class LoginView(PublicView):
+class LoginView(LimitedView):
     @extend_schema(
         operation_id="auth_login",
         tags=["auth"],
@@ -120,7 +163,7 @@ class LoginView(PublicView):
         429 `throttled`: "Too many attempts. Try again in {n} minutes."
         """
         data = self.valid(LoginSerializer, request)
-        return Response(TokenPairSerializer(mocks.login(data["email"], data["password"])).data)
+        return Response(TokenPairSerializer(auth.login(data["email"], data["password"])).data)
 
 
 class RefreshView(PublicView):
@@ -133,7 +176,7 @@ class RefreshView(PublicView):
     def post(self, request):
         """Exchange a refresh token for a new pair. The old refresh token stops working."""
         data = self.valid(RefreshSerializer, request)
-        return Response(TokenPairSerializer(mocks.refresh(data["refresh"])).data)
+        return Response(TokenPairSerializer(tokens.rotate(data["refresh"])).data)
 
 
 class LogoutView(PublicView):
@@ -146,11 +189,11 @@ class LogoutView(PublicView):
     def post(self, request):
         """Revoke this device's refresh token. Works with an expired access token."""
         data = self.valid(RefreshSerializer, request)
-        mocks.logout(data["refresh"])
+        tokens.revoke(data["refresh"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class PasswordResetRequestView(PublicView):
+class PasswordResetRequestView(LimitedView):
     @extend_schema(
         operation_id="auth_password_reset_request",
         tags=["auth"],
@@ -160,7 +203,7 @@ class PasswordResetRequestView(PublicView):
     def post(self, request):
         """Email a reset link if the account exists. Always 200: no account enumeration."""
         data = self.valid(EmailSerializer, request)
-        return Response(CooldownSerializer(mocks.request_password_reset(data["email"])).data)
+        return Response(CooldownSerializer(auth.request_password_reset(data["email"])).data)
 
 
 class PasswordResetConfirmView(PublicView):
@@ -177,5 +220,5 @@ class PasswordResetConfirmView(PublicView):
         ("This link has already been used.").
         """
         data = self.valid(PasswordResetConfirmSerializer, request)
-        mocks.confirm_password_reset(data["token"], data["password"])
+        auth.confirm_password_reset(data["token"], data["password"])
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -449,3 +449,138 @@ describe('review fixes', () => {
     expect(screen.getByText('Discard changes?')).toBeOnTheScreen();
   });
 });
+
+// Hassan's second review of #122 (2026-10-25).
+describe('second review fixes', () => {
+  const down = () =>
+    HttpResponse.json(
+      { error: { code: 'server_error', message: 'Down.' } },
+      { status: 503 },
+    );
+
+  it('a timed-out save says it may have saved, and keeps its key even after an edit', async () => {
+    // What the client sees when its 15s timer aborts the request.
+    const realFetch = global.fetch;
+    let timedOut = false;
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation((input, init) => {
+      if (
+        !timedOut &&
+        init?.method === 'POST' &&
+        String(input).endsWith('/subscriptions')
+      ) {
+        timedOut = true;
+        return Promise.reject(
+          Object.assign(new Error('aborted'), { name: 'AbortError' }),
+        );
+      }
+      return realFetch(input, init);
+    });
+    const keys: (string | null)[] = [];
+    server.use(
+      http.post('*/subscriptions', ({ request }) => {
+        keys.push(request.headers.get('idempotency-key'));
+        return undefined;
+      }),
+    );
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByTestId('add-form-error')).toHaveTextContent(
+      ADD_COPY.timeout,
+    );
+
+    // The first request may have landed: an edited retry must not get a new key.
+    await fireEvent.changeText(screen.getByTestId('form-notes'), 'Family plan');
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-success');
+
+    const firstKey = fetchSpy.mock.calls.find(
+      ([url, init]) => init?.method === 'POST' && String(url).endsWith('/subscriptions'),
+    )?.[1]?.headers as Record<string, string> | undefined;
+    fetchSpy.mockRestore();
+    expect(firstKey?.['Idempotency-Key']).toBeTruthy();
+    expect(keys).toEqual([firstKey?.['Idempotency-Key']]);
+  });
+
+  it('a lost connection keeps the key for an edited retry too', async () => {
+    const keys: (string | null)[] = [];
+    server.use(
+      http.post('*/subscriptions', ({ request }) => {
+        keys.push(request.headers.get('idempotency-key'));
+        return keys.length === 1 ? HttpResponse.error() : down();
+      }),
+    );
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByTestId('add-form-error')).toHaveTextContent(
+      ADD_COPY.offline,
+    );
+    await fireEvent.changeText(screen.getByTestId('form-notes'), 'Family plan');
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await waitFor(() => expect(keys).toHaveLength(2));
+
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it("the last attempt's banner is gone when the next attempt answers with a field error", async () => {
+    let calls = 0;
+    server.use(
+      http.post('*/subscriptions', () => {
+        calls += 1;
+        if (calls === 1) return down();
+        return HttpResponse.json(
+          {
+            error: {
+              code: 'validation_error',
+              message: 'Enter a subscription name.',
+              fields: { name: ['Enter a subscription name.'] },
+            },
+          },
+          { status: 400 },
+        );
+      }),
+    );
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-form-error');
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByText('Enter a subscription name.')).toBeOnTheScreen();
+    expect(screen.queryByTestId('add-form-error')).toBeNull();
+  });
+
+  it("a screen reader's adjust gesture can't change the cycle count mid-save", async () => {
+    const release = holdSaves();
+    await renderAdd();
+    await fillHeadspace();
+    const count = screen.getByTestId('form-custom-count');
+    expect(count).toHaveTextContent('2');
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await waitFor(() => expect(screen.getByTestId('form-cycle-lock')).toBeDisabled());
+    await fireEvent(count, 'accessibilityAction', {
+      nativeEvent: { actionName: 'increment' },
+    });
+    expect(screen.getByTestId('form-custom-count')).toHaveTextContent('2');
+
+    await release();
+    await screen.findByTestId('add-success');
+  });
+
+  it('an untouched picker shows no error, and the hint names it (07 §3)', async () => {
+    await renderAdd();
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'Headspace');
+    await fireEvent.changeText(screen.getByTestId('form-price'), '12.99');
+
+    expect(screen.queryByText(FORM_COPY.categoryRequired)).toBeNull();
+    expect(screen.getByTestId('add-save-hint')).toHaveTextContent(
+      'To save, check: category and start date.',
+    );
+    expect(screen.getByTestId('add-save')).toBeDisabled();
+  });
+});

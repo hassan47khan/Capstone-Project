@@ -22,7 +22,7 @@ import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { ApiError } from '@/api/errors';
-import { formatDateLong, formatMoney } from '@/api/format';
+import { formatDateLong, formatMoney, formatTimeOfDay } from '@/api/format';
 import { queryKeys } from '@/api/queryKeys';
 import {
   Badge,
@@ -70,10 +70,6 @@ function statusBadge(sub: SubscriptionDetail) {
   if (sub.status === 'cancelled') return { label: 'Cancelled', tone: 'neutral' as const };
   if (sub.is_trial) return { label: 'Trial', tone: 'warning' as const };
   return { label: 'Active', tone: 'success' as const };
-}
-
-function timeOf(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 // --- The screen -------------------------------------------------------------
@@ -130,7 +126,12 @@ export function SubscriptionDetailScreen() {
   const offline = stale && detail.error instanceof ApiError && detail.error.isOffline;
   const badge = statusBadge(sub);
   // UTC, the same clock as the history events (see priceHistory.ts).
-  const series = buildPriceSeries(sub.history, sub.billing_price, utcToday());
+  const series = buildPriceSeries(
+    sub.history,
+    { price: sub.billing_price, currency: sub.billing_currency },
+    sub.start_date,
+    utcToday(),
+  );
 
   return (
     <Screen
@@ -144,7 +145,7 @@ export function SubscriptionDetailScreen() {
 
       {stale ? (
         <Text style={styles.note} accessibilityLiveRegion="polite" testID="detail-stale">
-          {DETAIL_COPY.stalePrefix} {timeOf(detail.dataUpdatedAt)}
+          {DETAIL_COPY.stalePrefix} {formatTimeOfDay(detail.dataUpdatedAt)}
         </Text>
       ) : null}
 
@@ -173,9 +174,8 @@ export function SubscriptionDetailScreen() {
         <SectionHeader title={DETAIL_COPY.priceHistory} />
         <PriceHistoryChart
           series={series}
-          currency={sub.billing_currency}
           // Describes the same 12 months the chart shows (07 §11).
-          summary={describePriceHistory(series, sub.billing_currency)}
+          summary={describePriceHistory(series)}
         />
       </View>
 

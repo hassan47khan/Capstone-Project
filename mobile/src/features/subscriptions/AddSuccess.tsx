@@ -1,7 +1,7 @@
 // "Subscription added" screen shown after saving (07 §3, Figma `4:3587`).
 import { Check } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Animated, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Text, View } from 'react-native';
 
 import { formatMoney } from '@/api/format';
 import { Button, Card, CategoryBadge, ServiceMark } from '@/components';
@@ -17,6 +17,9 @@ export const SUCCESS_COPY = {
   frequency: 'Frequency',
   viewDashboard: 'View on Dashboard',
   addAnother: 'Add another',
+  // US-4: no exchange rate means it's left out of totals; say so, don't hide it.
+  noRate: (currency: string) =>
+    `Not in your monthly total yet: there's no exchange rate for ${currency}.`,
 } as const;
 
 export interface AddSuccessProps {
@@ -29,11 +32,11 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
   const styles = useStyles();
   const { colors } = useTheme();
   const m = useMotion();
-  const [opacity] = useState(() => new Animated.Value(m.moves ? 0 : 1));
+  const [opacity] = useState(() => new Animated.Value(0));
 
-  // Fade in (skipped under reduced motion).
+  // Cross-fade in (02 §15). Reduced motion keeps the fade, just shorter
+  // (useMotion gives 150ms then): a fade isn't movement.
   useEffect(() => {
-    if (!m.moves) return;
     Animated.timing(opacity, {
       toValue: 1,
       duration: m.successFade,
@@ -42,17 +45,26 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
     }).start();
   }, [opacity, m]);
 
+  // The form was swapped for this in place, so say it worked out loud too.
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(
+      `${SUCCESS_COPY.title}. ${SUCCESS_COPY.body(created.name)}`,
+    );
+  }, [created.name]);
+
   const price = formatMoney(created.billing_price, created.billing_currency).display;
   const cycle = describeCycle(created);
   const category = CATEGORY_SLUGS.find((c) => c === created.category?.slug) ?? null;
-  // Only for non-monthly plans: on a monthly plan it would just repeat the price
-  // (same rule as the Detail screen's "Monthly equivalent" row).
+  // What it adds to the monthly total (07 §3), in the display currency.
+  // Skipped only when it would repeat the price: a monthly plan billed in the
+  // display currency. null from the server means no exchange rate (US-4).
+  const normalized = created.normalized_monthly;
+  const repeatsPrice =
+    created.billing_cycle === 'monthly' &&
+    normalized?.currency === created.billing_currency;
   const monthly =
-    created.billing_cycle !== 'monthly' && created.normalized_monthly
-      ? formatMoney(
-          created.normalized_monthly.amount,
-          created.normalized_monthly.currency,
-        ).display
+    normalized && !repeatsPrice
+      ? formatMoney(normalized.amount, normalized.currency).display
       : null;
 
   return (
@@ -119,7 +131,7 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
           </View>
         </View>
 
-        {/* Required: what a non-monthly plan adds to the monthly total. */}
+        {/* Required: what this adds to the monthly total, or why it can't. */}
         {monthly ? (
           <Text
             style={styles.monthly}
@@ -127,6 +139,11 @@ export function AddSuccess({ created, onViewDashboard, onAddAnother }: AddSucces
             testID="add-success-monthly"
           >
             ≈ {monthly}/mo
+          </Text>
+        ) : null}
+        {normalized === null ? (
+          <Text style={styles.monthly} testID="add-success-no-rate">
+            {SUCCESS_COPY.noRate(created.billing_currency)}
           </Text>
         ) : null}
       </Card>

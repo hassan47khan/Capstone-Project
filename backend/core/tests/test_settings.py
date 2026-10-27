@@ -30,3 +30,14 @@ def test_debug_is_off_unless_explicitly_true():
     result = load_settings(DJANGO_SECRET_KEY="test", DJANGO_DEBUG="")
 
     assert result.stdout.strip() == "False"
+
+
+def test_subtrak_today_is_read_as_a_date():
+    result = subprocess.run(
+        [sys.executable, "-c", "import config.settings as s; print(repr(s.SUBTRAK_TODAY))"],
+        cwd=BACKEND,
+        env={**os.environ, "DJANGO_SECRET_KEY": "test", "SUBTRAK_TODAY": "2026-10-01"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() == "datetime.date(2026, 10, 1)"

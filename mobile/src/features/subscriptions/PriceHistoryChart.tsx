@@ -15,7 +15,6 @@ import { Animated, Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { formatDateShort, formatMoney } from '@/api/format';
-import type { CurrencyCode } from '@/api/types';
 import { Card } from '@/components';
 import { makeStyles, spacing, useMotion, useTheme } from '@/theme';
 
@@ -91,8 +90,6 @@ export function chartGeometry(series: PriceSeries, width: number): ChartGeometry
 
 export interface PriceHistoryChartProps {
   series: PriceSeries;
-  /** The currency the prices are billed in. */
-  currency: CurrencyCode;
   /** The same data in words, shown under the chart for everyone. */
   summary: string;
   testID?: string;
@@ -100,7 +97,6 @@ export interface PriceHistoryChartProps {
 
 export function PriceHistoryChart({
   series,
-  currency,
   summary,
   testID = 'price-chart',
 }: PriceHistoryChartProps) {
@@ -187,7 +183,7 @@ export function PriceHistoryChart({
                 fontFamily={typography.captionStrong.fontFamily}
                 fontSize={typography.captionStrong.fontSize}
               >
-                {`${formatMoney(step.price, currency).display} · ${formatDateShort(step.date)}`}
+                {`${formatMoney(step.price, step.currency).display} · ${formatDateShort(step.date)}`}
               </SvgText>
             ))}
           </Svg>
