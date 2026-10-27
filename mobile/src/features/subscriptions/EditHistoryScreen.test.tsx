@@ -4,15 +4,19 @@
  */
 import { NavigationContainer, useNavigation, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { Pressable, Text } from 'react-native';
 
 import { SessionProvider } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
 import { MOCK_EMAILS } from '@/test/fixtures';
-import { createTestQueryClient, renderWithProviders } from '@/test/render';
+import { createTestQueryClient, flattenStyle, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
+import {
+  subscriptionDetailFor,
+  updateMockSubscription,
+} from '@/test/subscriptionFixtures';
 
 import { HISTORY_COPY, EditHistoryScreen } from './EditHistoryScreen';
 import { EditSubscriptionScreen } from './EditSubscriptionScreen';
@@ -135,26 +139,6 @@ describe('states (07 §9)', () => {
   it('a server error offers Try again, which reloads', async () => {
     let fail = true;
     server.use(
-      http.get('*/subscriptions/:id/history', () =>
-        fail
-          ? HttpResponse.json(
-              { error: { code: 'server_error', message: 'Boom', fields: {} } },
-              { status: 500 },
-            )
-          : undefined,
-      ),
-    );
-    await renderHistory('sub-netflix');
-
-    expect(await screen.findByText('Something went wrong')).toBeOnTheScreen();
-    fail = false;
-    await fireEvent.press(screen.getByTestId('history-error-retry'));
-    expect(await screen.findByTestId('history-evt-netflix-3')).toBeOnTheScreen();
-  });
-
-  it('if only the detail fails, it shows the error instead of loading forever', async () => {
-    let fail = true;
-    server.use(
       http.get('*/subscriptions/:id', () =>
         fail
           ? HttpResponse.json(
@@ -170,6 +154,82 @@ describe('states (07 §9)', () => {
     fail = false;
     await fireEvent.press(screen.getByTestId('history-error-retry'));
     expect(await screen.findByTestId('history-evt-netflix-3')).toBeOnTheScreen();
+  });
+});
+
+// Hassan's review of #130 (2026-10-25).
+describe('review fixes', () => {
+  it('makes one request, the detail (which carries the history), never a second one', async () => {
+    const paths: string[] = [];
+    server.use(
+      http.get('*/subscriptions/*', ({ request }) => {
+        paths.push(new URL(request.url).pathname);
+        return undefined;
+      }),
+    );
+    await renderHistory('sub-netflix');
+    await screen.findByTestId('history-evt-netflix-3');
+
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.every((path) => path.endsWith('/subscriptions/sub-netflix'))).toBe(true);
+  });
+
+  it('pull to refresh updates the title and the list together', async () => {
+    await renderHistory('sub-netflix');
+    await screen.findByTestId('history-evt-netflix-3');
+
+    // Renamed and repriced elsewhere.
+    updateMockSubscription(MOCK_EMAILS.full, 'sub-netflix', {
+      name: 'Netflix Premium',
+      billing_price: '22.99',
+    });
+    await act(async () => {
+      screen.getByTestId('history-screen').props.refreshControl.props.onRefresh();
+    });
+
+    expect(
+      await screen.findByText(HISTORY_COPY.titleFor('Netflix Premium')),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('Price changed from $15.49 to $22.99')).toBeOnTheScreen();
+  });
+
+  it('an event type this app does not know shows a plain row; the rest still render', async () => {
+    const netflix = subscriptionDetailFor(MOCK_EMAILS.full, 'sub-netflix')!;
+    server.use(
+      http.get('*/subscriptions/:id', () =>
+        HttpResponse.json({
+          ...netflix,
+          history: [
+            {
+              id: 'evt-future',
+              event_type: 'paused', // a newer server's event type
+              occurred_at: '2026-10-20T00:00:00Z',
+              old_value: null,
+              new_value: null,
+            },
+            ...netflix.history,
+          ],
+        }),
+      ),
+    );
+    await renderHistory('sub-netflix');
+
+    expect(await screen.findByTestId('history-evt-future')).toHaveTextContent(
+      /Update.*Subscription updated/,
+    );
+    expect(screen.getByTestId('history-evt-netflix-3')).toBeOnTheScreen();
+  });
+
+  it('cards sit 8 below the app bar and 16 apart (07 §6)', async () => {
+    await renderHistory('sub-netflix');
+    await screen.findByTestId('history-evt-netflix-3');
+
+    expect(screen.getByTestId('history-list')).toHaveStyle({ marginTop: 8, gap: 16 });
+    // The screen keeps its own 24 at the bottom; the list doesn't override it.
+    const content = flattenStyle(
+      screen.getByTestId('history-screen').props.contentContainerStyle,
+    );
+    expect(content.paddingBottom).toBe(24);
   });
 });
 

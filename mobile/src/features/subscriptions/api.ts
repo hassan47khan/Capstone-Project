@@ -6,7 +6,6 @@
  */
 import type { CategoryRef, ContractMoney, ServiceMarkRef } from '@/api/analyticsTypes';
 import { newIdempotencyKey, request } from '@/api/client';
-import { queryKeys } from '@/api/queryKeys';
 import type { CurrencyCode, DateOnly, Instant, MoneyString } from '@/api/types';
 
 // Each enum is a real list (not just a type) so a test can check it against
@@ -135,16 +134,6 @@ export function updateSubscription(
     method: 'PATCH',
     body: input,
   });
-}
-
-// Cache key for a subscription's history. Under subscriptions.all, so every
-// add/edit/cancel/delete (which invalidates that) refreshes it too.
-export const historyQueryKey = (id: string) =>
-  [...queryKeys.subscriptions.all, 'history', id] as const;
-
-// Every recorded change, newest first (07 §6). A 404 means "not found or not yours".
-export function getSubscriptionHistory(id: string): Promise<HistoryEvent[]> {
-  return request<HistoryEvent[]>(`/subscriptions/${encodeURIComponent(id)}/history`);
 }
 
 // Loads one subscription. A 404 means "not found or not yours".

@@ -176,3 +176,49 @@ describe('onlyCreation (07 §9 empty state)', () => {
     expect(onlyCreation(netflixDetail.history)).toBe(false);
   });
 });
+
+// Hassan's review of #130 (2026-10-25).
+describe('review fixes', () => {
+  it('an unknown event type becomes a plain row instead of crashing', () => {
+    const line = describeEvent(
+      event({ event_type: 'paused' as HistoryEvent['event_type'] }),
+      'USD',
+    );
+    expect(line.badge).toEqual({ label: 'Update', tone: 'neutral' });
+    expect(line.text).toBe('Subscription updated');
+  });
+
+  it('a missing price is left out, never shown as $0.00', () => {
+    expect(describeEvent(event({ new_value: { price: '15.49' } }), 'USD').text).toBe(
+      'Price changed to $15.49',
+    );
+    expect(describeEvent(event({ old_value: { price: '13.99' } }), 'USD').text).toBe(
+      'Price changed from $13.99',
+    );
+    expect(describeEvent(event({}), 'USD').text).toBe('Price changed');
+    expect(
+      describeEvent(
+        event({ event_type: 'created', new_value: { category: 'other' } }),
+        'USD',
+      ).text,
+    ).toBe('Subscription added, Other');
+  });
+
+  it('a price with its own recorded currency uses it, not the current one', () => {
+    const line = describeEvent(
+      event({
+        old_value: { price: '13.99', currency: 'USD' },
+        new_value: { price: '14.99', currency: 'EUR' },
+      }),
+      'EUR',
+    );
+    expect(line.text).toBe('Price changed from $13.99 to €14.99');
+  });
+
+  it('the created line keeps its recorded currency after a switch (real seed shape)', () => {
+    const created = netflixDetail.history.find((e) => e.event_type === 'created')!;
+    expect(describeEvent(created, 'EUR').text).toBe(
+      'Subscription added, $13.99/mo, Other',
+    );
+  });
+});

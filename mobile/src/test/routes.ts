@@ -480,17 +480,6 @@ export const routes: Route[] = [
   },
 
   {
-    method: 'GET',
-    pattern: '/subscriptions/:id/history',
-    // Same store as the detail, so edits made through PATCH show up here (newest first).
-    handler: protectedRoute((request, account) => {
-      const found = subscriptionDetailFor(account.profile.email, request.params.id ?? '');
-      if (!found) return fail(404, 'not_found', 'This subscription could not be found.');
-      return ok(found.history);
-    }),
-  },
-
-  {
     method: 'PATCH',
     pattern: '/subscriptions/:id',
     // Frozen contract shape (04 §5), same store as the other routes; writes history.

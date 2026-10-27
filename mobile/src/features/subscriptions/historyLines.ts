@@ -4,6 +4,10 @@
  *
  * Badge colours are neutral except Price update (warning) and Creation
  * (success): these are log entries, not alerts, and red is never used.
+ *
+ * Prices use the currency the event recorded, else the current billing
+ * currency (currencyOf, the same rule as the price chart). The server doesn't
+ * record a currency on price changes yet, so that fallback is a best guess.
  */
 import {
   formatCycleSuffix,
@@ -16,7 +20,7 @@ import { CATEGORY_LABELS, UNCATEGORIZED_LABEL, type Category } from '@/theme';
 
 import type { BillingCycle, CustomCycleUnit, HistoryEvent, HistoryValue } from './api';
 import { describeCycle } from './formRules';
-import { dateOf } from './priceHistory';
+import { currencyOf, dateOf } from './priceHistory';
 
 export interface HistoryLine {
   id: string;
@@ -61,6 +65,25 @@ function cycleSuffix(value: HistoryValue | null): string {
   return formatCycleSuffix('month', 1);
 }
 
+// "Price changed from $13.99 to $15.49". A side the server left out is
+// skipped rather than shown as $0.00, which would look like a real price.
+function priceSentence(
+  before: HistoryValue | null,
+  after: HistoryValue | null,
+  currency: string,
+): string {
+  const money = (value: HistoryValue | null) =>
+    value?.price === undefined
+      ? null
+      : formatMoney(value.price, currencyOf(value, currency)).display;
+  const from = money(before);
+  const to = money(after);
+  if (from && to) return `Price changed from ${from} to ${to}`;
+  if (to) return `Price changed to ${to}`;
+  if (from) return `Price changed from ${from}`;
+  return 'Price changed';
+}
+
 /**
  * One event as a line. `currency` is the subscription's billing currency,
  * used when the event doesn't carry its own.
@@ -68,8 +91,6 @@ function cycleSuffix(value: HistoryValue | null): string {
 export function describeEvent(event: HistoryEvent, currency: string): HistoryLine {
   const before = event.old_value;
   const after = event.new_value;
-  const money = (price: string | undefined, fallback?: string) =>
-    formatMoney(price ?? '0', after?.currency ?? fallback ?? currency).display;
   const day = dateOf(event.occurred_at);
   const base = {
     id: event.id,
@@ -82,7 +103,7 @@ export function describeEvent(event: HistoryEvent, currency: string): HistoryLin
       return {
         ...base,
         badge: { label: 'Price update', tone: 'warning' },
-        text: `Price changed from ${money(before?.price)} to ${money(after?.price)}`,
+        text: priceSentence(before, after, currency),
       };
     case 'category_change':
       return {
@@ -100,13 +121,24 @@ export function describeEvent(event: HistoryEvent, currency: string): HistoryLin
       return {
         ...base,
         badge: { label: 'Creation', tone: 'success' },
-        text: `Subscription added, ${money(after?.price)}${cycleSuffix(after)}, ${categoryName(after?.category)}`,
+        text:
+          after?.price === undefined
+            ? `Subscription added, ${categoryName(after?.category)}`
+            : `Subscription added, ${formatMoney(after.price, currencyOf(after, currency)).display}${cycleSuffix(after)}, ${categoryName(after?.category)}`,
       };
     case 'cancelled':
       return {
         ...base,
         badge: { label: 'Cancelled', tone: 'neutral' },
         text: 'Marked as cancelled',
+      };
+    // A kind of event this app doesn't know yet (a newer server): show a plain
+    // row rather than take the whole screen down.
+    default:
+      return {
+        ...base,
+        badge: { label: 'Update', tone: 'neutral' },
+        text: 'Subscription updated',
       };
   }
 }
