@@ -15,8 +15,13 @@ import {
 import { buildPriceSeries, describePriceHistory } from './priceHistory';
 
 const TODAY = '2026-10-23';
-const netflixSeries = buildPriceSeries(netflixDetail.history, '15.49', TODAY);
-const netflixSummary = describePriceHistory(netflixSeries, 'USD');
+const netflixSeries = buildPriceSeries(
+  netflixDetail.history,
+  { price: '15.49', currency: 'USD' },
+  netflixDetail.start_date,
+  TODAY,
+);
+const netflixSummary = describePriceHistory(netflixSeries);
 
 describe('chartGeometry', () => {
   it('us7_price_chart_steps_up_on_2026_10_01', () => {
@@ -24,7 +29,11 @@ describe('chartGeometry', () => {
 
     // One step, near the right edge (Oct 1 is 343 days into a 365-day window)...
     expect(points).toHaveLength(1);
-    expect(points[0]!.step).toEqual({ date: '2026-10-01', price: '15.49' });
+    expect(points[0]!.step).toEqual({
+      date: '2026-10-01',
+      price: '15.49',
+      currency: 'USD',
+    });
     expect(points[0]!.x).toBe(343);
     // ...going UP: the new price is drawn higher (smaller y) than the old one.
     const startY = Number(path.split(' ')[2]);
@@ -42,7 +51,8 @@ describe('chartGeometry', () => {
       today: '2026-10-23',
       lineStart: '2026-05-01', // 190 days in
       startPrice: '13.99',
-      steps: [{ date: '2026-10-01', price: '15.49' }],
+      startCurrency: 'USD',
+      steps: [{ date: '2026-10-01', price: '15.49', currency: 'USD' }],
     };
     const { path } = chartGeometry(series, 365);
 
@@ -56,9 +66,10 @@ describe('chartGeometry', () => {
       today: '2026-10-23',
       lineStart: '2025-10-23',
       startPrice: '10.00',
+      startCurrency: 'USD',
       steps: [
-        { date: '2026-10-01', price: '12.00' },
-        { date: '2026-10-01', price: '11.00' },
+        { date: '2026-10-01', price: '12.00', currency: 'USD' },
+        { date: '2026-10-01', price: '11.00', currency: 'USD' },
       ],
     };
     expect(chartGeometry(series, 365).points).toHaveLength(2);
@@ -67,13 +78,14 @@ describe('chartGeometry', () => {
 
 describe('PriceHistoryChart', () => {
   it('us7_no_changes_shows_a_message_and_keeps_the_summary', async () => {
-    const series = buildPriceSeries(headspaceDetail.history, '12.99', TODAY);
+    const series = buildPriceSeries(
+      headspaceDetail.history,
+      { price: '12.99', currency: 'USD' },
+      headspaceDetail.start_date,
+      TODAY,
+    );
     await renderWithProviders(
-      <PriceHistoryChart
-        series={series}
-        currency="USD"
-        summary={describePriceHistory(series, 'USD')}
-      />,
+      <PriceHistoryChart series={series} summary={describePriceHistory(series)} />,
     );
 
     expect(screen.getByText(PRICE_CHART_COPY.empty)).toBeOnTheScreen();
@@ -90,7 +102,7 @@ describe('PriceHistoryChart', () => {
     await renderWithProviders(
       <PriceHistoryChart
         series={netflixSeries}
-        currency="USD"
+
         summary={netflixSummary}
       />,
       { reduceMotion: true },
@@ -110,7 +122,7 @@ describe('PriceHistoryChart', () => {
     await renderWithProviders(
       <PriceHistoryChart
         series={netflixSeries}
-        currency="USD"
+
         summary={netflixSummary}
       />,
       { reduceMotion: true },
@@ -133,13 +145,14 @@ describe('PriceHistoryChart', () => {
       today: '2026-10-23',
       lineStart: '2025-10-23',
       startPrice: '10.00',
+      startCurrency: 'USD',
       steps: [
-        { date: '2026-10-01', price: '12.00' },
-        { date: '2026-10-01', price: '11.00' },
+        { date: '2026-10-01', price: '12.00', currency: 'USD' },
+        { date: '2026-10-01', price: '11.00', currency: 'USD' },
       ],
     };
     await renderWithProviders(
-      <PriceHistoryChart series={series} currency="USD" summary="Two changes." />,
+      <PriceHistoryChart series={series} summary="Two changes." />,
       { reduceMotion: true },
     );
     const plot = screen.getByTestId('price-chart-plot', { includeHiddenElements: true });

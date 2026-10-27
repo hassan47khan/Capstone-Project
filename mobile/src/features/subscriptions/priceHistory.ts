@@ -13,7 +13,7 @@
 import { formatDateSpoken, formatMoney } from '@/api/format';
 import type { CurrencyCode, DateOnly, MoneyString } from '@/api/types';
 
-import type { HistoryEvent } from './api';
+import type { HistoryEvent, HistoryValue } from './api';
 
 // The chart shows the last 12 months (07 §4).
 export const CHART_MONTHS = 12;
@@ -107,29 +107,45 @@ export function formatMonthYear(date: DateOnly): string {
 
 // --- The chart's data -------------------------------------------------------
 
-// On `date`, the price became `price`.
+/**
+ * The currency a recorded price was charged in. The `created` event records
+ * it; `price_change` events don't (the server stores only the price), so those
+ * fall back to the subscription's current billing currency.
+ */
+export function currencyOf(
+  value: HistoryValue | null | undefined,
+  fallback: CurrencyCode,
+): CurrencyCode {
+  return value?.currency ?? fallback;
+}
+
+// On `date`, the price became `price`, in `currency`.
 export interface PriceStep {
   date: DateOnly;
   price: MoneyString;
+  currency: CurrencyCode;
 }
 
 export interface PriceSeries {
   rangeStart: DateOnly; // left edge: 12 months before today
   today: DateOnly; // right edge
-  // Where the line starts: rangeStart, or later if the price before the first
-  // change is unknown (then we don't invent an earlier segment).
+  // Where the line starts: rangeStart, or later if the subscription began
+  // inside the window or the price before the first change is unknown
+  // (then we don't invent an earlier segment).
   lineStart: DateOnly;
   startPrice: MoneyString; // the price at lineStart
-  steps: PriceStep[]; // changes after lineStart, up to today, oldest first
+  startCurrency: CurrencyCode;
+  steps: PriceStep[]; // real changes after lineStart, up to today, oldest first
 }
 
 // A price change, with the price before it when the server sent one.
 interface PriceChange extends PriceStep {
   previous: MoneyString | undefined;
+  at: string; // the exact instant, to order two changes on the same day
 }
 
-// Every price change, oldest first.
-function priceChanges(history: HistoryEvent[]): PriceChange[] {
+// Every price change, oldest first (by exact time, not just the day).
+function priceChanges(history: HistoryEvent[], currency: CurrencyCode): PriceChange[] {
   const changes: PriceChange[] = [];
   for (const event of history) {
     const price = event.new_value?.price;
@@ -137,65 +153,95 @@ function priceChanges(history: HistoryEvent[]): PriceChange[] {
       changes.push({
         date: dateOf(event.occurred_at),
         price,
+        currency: currencyOf(event.new_value, currency),
         previous: event.old_value?.price,
+        at: event.occurred_at,
       });
     }
   }
-  return changes.sort((a, b) => a.date.localeCompare(b.date));
+  // Compare as times, not text: "…00Z" and "…00.123456Z" sort wrongly as text.
+  return changes.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 
-// The first known price: from the `created` event, else the price before the first change.
-function openingPrice(
-  history: HistoryEvent[],
-  changes: PriceChange[],
-): MoneyString | undefined {
-  const created = history.find((e) => e.event_type === 'created')?.new_value?.price;
-  return created ?? changes[0]?.previous;
-}
+type Price = { price: MoneyString; currency: CurrencyCode };
 
 /**
  * The last 12 months of a subscription's price.
  *
- * @param history  the detail's history (any order)
- * @param current  today's billing price, used if the history has no prices
- * @param today    today's date in UTC, the same clock as the events
+ * @param history    the detail's history (any order)
+ * @param current    today's billing price and currency, used when the history
+ *                   has no prices, and for prices that don't record a currency
+ * @param startDate  the subscription's start_date, used if there's no `created` event
+ * @param today      today's date in UTC, the same clock as the events
  */
 export function buildPriceSeries(
   history: HistoryEvent[],
-  current: MoneyString,
+  current: Price,
+  startDate: DateOnly,
   today: DateOnly,
 ): PriceSeries {
   const rangeStart = monthsBefore(today, CHART_MONTHS);
-  const changes = priceChanges(history);
-  const inWindow: PriceStep[] = changes
-    .filter((c) => c.date > rangeStart && c.date <= today)
-    .map(({ date, price }) => ({ date, price }));
+  const changes = priceChanges(history, current.currency);
+  const created = history.find((e) => e.event_type === 'created');
 
-  // The price at the left edge: the opening price, updated by every change
-  // on or before that day.
-  let startPrice = openingPrice(history, changes);
+  // When it began: the `created` event (a trial's start_date is its first
+  // charge, which can be after today), else start_date. Never after today.
+  let began = created ? dateOf(created.occurred_at) : startDate;
+  if (began > today) began = today;
+  // No line for the months before it existed.
+  let lineStart = began > rangeStart ? began : rangeStart;
+
+  // The opening price: the `created` event, else the price before the first change.
+  const createdPrice = created?.new_value?.price;
+  const firstPrevious = changes[0]?.previous;
+  let start: Price | undefined =
+    createdPrice !== undefined
+      ? {
+          price: createdPrice,
+          currency: currencyOf(created?.new_value, current.currency),
+        }
+      : firstPrevious !== undefined
+        ? { price: firstPrevious, currency: current.currency }
+        : undefined;
+  // ...updated by every change up to lineStart.
   for (const change of changes) {
-    if (change.date <= rangeStart) startPrice = change.price;
+    if (change.date <= lineStart) start = change;
   }
 
-  if (startPrice !== undefined) {
-    return { rangeStart, today, lineStart: rangeStart, startPrice, steps: inWindow };
+  let steps: PriceStep[] = changes
+    .filter((c) => c.date > lineStart && c.date <= today)
+    .map(({ date, price, currency }) => ({ date, price, currency }));
+
+  if (!start) {
+    const [first, ...rest] = steps;
+    // Price before the first change is unknown: start the line at that change.
+    if (first) {
+      start = first;
+      lineStart = first.date;
+      steps = rest;
+    } else {
+      // No price events at all: a flat line at today's price.
+      start = current;
+    }
   }
 
-  // Price before the first change is unknown: start the line at that change.
-  const [first, ...rest] = inWindow;
-  if (first) {
-    return {
-      rangeStart,
-      today,
-      lineStart: first.date,
-      startPrice: first.price,
-      steps: rest,
-    };
+  // Drop "changes" to the same value ("15.5" -> "15.50"): not a step on the
+  // chart, and not something to announce as an increase or a decrease.
+  const real: PriceStep[] = [];
+  let price = start.price;
+  for (const step of steps) {
+    if (compareDecimal(step.price, price) !== 0) real.push(step);
+    price = step.price;
   }
 
-  // No price events at all: a flat line at today's price.
-  return { rangeStart, today, lineStart: rangeStart, startPrice: current, steps: [] };
+  return {
+    rangeStart,
+    today,
+    lineStart,
+    startPrice: start.price,
+    startCurrency: start.currency,
+    steps: real,
+  };
 }
 
 /**
@@ -225,24 +271,32 @@ export function levelOf(levels: Map<MoneyString, number>, price: MoneyString): n
  * The chart in one sentence, covering exactly what the chart shows:
  * "Price history for the last 12 months: $13.99, increased to $15.49 on October 1, 2026."
  */
-export function describePriceHistory(
-  series: PriceSeries,
-  currency: CurrencyCode,
-): string {
-  const money = (price: MoneyString) => formatMoney(price, currency).display;
+export function describePriceHistory(series: PriceSeries): string {
+  // Each price in the currency it was recorded in.
+  const money = (price: MoneyString, currency: CurrencyCode) =>
+    formatMoney(price, currency).display;
 
-  let sentence = `Price history for the last 12 months: ${money(series.startPrice)}`;
+  let sentence = `Price history for the last 12 months: ${money(series.startPrice, series.startCurrency)}`;
   if (series.lineStart !== series.rangeStart) {
     sentence += ` from ${formatDateSpoken(series.lineStart)}`;
   }
   if (series.steps.length === 0) return `${sentence}, with no changes.`;
 
-  let price = series.startPrice;
+  let previous: { price: MoneyString; currency: CurrencyCode } = {
+    price: series.startPrice,
+    currency: series.startCurrency,
+  };
   series.steps.forEach((step, index) => {
-    const direction = compareDecimal(step.price, price) > 0 ? 'increased' : 'decreased';
+    // Up or down only means something within one currency.
+    const direction =
+      step.currency !== previous.currency
+        ? 'changed'
+        : compareDecimal(step.price, previous.price) > 0
+          ? 'increased'
+          : 'decreased';
     const joiner = index === 0 ? ', ' : ', then ';
-    sentence += `${joiner}${direction} to ${money(step.price)} on ${formatDateSpoken(step.date)}`;
-    price = step.price;
+    sentence += `${joiner}${direction} to ${money(step.price, step.currency)} on ${formatDateSpoken(step.date)}`;
+    previous = step;
   });
 
   return `${sentence}.`;

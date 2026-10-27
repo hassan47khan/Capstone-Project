@@ -337,3 +337,15 @@ export function formatRelativeDays(target: string, today: string): string | null
   if (days === 1) return 'tomorrow';
   return `in ${days} days`;
 }
+
+/**
+ * A moment as the phone's local clock time: "3:05 PM". For "Showing saved
+ * details from …" notes. Built by hand rather than with toLocaleTimeString,
+ * for the same Hermes-vs-Node reason as the rest of this file.
+ */
+export function formatTimeOfDay(epochMs: number): string {
+  const time = new Date(epochMs);
+  const hours = time.getHours();
+  const minutes = String(time.getMinutes()).padStart(2, '0');
+  return `${hours % 12 || 12}:${minutes} ${hours < 12 ? 'AM' : 'PM'}`;
+}

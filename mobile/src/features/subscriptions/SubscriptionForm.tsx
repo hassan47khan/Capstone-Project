@@ -64,11 +64,17 @@ export interface SubscriptionFormProps {
 export function SubscriptionForm({
   values,
   errors,
-  onChange,
+  onChange: report,
   onBlur,
   disabled = false,
 }: SubscriptionFormProps) {
   const styles = useStyles();
+  // While saving, ignore every change, however it arrives. The Stepper and the
+  // cycle control have no disabled prop, and a screen reader's adjust gesture
+  // reaches their onChange even when touches are blocked.
+  const onChange = (patch: Partial<FormValues>) => {
+    if (!disabled) report(patch);
+  };
 
   return (
     <View style={styles.form}>
@@ -123,7 +129,8 @@ export function SubscriptionForm({
         testID="form-category"
       />
 
-      {/* The cycle controls have no disabled prop, so lock touches here while saving. */}
+      {/* The cycle controls have no disabled prop: block touches here while saving
+          (onChange above also ignores a screen reader's adjust gesture). */}
       <View
         pointerEvents={disabled ? 'none' : 'auto'}
         accessibilityState={{ disabled }}

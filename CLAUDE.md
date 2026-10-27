@@ -34,12 +34,16 @@ Backend, from `backend/` with MongoDB up (`docker compose up -d --wait` at the r
 - Test: `pytest --cov --cov-fail-under=90`
 - Migrations: `python manage.py makemigrations --check --dry-run`
 - OpenAPI: `python manage.py spectacular --file schema.yml --validate`
-- Seed DB: `python manage.py seed_demo [--today YYYY-MM-DD]` (resets and reloads the 04 §4 dataset)
+- Seed DB: `python manage.py seed_demo [--today YYYY-MM-DD]` (resets and reloads the 04 §4 dataset; demo users log in with `subtrak-demo`). Run the server with `SUBTRAK_TODAY=2026-10-01` to see the seed figures.
 - Trials: `python manage.py convert_trials` (the 04 §6a conversion job)
 
 ## Decisions log
 - **Decimal storage:** money is `DecimalField`, stored as BSON Decimal128, never a float or scaled integers. The round trip is asserted in `subscriptions/tests/test_models.py`. Money is rounded half-up only at presentation, via `round_money` (`round_to_total` when lines are shown next to their total).
-- **API contract (04 slice 2):** `backend/schema.yml` (OpenAPI 3.1) is frozen. Paths have no trailing slash; errors are `{"error": {"code", "message", "fields"}}` (`core/contract.py`); computed money is `{amount, currency}` in the display currency. Until slice 3, every view answers from `backend/mocks.py` (Alex at SEED_TODAY, figures computed through the money engine); replace those functions, not the shapes.
+- **API contract (04 slice 2):** `backend/schema.yml` (OpenAPI 3.1) is frozen. Paths have no trailing slash; errors are `{"error": {"code", "message", "fields"}}` (`core/contract.py`); computed money is `{amount, currency}` in the display currency. Since slice 3, auth, subscriptions and analytics are real and scoped to the signed-in user; only the 04 §6a endpoints (extractions, trials, shared plans, Gmail) still answer from `backend/mocks.py`. Replace those functions, not the shapes.
+
+- **Sessions (04 slice 3):** every token carries a `tv` claim checked against `users.token_version`, and a password reset bumps it, ending every session. Refresh rotates, and a used or logged-out refresh token is revoked by `jti` in `revoked_refresh_tokens`. This replaces simplejwt's blacklist app, which can't run on MongoDB.
+- **Transactions:** use `django_mongodb_backend.transaction.atomic`. Django's own `transaction.atomic` is a no-op on this backend.
+- **Today:** use `core.clock.today_for(user)`, the user's local date. `SUBTRAK_TODAY` pins it, and every test runs at SEED_TODAY.
 
 - **Charts:** drawn with `react-native-svg` directly, no chart library. It is already a dependency, works in Expo Go, and the charts are simple shapes (Home's donut first; Analytics' bars and the price-history step line follow).
 

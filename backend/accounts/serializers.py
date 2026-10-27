@@ -14,11 +14,24 @@ class UserProfileSerializer(serializers.ModelSerializer):
     # ObjectId is not JSON; the client treats ids as opaque strings.
     id = serializers.CharField(read_only=True)
     email_verified = serializers.BooleanField(read_only=True)
+    has_completed_first_run = serializers.BooleanField(
+        read_only=True,
+        required=False,
+        help_text="False until the app has shown first-run onboarding; set with PATCH /me.",
+    )
 
     class Meta:
         model = User
-        fields = ["id", "email", "name", "email_verified"]
+        fields = ["id", "email", "name", "email_verified", "has_completed_first_run"]
         read_only_fields = fields
+
+
+class ProfileUpdateSerializer(serializers.Serializer):
+    """PATCH /me. Every field is optional; send only what changes."""
+
+    # "" (cleared) and null (never set) are different values (User.name).
+    name = serializers.CharField(max_length=150, allow_null=True, allow_blank=True, required=False)
+    has_completed_first_run = serializers.BooleanField(required=False)
 
 
 def _email():

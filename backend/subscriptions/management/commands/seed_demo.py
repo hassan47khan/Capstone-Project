@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 
 from subscriptions import operations
 from subscriptions.models import Subscription
-from subscriptions.seed import SEED_TODAY, load_demo
+from subscriptions.seed import DEMO_PASSWORD, SEED_TODAY, load_demo
 from subscriptions.services import money
 
 
@@ -20,9 +20,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, today, **options):
-        users = load_demo(today=today)
+        users = load_demo(today=today, password=DEMO_PASSWORD)
         rates = operations.fx_rates()
-        self.stdout.write(f"Seeded the demo dataset anchored on {today}.")
+        self.stdout.write(
+            f"Seeded the demo dataset anchored on {today}. Every demo user's password is "
+            f"{DEMO_PASSWORD!r}; run the server with SUBTRAK_TODAY={today} to see these figures."
+        )
         for user in users.values():
             subs = Subscription.objects.filter(owner=user)
             total = money.monthly_total(

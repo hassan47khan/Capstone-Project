@@ -272,6 +272,11 @@ class SummarySerializer(serializers.Serializer):
     unconverted_count = serializers.IntegerField(
         help_text="Subscriptions left out because their currency has no FX rate."
     )
+    converted = serializers.BooleanField(
+        required=False,
+        help_text="True when a counted subscription is billed in another currency, so the "
+        "totals include converted amounts. Show the 'converted at' note only then.",
+    )
     rates_as_of = serializers.DateField(allow_null=True)
     categories = CategorySpendSerializer(many=True, help_text="Largest first.")
 
@@ -308,6 +313,13 @@ class UpcomingBillSerializer(serializers.Serializer):
     days_until = serializers.IntegerField(help_text="0 is today; negative is in the past.")
     amount = MoneySerializer(allow_null=True, help_text="What is charged, in the display currency.")
     billing_amount = MoneySerializer(help_text="What is charged, in the billing currency.")
+    billing_cycle = serializers.ChoiceField(
+        choices=CYCLES, required=False, help_text="The cycle in effect on this date."
+    )
+    custom_cycle_count = serializers.IntegerField(required=False, allow_null=True)
+    custom_cycle_unit = serializers.ChoiceField(
+        choices=CUSTOM_UNITS, required=False, allow_null=True
+    )
     is_trial = serializers.BooleanField(help_text="True when this bill is a trial converting.")
 
 
@@ -337,6 +349,15 @@ class PriceChangeSerializer(serializers.Serializer):
     )
     direction = serializers.ChoiceField(choices=["up", "down"], allow_null=True)
     days_left = serializers.IntegerField(allow_null=True, help_text="Trials only.")
+    billing_cycle = serializers.ChoiceField(
+        choices=CYCLES,
+        required=False,
+        help_text="The cycle in effect on effective_on, e.g. for a '/mo' suffix.",
+    )
+    custom_cycle_count = serializers.IntegerField(required=False, allow_null=True)
+    custom_cycle_unit = serializers.ChoiceField(
+        choices=CUSTOM_UNITS, required=False, allow_null=True
+    )
 
 
 class PriceChangesSerializer(serializers.Serializer):
