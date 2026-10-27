@@ -43,11 +43,10 @@ import {
 } from './api';
 import { SubscriptionForm } from './SubscriptionForm';
 import {
+  changedInput,
   formErrorsFromServer,
   formFromDetail,
-  isFormDirty,
   saveHint,
-  toSubscriptionInput,
   validateForm,
   visibleErrors,
   type FormErrors,
@@ -136,7 +135,9 @@ function EditForm({ saved }: { saved: SubscriptionDetail }) {
   };
 
   const errors = validateForm(values, localToday());
-  const changed = isFormDirty(values, initial);
+  // What Save would send; empty means nothing really changed.
+  const changes = changedInput(values, initial);
+  const changed = Object.keys(changes).length > 0;
   const canSave = changed && Object.keys(errors).length === 0;
   // Only explain a grey Save once there's something to save.
   const hint = changed ? saveHint(errors) : null;
@@ -155,7 +156,8 @@ function EditForm({ saved }: { saved: SubscriptionDetail }) {
   );
 
   const update = useMutation({
-    mutationFn: (input: SubscriptionInput) => updateSubscription(saved.id, input),
+    mutationFn: (input: Partial<SubscriptionInput>) =>
+      updateSubscription(saved.id, input),
     onSuccess: () => {
       setSaving(false);
       // Detail, Home and Analytics refetch in the background.
@@ -200,7 +202,7 @@ function EditForm({ saved }: { saved: SubscriptionDetail }) {
   const save = () => {
     if (!canSave || isSaving) return;
     setSaving(true);
-    update.mutate(toSubscriptionInput(values));
+    update.mutate(changes);
   };
 
   return (

@@ -123,11 +123,12 @@ export function createSubscription(
   });
 }
 
-// Saves edits. A price, category or cycle change writes a history event on
-// the server; the client never writes history itself (07 §5).
+// Saves edits: send only what changed (PATCH is partial). A price, category
+// or cycle change writes a history event on the server; the client never
+// writes history itself (07 §5).
 export function updateSubscription(
   id: string,
-  input: SubscriptionInput,
+  input: Partial<SubscriptionInput>,
 ): Promise<SubscriptionDetail> {
   return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}`, {
     method: 'PATCH',

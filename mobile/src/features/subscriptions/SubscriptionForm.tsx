@@ -100,8 +100,13 @@ export function SubscriptionForm({
           style={styles.historyLink}
           testID="form-history"
         >
-          <History size={sizes.iconSmall} color={colors.accent} />
-          <Text style={styles.historyText}>History</Text>
+          <History
+            size={sizes.iconSmall}
+            color={disabled ? colors.textMuted : colors.accent}
+          />
+          <Text style={[styles.historyText, disabled && styles.historyTextDisabled]}>
+            History
+          </Text>
         </Pressable>
       ) : null}
 
@@ -247,6 +252,10 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   historyText: {
     ...typography.captionStrong,
     color: colors.accent,
+  },
+  // Muted while saving, like the other locked fields.
+  historyTextDisabled: {
+    color: colors.textMuted,
   },
   // Same spacing as the other fields, for the cycle + custom row group.
   cycle: {
