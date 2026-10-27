@@ -26,7 +26,11 @@
 import type { ApiErrorBody, Subscription, SubscriptionInput } from '@/api/types';
 
 import { contractHomeFor } from './contractFixtures';
-import { subscriptionDetailFor } from './subscriptionFixtures';
+import {
+  deleteMockSubscription,
+  resetCreatedSubscriptions,
+  subscriptionDetailFor,
+} from './subscriptionFixtures';
 
 import {
   defaultAccount,
@@ -142,6 +146,7 @@ let nextId = 1;
 export function resetMockState(): void {
   subscriptionOverrides = {};
   preferences = { ...mockNotificationPreferences };
+  resetCreatedSubscriptions();
   nextId = 1;
 }
 
@@ -571,6 +576,12 @@ export const routes: Route[] = [
     method: 'DELETE',
     pattern: '/subscriptions/:id',
     handler: protectedRoute((request, account) => {
+      // Contract store first (seed details and anything added); see subscriptionFixtures.ts.
+      if (deleteMockSubscription(account.profile.email, request.params.id ?? '')) {
+        return { status: 204, body: null };
+      }
+
+      // Pre-contract ids (e.g. sub_netflix in client.test.ts) still use the old list.
       const list = subscriptionsFor(account.profile.email);
       if (!list.some((s) => s.id === request.params.id)) {
         return fail(404, 'not_found', 'This subscription could not be found.');

@@ -3,12 +3,13 @@
  * SEED_TODAY 2026-10-01). Written by hand to match what the backend seed
  * sends; the client never computes these figures.
  *
- * Used by the GET /subscriptions/:id mock route in routes.ts.
+ * Used by the GET and DELETE /subscriptions/:id mock routes in routes.ts.
  */
 import type { SubscriptionDetail } from '@/features/subscriptions/api';
 
 import { CATEGORIES } from './contractFixtures';
 import { MOCK_EMAILS } from './fixtures';
+import { alexSeedDetails } from './subscriptionSeed';
 
 const usd = (amount: string) => ({ amount, currency: 'USD' });
 
@@ -121,15 +122,31 @@ export const headspaceDetail: SubscriptionDetail = {
   ],
 };
 
-// Which account owns which details. Anyone else gets a 404.
+// Which account owns which details. Anyone else gets a 404. Alex has all 11
+// seed subscriptions, so every Home link (contractFixtures.ts) opens one.
 const detailsByEmail: Record<string, SubscriptionDetail[]> = {
-  [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail],
+  [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail, ...alexSeedDetails],
 };
+
+// Ids soft-deleted this session: gone from detail (04 §2).
+let deleted = new Set<string>();
+
+export function resetCreatedSubscriptions(): void {
+  deleted = new Set();
+}
 
 /** One subscription for one account, or null (the route turns that into a 404). */
 export function subscriptionDetailFor(
   email: string,
   id: string,
 ): SubscriptionDetail | null {
+  if (deleted.has(id)) return null;
   return detailsByEmail[email]?.find((s) => s.id === id) ?? null;
+}
+
+/** DELETE /subscriptions/:id for the mock API: a soft delete. False when not found. */
+export function deleteMockSubscription(email: string, id: string): boolean {
+  if (!subscriptionDetailFor(email, id)) return false;
+  deleted.add(id);
+  return true;
 }
