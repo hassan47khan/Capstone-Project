@@ -176,3 +176,74 @@ it('Rosa still has her subscriptions, including one with no exchange rate', () =
   // The real server's answer for a currency it has no rate for.
   expect(rows[1]).toMatchObject({ billing_currency: 'ARS', normalized_monthly: null });
 });
+
+describe('editing (PATCH)', () => {
+  const netflixInput = {
+    name: 'Netflix',
+    billing_price: '15.49',
+    billing_currency: 'USD',
+    billing_cycle: 'monthly' as const,
+    custom_cycle_count: null,
+    custom_cycle_unit: null,
+    start_date: '2024-03-12',
+    category: 'entertainment',
+    notes: '',
+    payment_label: 'Visa ••4242',
+  };
+
+  it('a price change writes one price_change event, newest first', () => {
+    const result = updateMockSubscription(ALEX, 'sub-netflix', {
+      ...netflixInput,
+      billing_price: '16.99',
+    });
+
+    expect(result?.detail?.billing_price).toBe('16.99');
+    const [latest, ...rest] = result!.detail!.history;
+    expect(latest).toMatchObject({
+      event_type: 'price_change',
+      old_value: { price: '15.49' },
+      new_value: { price: '16.99' },
+    });
+    expect(rest.map((e) => e.event_type)).toEqual([
+      'price_change',
+      'category_change',
+      'created',
+    ]);
+    // The edit sticks: detail and list both see it.
+    expect(subscriptionDetailFor(ALEX, 'sub-netflix')?.billing_price).toBe('16.99');
+    const row = subscriptionListFor(ALEX, {}).results.find((r) => r.id === 'sub-netflix');
+    expect(row?.billing_price).toBe('16.99');
+  });
+
+  it('category and cycle changes each write their own event', () => {
+    const result = updateMockSubscription(ALEX, 'sub-netflix', {
+      ...netflixInput,
+      category: 'other',
+      billing_cycle: 'yearly',
+    });
+
+    const types = result!.detail!.history.slice(0, 2).map((e) => e.event_type);
+    expect(types.sort()).toEqual(['category_change', 'cycle_change']);
+  });
+
+  it('changing only notes writes no history event', () => {
+    const before = subscriptionDetailFor(ALEX, 'sub-netflix')!.history.length;
+    const result = updateMockSubscription(ALEX, 'sub-netflix', {
+      ...netflixInput,
+      notes: 'Family plan',
+    });
+
+    expect(result?.detail?.notes).toBe('Family plan');
+    expect(result?.detail?.history).toHaveLength(before);
+  });
+
+  it('rejects a zero price and is a 404 for someone else', () => {
+    expect(
+      updateMockSubscription(ALEX, 'sub-netflix', { ...netflixInput, billing_price: '0' })
+        ?.error?.code,
+    ).toBe('price_invalid');
+    expect(
+      updateMockSubscription(MOCK_EMAILS.empty, 'sub-netflix', netflixInput),
+    ).toBeNull();
+  });
+});

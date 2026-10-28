@@ -9,9 +9,16 @@
  */
 import { minorUnits } from '@/api/format';
 import { invalidPriceMessage, isValidPrice } from '@/components';
-import type { Category } from '@/theme';
+import { CATEGORY_SLUGS, type Category } from '@/theme';
 
-import type { BillingCycle, CustomCycleUnit, SubscriptionInput } from './api';
+import { compareDecimal } from './priceHistory';
+
+import type {
+  BillingCycle,
+  CustomCycleUnit,
+  SubscriptionDetail,
+  SubscriptionInput,
+} from './api';
 
 /** Everything the user can type or pick. */
 export interface FormValues {
@@ -154,6 +161,36 @@ export function toSubscriptionInput(values: FormValues): SubscriptionInput {
   };
 }
 
+/**
+ * Only the fields that differ from where the form started, as the API would
+ * receive them (07 §5). Edit sends just these: PATCH is partial, so a field
+ * the user didn't touch is never written back, even if it changed on the
+ * server since the form opened. Compared as sent, not as typed, so a hidden
+ * custom count on a monthly plan, or "15.5" vs "15.50", isn't a change. The
+ * three cycle fields always travel together.
+ */
+export function changedInput(
+  values: FormValues,
+  initial: FormValues,
+): Partial<SubscriptionInput> {
+  const now = toSubscriptionInput(values);
+  const before = toSubscriptionInput(initial);
+  const changed: Partial<SubscriptionInput> = {};
+  const keys = Object.keys(now) as (keyof SubscriptionInput)[];
+  for (const key of keys) {
+    const differs =
+      key === 'billing_price'
+        ? compareDecimal(now.billing_price, before.billing_price) !== 0
+        : now[key] !== before[key];
+    if (differs) Object.assign(changed, { [key]: now[key] });
+  }
+  const cycleKeys = ['billing_cycle', 'custom_cycle_count', 'custom_cycle_unit'] as const;
+  if (cycleKeys.some((key) => key in changed)) {
+    for (const key of cycleKeys) Object.assign(changed, { [key]: now[key] });
+  }
+  return changed;
+}
+
 /** Which form field each API field's error belongs to. */
 const SERVER_FIELDS: Record<string, FormField> = {
   name: 'name',
@@ -174,4 +211,35 @@ export function formErrorsFromServer(
     if (field && messages[0]) errors[field] = messages[0];
   }
   return errors;
+}
+
+// Prefills the Edit form from a saved subscription.
+export function formFromDetail(detail: SubscriptionDetail): FormValues {
+  return {
+    name: detail.name,
+    price: detail.billing_price,
+    currency: detail.billing_currency,
+    category: CATEGORY_SLUGS.find((c) => c === detail.category?.slug) ?? null,
+    cycle: detail.billing_cycle,
+    customCount: detail.custom_cycle_count ?? 1,
+    customUnit: detail.custom_cycle_unit ?? 'months',
+    startDate: detail.start_date,
+    notes: detail.notes,
+    paymentLabel: detail.payment_label,
+  };
+}
+
+// Errors to show: the server's first, then ours for fields the user has left
+// (or all of them once a save has failed).
+export function visibleErrors(
+  errors: FormErrors,
+  serverErrors: FormErrors,
+  touched: Set<FormField>,
+  submitted: boolean,
+): FormErrors {
+  const shown: FormErrors = { ...serverErrors };
+  for (const [field, message] of Object.entries(errors) as [FormField, string][]) {
+    if (!shown[field] && (submitted || touched.has(field))) shown[field] = message;
+  }
+  return shown;
 }

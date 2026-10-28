@@ -5,7 +5,8 @@
  * Order follows 07 §11's focus order: name → price → currency → category →
  * cycle → custom fields (if shown) → start date → notes → paid with.
  */
-import { View } from 'react-native';
+import { History } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { currencySymbol } from '@/api/format';
 import {
@@ -22,7 +23,9 @@ import {
   CATEGORY_LABELS,
   CATEGORY_SLUGS,
   makeStyles,
+  sizes,
   spacing,
+  useTheme,
   type Category,
 } from '@/theme';
 
@@ -42,6 +45,9 @@ const CATEGORY_OPTIONS = CATEGORY_SLUGS.map((slug) => ({
   label: CATEGORY_LABELS[slug],
 }));
 
+// Extra touch area on each side of the History link, so it reaches 44pt.
+export const HISTORY_HIT_SLOP = (sizes.minTouch - sizes.iconSmall) / 2;
+
 const UNIT_OPTIONS: { value: CustomCycleUnit; label: string }[] = [
   { value: 'days', label: 'days' },
   { value: 'weeks', label: 'weeks' },
@@ -59,6 +65,8 @@ export interface SubscriptionFormProps {
   onBlur: (field: FormField) => void;
   /** True while saving: fields can't be edited. */
   disabled?: boolean;
+  /** Edit only: shows a "History" link above the name (07 §5). */
+  onHistory?: () => void;
 }
 
 export function SubscriptionForm({
@@ -67,6 +75,7 @@ export function SubscriptionForm({
   onChange: report,
   onBlur,
   disabled = false,
+  onHistory,
 }: SubscriptionFormProps) {
   const styles = useStyles();
   // While saving, ignore every change, however it arrives. The Stepper and the
@@ -75,9 +84,32 @@ export function SubscriptionForm({
   const onChange = (patch: Partial<FormValues>) => {
     if (!disabled) report(patch);
   };
+  const { colors } = useTheme();
 
   return (
     <View style={styles.form}>
+      {/* Edit's "History" link, right-aligned above the name (07 §5). */}
+      {onHistory ? (
+        <Pressable
+          onPress={onHistory}
+          disabled={disabled}
+          accessibilityRole="link"
+          accessibilityLabel="Edit history"
+          // Grow the touch area to the 44pt minimum around the 16pt icon.
+          hitSlop={HISTORY_HIT_SLOP}
+          style={styles.historyLink}
+          testID="form-history"
+        >
+          <History
+            size={sizes.iconSmall}
+            color={disabled ? colors.textMuted : colors.accent}
+          />
+          <Text style={[styles.historyText, disabled && styles.historyTextDisabled]}>
+            History
+          </Text>
+        </Pressable>
+      ) : null}
+
       <TextField
         label="Subscription name"
         value={values.name}
@@ -207,9 +239,23 @@ export function SubscriptionForm({
   );
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles(({ colors, typography }) => ({
   form: {
     gap: spacing.lg,
+  },
+  historyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: spacing.xs,
+  },
+  historyText: {
+    ...typography.captionStrong,
+    color: colors.accent,
+  },
+  // Muted while saving, like the other locked fields.
+  historyTextDisabled: {
+    color: colors.textMuted,
   },
   // Same spacing as the other fields, for the cycle + custom row group.
   cycle: {
