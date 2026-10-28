@@ -41,6 +41,7 @@ import type { AppStackParamList } from '@/navigation/types';
 import { CATEGORY_SLUGS, makeStyles, sizes, spacing, type Category } from '@/theme';
 
 import { getSubscription, type SubscriptionDetail } from './api';
+import { describeCycle } from './formRules';
 import { PriceHistoryChart } from './PriceHistoryChart';
 import { buildPriceSeries, describePriceHistory } from './priceHistory';
 import { utcToday } from './today';
@@ -57,28 +58,7 @@ export const DETAIL_COPY = {
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'SubscriptionDetail'>;
 
-// --- Small helpers (exported so they can be tested) -------------------------
-
-const UNIT_SINGULAR = { days: 'day', weeks: 'week', months: 'month', years: 'year' };
-
-/** "Monthly", "Yearly", "Every 2 months", "Every week". */
-export function describeCycle(sub: SubscriptionDetail): string {
-  switch (sub.billing_cycle) {
-    case 'weekly':
-      return 'Weekly';
-    case 'monthly':
-      return 'Monthly';
-    case 'quarterly':
-      return 'Quarterly';
-    case 'yearly':
-      return 'Yearly';
-    case 'custom': {
-      const count = sub.custom_cycle_count ?? 1;
-      const unit = sub.custom_cycle_unit ?? 'months';
-      return count === 1 ? `Every ${UNIT_SINGULAR[unit]}` : `Every ${count} ${unit}`;
-    }
-  }
-}
+// --- Small helpers ------------------------------------------------------------
 
 /** The category slug as a known theme category, or null ("Uncategorized"). */
 function knownCategory(slug: string | undefined): Category | null {

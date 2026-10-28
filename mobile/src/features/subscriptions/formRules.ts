@@ -74,6 +74,32 @@ export function validateForm(values: FormValues, today: string): FormErrors {
   return errors;
 }
 
+const UNIT_SINGULAR = { days: 'day', weeks: 'week', months: 'month', years: 'year' };
+
+/** "Monthly", "Yearly", "Every 2 months", "Every week". Shared by Detail and Add. */
+export function describeCycle(
+  sub: Pick<
+    SubscriptionInput,
+    'billing_cycle' | 'custom_cycle_count' | 'custom_cycle_unit'
+  >,
+): string {
+  switch (sub.billing_cycle) {
+    case 'weekly':
+      return 'Weekly';
+    case 'monthly':
+      return 'Monthly';
+    case 'quarterly':
+      return 'Quarterly';
+    case 'yearly':
+      return 'Yearly';
+    case 'custom': {
+      const count = sub.custom_cycle_count ?? 1;
+      const unit = sub.custom_cycle_unit ?? 'months';
+      return count === 1 ? `Every ${UNIT_SINGULAR[unit]}` : `Every ${count} ${unit}`;
+    }
+  }
+}
+
 // No more decimals than the currency has: "12.99" is fine in USD, not in JPY.
 export function fitsCurrency(price: string, currency: string): boolean {
   const fraction = price.split('.')[1] ?? '';

@@ -1,5 +1,6 @@
 /**
- * Add subscription (handoff 07 §1–3; US-7). Figma `4:3340` / `4:3417` / `4:3509`.
+ * Add subscription (handoff 07 §1–3; US-7). Figma `4:3340` / `4:3417` / `4:3509`
+ * / `4:3587`.
  *
  * A modal with an X. Saving sends POST /subscriptions; the server checks the
  * data again, works out the next bill date and does every sum.
@@ -15,7 +16,8 @@
  *               save can't be cancelled, so "discard" would be untrue.
  *   failed      a field message, or a banner when the error has no field;
  *               everything typed is kept
- *   saved       opens the new subscription's detail screen
+ *   saved       the form is replaced by "Subscription added" (AddSuccess);
+ *               "Add another" brings back a fresh, error-free form
  *
  * Closing a form with something typed in asks "Discard changes?" first; an
  * untouched form closes straight away (07 §1, useDiscardGuard).
@@ -43,7 +45,12 @@ import type { AppStackParamList } from '@/navigation/types';
 import { useDiscardGuard } from '@/navigation/useDiscardGuard';
 import { makeStyles, radius, spacing } from '@/theme';
 
-import { createSubscription, type SubscriptionInput } from './api';
+import { AddSuccess } from './AddSuccess';
+import {
+  createSubscription,
+  type SubscriptionDetail,
+  type SubscriptionInput,
+} from './api';
 import { SubscriptionForm } from './SubscriptionForm';
 import {
   EMPTY_FORM,
@@ -90,6 +97,8 @@ export function AddSubscriptionScreen() {
   const [serverErrors, setServerErrors] = useState<FormErrors>({});
   // A problem not tied to one field (offline, server down, unknown field).
   const [formError, setFormError] = useState<string>();
+  // The saved subscription, once Save works: shows the success state.
+  const [created, setCreated] = useState<SubscriptionDetail | null>(null);
   // The last attempt, so retrying the same form reuses its Idempotency-Key.
   const lastAttempt = useRef<Attempt | null>(null);
   // True from pressing Save until the server answers.
@@ -108,20 +117,28 @@ export function AddSubscriptionScreen() {
     [navigation],
   );
 
+  // Back to a fresh form: values, every kind of error, and the retry key.
+  const resetForm = () => {
+    setValues(EMPTY_FORM);
+    setTouched(new Set());
+    setServerErrors({});
+    setFormError(undefined);
+    lastAttempt.current = null;
+  };
+
   const create = useMutation({
     mutationFn: ({ input, key }: { input: SubscriptionInput; key: string }) =>
       createSubscription(input, key),
-    onSuccess: (created) => {
+    onSuccess: (saved) => {
       saving.current = false;
-      lastAttempt.current = null;
-      // Refresh totals in the background; the next screen shows its own loading.
+      // Refresh totals in the background; the success state doesn't wait for it.
       for (const queryKey of subscriptionWriteInvalidations) {
         void queryClient.invalidateQueries({ queryKey });
       }
-      // Backup check: only move on if this screen is still the one showing.
-      if (!navigation.isFocused()) return;
-      allowLeave();
-      navigation.replace('SubscriptionDetail', { id: created.id });
+      // Clear the form now, so leaving doesn't ask to discard and "Add another"
+      // starts fresh, with no errors left over from an earlier failed try.
+      resetForm();
+      setCreated(saved);
     },
     onError: (error) => {
       saving.current = false;
@@ -143,9 +160,7 @@ export function AddSubscriptionScreen() {
   });
 
   // "Discard changes?" for a typed-in form, but not mid-save (closing is blocked then).
-  const { sheet, allowLeave } = useDiscardGuard(
-    isFormDirty(values, EMPTY_FORM) && !create.isPending,
-  );
+  const { sheet } = useDiscardGuard(isFormDirty(values, EMPTY_FORM) && !create.isPending);
 
   // Errors to show: the server's first, then our own for fields the user
   // has left (or all of them after a failed save).
@@ -184,6 +199,19 @@ export function AddSubscriptionScreen() {
     saving.current = true;
     create.mutate({ input, key });
   };
+
+  // Saved: show "Subscription added" in place of the form (07 §3).
+  if (created) {
+    return (
+      <Screen edges={['top', 'bottom']} gutter="compact" testID="add-screen">
+        <AddSuccess
+          created={created}
+          onViewDashboard={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+          onAddAnother={() => setCreated(null)}
+        />
+      </Screen>
+    );
+  }
 
   return (
     <Screen

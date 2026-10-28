@@ -4,6 +4,7 @@
 import {
   EMPTY_FORM,
   FORM_COPY,
+  describeCycle,
   fitsCurrency,
   formErrorsFromServer,
   isFormDirty,
@@ -138,5 +139,22 @@ describe('saveHint', () => {
 
   it('is null when the form is valid', () => {
     expect(saveHint(validateForm(headspace, TODAY))).toBeNull();
+  });
+});
+
+describe('describeCycle', () => {
+  const cycle = (
+    billing_cycle: FormValues['cycle'],
+    custom_cycle_count: number | null = null,
+    custom_cycle_unit: FormValues['customUnit'] | null = null,
+  ) => describeCycle({ billing_cycle, custom_cycle_count, custom_cycle_unit });
+
+  it('names each billing cycle in words', () => {
+    expect(cycle('weekly')).toBe('Weekly');
+    expect(cycle('monthly')).toBe('Monthly');
+    expect(cycle('quarterly')).toBe('Quarterly');
+    expect(cycle('yearly')).toBe('Yearly');
+    expect(cycle('custom', 2, 'months')).toBe('Every 2 months');
+    expect(cycle('custom', 1, 'weeks')).toBe('Every week');
   });
 });

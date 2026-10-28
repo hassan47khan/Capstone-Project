@@ -273,14 +273,28 @@ export function nextBillDateFor(
   return nthBill(start, step, k);
 }
 
-// A monthly plan's equivalent is its price; the mock can't work out others.
+// Monthly equivalents the real server gives for non-monthly plans (mock can't do money math).
+// One known answer per billing cycle, from 04 §3.1's factors, rounded at the end.
+const KNOWN_MONTHLY: Record<string, string> = {
+  '12.99 custom 2 months': '6.50', // Headspace (04 §4.2): 12.99 / 2 = 6.495
+  '3.00 weekly': '13.00', // 3.00 × 52 / 12
+  '30.00 quarterly': '10.00', // 30.00 / 3
+  '119.88 yearly': '9.99', // 119.88 / 12
+  '6.00 custom 3 weeks': '8.67', // 6.00 × 52 / (12 × 3) = 8.666…
+  '5.00 custom 10 days': '15.21', // 5.00 × 365 / (12 × 10) = 15.208…
+};
+
+// A monthly plan's equivalent is its price; others come from KNOWN_MONTHLY, else null.
 function monthlyFor(
   price: string,
   cycle: string,
-  _input: Partial<SubscriptionInput>,
+  input: Partial<SubscriptionInput>,
   currency: string,
 ) {
-  return cycle === 'monthly' ? { amount: price, currency } : null;
+  if (cycle === 'monthly') return { amount: price, currency };
+  const key = `${price} ${cycle} ${input.custom_cycle_count ?? ''} ${input.custom_cycle_unit ?? ''}`;
+  const amount = KNOWN_MONTHLY[key.trim()];
+  return amount ? { amount, currency } : null;
 }
 
 /**
@@ -288,9 +302,9 @@ function monthlyFor(
  * (04 §5) and keeps the new subscription so GET /subscriptions/:id finds it.
  *
  * The mock can't do the server's money math, so the money figures it would
- * compute are left empty (null): no total spent, and no monthly equivalent
- * unless the plan is monthly (then it's just the price). The next bill date
- * is a date, not money, so it is worked out like the server does.
+ * compute are left empty (null): no total spent, and a monthly equivalent only
+ * when it is known (see monthlyFor and KNOWN_MONTHLY). The next bill date is a
+ * date, not money, so it is worked out like the server does.
  */
 export function createMockSubscription(email: string, body: unknown): CreateResult {
   const input = (body ?? {}) as Partial<SubscriptionInput>;

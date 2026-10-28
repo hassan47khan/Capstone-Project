@@ -14,6 +14,7 @@ import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 
 import { ADD_COPY, AddSubscriptionScreen } from './AddSubscriptionScreen';
+import { SUCCESS_COPY } from './AddSuccess';
 import { FORM_COPY } from './formRules';
 
 // A fixed "today" for the start-date rule.
@@ -47,7 +48,7 @@ async function renderAdd() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Home" component={Home} />
           <Stack.Screen name="AddSubscription" component={AddSubscriptionScreen} />
-          <Stack.Screen name="SubscriptionDetail" component={Stub} />
+          <Stack.Screen name="MainTabs" component={Stub} />
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
@@ -152,15 +153,66 @@ describe('validation (07 §3)', () => {
 });
 
 describe('saving', () => {
-  it('us7_manual_add_saves_and_opens_the_new_subscription', async () => {
+  it('us7_success_shows_what_was_saved_and_the_monthly_equivalent', async () => {
     await renderAdd();
     await fillHeadspace();
 
     await fireEvent.press(screen.getByTestId('add-save'));
 
+    expect(await screen.findByText(SUCCESS_COPY.title)).toBeOnTheScreen();
+    expect(screen.getByText(SUCCESS_COPY.body('Headspace'))).toBeOnTheScreen();
+    expect(screen.getByLabelText('Billing price, $12.99')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Frequency, Every 2 months')).toBeOnTheScreen();
+    // Required: $12.99 every 2 months adds $6.50 a month.
+    expect(screen.getByTestId('add-success-monthly')).toHaveTextContent('≈ $6.50/mo');
+  });
+
+  it('View on Dashboard goes to Home', async () => {
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    await fireEvent.press(await screen.findByTestId('add-success-dashboard'));
     expect(await screen.findByTestId('stub')).toHaveTextContent(
-      'SubscriptionDetail {"id":"sub_new_1"}',
+      'MainTabs {"screen":"Home"}',
     );
+  });
+
+  it('us7_add_another_resets_the_form_in_place', async () => {
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    await fireEvent.press(await screen.findByTestId('add-success-another'));
+
+    expect(screen.queryByTestId('add-success')).toBeNull();
+    expect(screen.getByTestId('form-name').props.value).toBe('');
+    expect(screen.getByTestId('add-save')).toBeDisabled();
+    expect(screen.queryByText(FORM_COPY.nameRequired)).toBeNull(); // fresh form, no errors
+  });
+
+  it('Add another after a failed try shows no leftover error', async () => {
+    server.use(
+      http.post(
+        '*/subscriptions',
+        () =>
+          HttpResponse.json(
+            { error: { code: 'server_error', message: 'Down.' } },
+            { status: 503 },
+          ),
+        { once: true },
+      ),
+    );
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-form-error'); // first try fails
+    await fireEvent.press(screen.getByTestId('add-save')); // retry succeeds
+
+    await fireEvent.press(await screen.findByTestId('add-success-another'));
+
+    expect(screen.queryByTestId('add-form-error')).toBeNull();
+    expect(screen.getByTestId('form-name').props.value).toBe('');
   });
 
   it("shows the server's field message under the right field, keeping the input", async () => {
@@ -307,7 +359,7 @@ describe('review fixes', () => {
     await screen.findByTestId('add-form-error');
     await fireEvent.press(screen.getByTestId('add-save'));
 
-    expect(await screen.findByTestId('stub')).toHaveTextContent(/^SubscriptionDetail/);
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBeTruthy();
     expect(keys[1]).toBe(keys[0]);
@@ -356,7 +408,7 @@ describe('review fixes', () => {
     await waitFor(() => expect(screen.getByTestId('form-cycle-lock')).toBeDisabled());
 
     await release();
-    await screen.findByTestId('stub');
+    await screen.findByTestId('add-success');
   });
 
   it("can't be closed while saving, then moves on once saved", async () => {
@@ -373,7 +425,7 @@ describe('review fixes', () => {
     expect(screen.getByTestId('add-screen')).toBeOnTheScreen();
 
     await release();
-    expect(await screen.findByTestId('stub')).toHaveTextContent(/^SubscriptionDetail/);
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
   });
 
   it('after a failed save, closing works again (with the discard prompt)', async () => {
@@ -441,7 +493,7 @@ describe('second review fixes', () => {
     // The first request may have landed: an edited retry must not get a new key.
     await fireEvent.changeText(screen.getByTestId('form-notes'), 'Family plan');
     await fireEvent.press(screen.getByTestId('add-save'));
-    await screen.findByTestId('stub');
+    await screen.findByTestId('add-success');
 
     const firstKey = fetchSpy.mock.calls.find(
       ([url, init]) => init?.method === 'POST' && String(url).endsWith('/subscriptions'),
@@ -517,7 +569,7 @@ describe('second review fixes', () => {
     expect(screen.getByTestId('form-custom-count')).toHaveTextContent('2');
 
     await release();
-    await screen.findByTestId('stub');
+    await screen.findByTestId('add-success');
   });
 
   it('an untouched picker shows no error, and the hint names it (07 §3)', async () => {
