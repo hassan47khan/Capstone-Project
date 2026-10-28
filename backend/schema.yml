@@ -1000,7 +1000,8 @@ paths:
 
         400 `price_invalid`: "Enter a valid price greater than $0."
         409 `idempotency_key_reused`: the Idempotency-Key was already used with a
-        different body.
+        different body. 409 `idempotency_key_in_use`: parallel requests with the
+        key kept colliding; retrying with the same key is safe.
       parameters:
       - in: header
         name: Idempotency-Key

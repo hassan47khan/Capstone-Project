@@ -1,10 +1,11 @@
 """POST /subscriptions with an Idempotency-Key (system design spec, data
 integrity practices): a retry gets the subscription the first request made."""
 
+import threading
 from datetime import timedelta
 
 import pytest
-from django.db import connection
+from django.db import DatabaseError, connection, connections
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -98,6 +99,55 @@ def test_a_parallel_request_that_lost_the_race_gets_the_winners_subscription(
     assert response.status_code == 201
     assert response.json()["id"] == winner["id"]
     assert figmas(alex).count() == 1  # the loser's create rolled back with its key
+
+
+@pytest.mark.parametrize("racers", [2, 3])
+def test_simultaneous_duplicates_all_get_the_one_subscription(alex, racers):
+    # Real threads against the replica set: inside a transaction the losing
+    # inserts fail as a WriteConflict, not a duplicate key.
+    barrier = threading.Barrier(racers)
+    responses = [None] * racers
+
+    def post(i):
+        client = APIClient()
+        client.force_authenticate(alex)
+        barrier.wait()
+        try:
+            responses[i] = create(client, "race")
+        finally:
+            connections.close_all()
+
+    threads = [threading.Thread(target=post, args=(i,)) for i in range(racers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert [r.status_code for r in responses] == [201] * racers
+    assert len({r.json()["id"] for r in responses}) == 1
+    assert figmas(alex).count() == 1
+
+
+def test_collisions_that_never_settle_are_409_not_500(api, alex, contract, monkeypatch):
+    create(api, "k-1")
+    monkeypatch.setattr(idempotency, "stored", lambda *a: None)
+    monkeypatch.setattr(idempotency, "RETRY_PAUSE_SECONDS", 0)
+
+    response = create(api, "k-1")
+
+    assert response.status_code == 409
+    assert contract(response, "/subscriptions")["error"]["code"] == "idempotency_key_in_use"
+    assert figmas(alex).count() == 1
+
+
+def test_a_database_error_that_is_not_a_race_is_not_swallowed(api, monkeypatch):
+    def broken(*args):
+        raise DatabaseError("disk full")
+
+    monkeypatch.setattr(idempotency, "remember", broken)
+
+    with pytest.raises(DatabaseError, match="disk full"):
+        create(api, "k-1")
 
 
 def test_an_expired_key_can_be_used_again(api, alex):

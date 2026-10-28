@@ -9,7 +9,9 @@ import hashlib
 import json
 from datetime import timedelta
 
+from django.db import DatabaseError, IntegrityError
 from django.utils import timezone
+from pymongo.errors import PyMongoError
 
 from core.contract import ApiError
 
@@ -19,6 +21,10 @@ HEADER = "Idempotency-Key"
 MAX_LENGTH = 255
 # Long enough for any retry; the client makes a new key for each new form.
 LIFETIME = timedelta(hours=24)
+# Tries at lookup-then-create when parallel requests with one key collide,
+# with a short pause before each retry so the winner can commit.
+ATTEMPTS = 3
+RETRY_PAUSE_SECONDS = 0.05
 
 
 def key_from(request) -> str | None:
@@ -56,6 +62,24 @@ def check(record: IdempotencyKey, request_digest: str):
             f"This {HEADER} was already used for a different subscription.",
         )
     return record.subscription
+
+
+def lost_race(error: DatabaseError) -> bool:
+    """A parallel request with the same key got there first. Outside a
+    transaction the unique index says so with a duplicate key; inside one,
+    MongoDB reports a WriteConflict labelled TransientTransactionError."""
+    if isinstance(error, IntegrityError):
+        return True
+    cause = error.__cause__
+    return isinstance(cause, PyMongoError) and cause.has_error_label("TransientTransactionError")
+
+
+def still_in_progress() -> ApiError:
+    return ApiError(
+        409,
+        "idempotency_key_in_use",
+        f"A save with this {HEADER} is still going through. Try again in a moment.",
+    )
 
 
 def remember(owner, key: str, request_digest: str, subscription) -> None:

@@ -4,10 +4,11 @@ engine, and payloads through `presenters`; the analytics reads are in
 `analytics`."""
 
 import re
+import time
 from datetime import timedelta
 
 from bson import ObjectId
-from django.db import IntegrityError
+from django.db import DatabaseError
 from django_mongodb_backend import transaction
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
@@ -127,23 +128,30 @@ class SubscriptionsView(APIView):
 
         400 `price_invalid`: "Enter a valid price greater than $0."
         409 `idempotency_key_reused`: the Idempotency-Key was already used with a
-        different body.
+        different body. 409 `idempotency_key_in_use`: parallel requests with the
+        key kept colliding; retrying with the same key is safe.
         """
         key = idempotency.key_from(request)
         if key is None:
             return self._created(self._create(request), request)
         request_digest = idempotency.digest(request.data)
-        record = idempotency.stored(request.user, key)
-        if record is not None:
-            return self._created(idempotency.check(record, request_digest), request)
-        try:
-            with transaction.atomic():
-                sub = self._create(request)
-                idempotency.remember(request.user, key, request_digest, sub)
-        except IntegrityError:
-            # A parallel request with this key won; its create stands, ours rolled back.
-            sub = idempotency.check(idempotency.stored(request.user, key), request_digest)
-        return self._created(sub, request)
+        for attempt in range(idempotency.ATTEMPTS):
+            if attempt:
+                time.sleep(idempotency.RETRY_PAUSE_SECONDS * attempt)
+            record = idempotency.stored(request.user, key)
+            if record is not None:
+                return self._created(idempotency.check(record, request_digest), request)
+            try:
+                with transaction.atomic():
+                    sub = self._create(request)
+                    idempotency.remember(request.user, key, request_digest, sub)
+                return self._created(sub, request)
+            except DatabaseError as error:
+                # A parallel request with this key won: ours rolled back, and the
+                # next lookup finds the winner's subscription.
+                if not idempotency.lost_race(error):
+                    raise
+        raise idempotency.still_in_progress()
 
     def _create(self, request) -> Subscription:
         fields = body(SubscriptionInputSerializer, request)
