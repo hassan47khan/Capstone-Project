@@ -999,6 +999,15 @@ paths:
         Add a subscription. next_bill_date is computed from start_date and the cycle.
 
         400 `price_invalid`: "Enter a valid price greater than $0."
+        409 `idempotency_key_reused`: the Idempotency-Key was already used with a
+        different body.
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        description: Optional, up to 255 characters. A retry with the same key and
+          body returns the subscription the first request created, for 24 hours.
       tags:
       - subscriptions
       requestBody:
@@ -1034,6 +1043,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
   /api/v1/subscriptions/{subscription_id}:
     get:
       operationId: subscriptions_retrieve

@@ -242,3 +242,30 @@ class PriceHistoryEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type} @ {self.occurred_at:%Y-%m-%d}"
+
+
+class IdempotencyKey(models.Model):
+    """An `Idempotency-Key` a client sent with POST /subscriptions, and what it
+    created (system design spec, data integrity practices).
+
+    A retry with the same key and the same body gets the original subscription
+    back instead of a second one. Keys are per user, unique on (owner, key),
+    and a TTL index on `expires_at` (migration 0003) drops them after a day.
+    """
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    key = models.CharField(max_length=255)
+    # SHA-256 of the request body, so a reused key with a different body is caught.
+    request_digest = models.CharField(max_length=64)
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "idempotency_keys"
+        constraints = [
+            models.UniqueConstraint(fields=["owner", "key"], name="idempotency_key_per_owner")
+        ]
+
+    def __str__(self):
+        return self.key
