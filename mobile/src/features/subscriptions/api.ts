@@ -5,7 +5,7 @@
  * Kept in this folder for now so we don't edit someone else's folder.
  */
 import type { CategoryRef, ContractMoney, ServiceMarkRef } from '@/api/analyticsTypes';
-import { request } from '@/api/client';
+import { newIdempotencyKey, request } from '@/api/client';
 import type { CurrencyCode, DateOnly, Instant, MoneyString } from '@/api/types';
 
 // Each enum is a real list (not just a type) so a test can check it against
@@ -93,6 +93,34 @@ export interface SubscriptionDetail extends SubscriptionRow {
   total_spent_to_date: ContractMoney | null; // computed by the server
   saved_per_year: ContractMoney | null; // only set when cancelled
   history: HistoryEvent[]; // newest first
+}
+// What the Add and Edit forms send. next_bill_date is never sent: the server
+// works it out from start_date and the cycle.
+export interface SubscriptionInput {
+  name: string;
+  billing_price: MoneyString;
+  billing_currency: CurrencyCode;
+  billing_cycle: BillingCycle;
+  custom_cycle_count: number | null;
+  custom_cycle_unit: CustomCycleUnit | null;
+  start_date: DateOnly;
+  category: string; // category slug, e.g. "entertainment"
+  notes: string;
+  payment_label: string;
+}
+
+// Adds a subscription. A 400 carries per-field messages in error.fields.
+// Pass the SAME idempotencyKey when retrying the same save, so a retry after a
+// dropped connection can't create it twice.
+export function createSubscription(
+  input: SubscriptionInput,
+  idempotencyKey: string = newIdempotencyKey(),
+): Promise<SubscriptionDetail> {
+  return request<SubscriptionDetail>('/subscriptions', {
+    method: 'POST',
+    body: input,
+    idempotencyKey,
+  });
 }
 
 // Loads one subscription. A 404 means "not found or not yours".
