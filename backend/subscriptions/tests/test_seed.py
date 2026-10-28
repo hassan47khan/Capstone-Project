@@ -103,8 +103,8 @@ def test_netflix_history_and_total_spent(demo):
     assert events[0].new_value["price"] == "13.99"
     assert events[0].new_value["category"] == "other"
     assert events[1].new_value == {"category": "entertainment"}
-    assert events[2].old_value == {"price": "13.99"}
-    assert events[2].new_value == {"price": "15.49"}
+    assert events[2].old_value == {"price": "13.99", "currency": "USD"}
+    assert events[2].new_value == {"price": "15.49", "currency": "USD"}
     assert operations.total_spent_to_date(netflix, today=SEED_TODAY) == D("433.69")
 
 

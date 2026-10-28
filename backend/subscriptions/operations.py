@@ -78,17 +78,27 @@ def create_subscription(*, today: date, at: datetime | None = None, **fields) ->
 def update_subscription(
     sub: Subscription, *, today: date, at: datetime | None = None, **changes
 ) -> list[PriceHistoryEvent]:
-    """Apply `changes` and write one history event per tracked change."""
+    """Apply `changes` and write one history event per tracked change.
+
+    A price_change carries the currency on both sides, and a currency switch
+    at the same price is a price_change too, so the history always says which
+    currency every price was in.
+    """
     at = at or timezone.now()
-    old_price, old_category, old_cycle = sub.billing_price, _category_value(sub), sub.cycle
+    old_price, old_currency = sub.billing_price, sub.billing_currency
+    old_category, old_cycle = _category_value(sub), sub.cycle
     for field, value in changes.items():
         setattr(sub, field, value)
     sub.full_clean()
 
     events = []
-    if sub.billing_price != old_price:
+    if (sub.billing_price, sub.billing_currency) != (old_price, old_currency):
         events.append(
-            (Event.PRICE_CHANGE, {"price": str(old_price)}, {"price": str(sub.billing_price)})
+            (
+                Event.PRICE_CHANGE,
+                {"price": str(old_price), "currency": old_currency},
+                {"price": str(sub.billing_price), "currency": sub.billing_currency},
+            )
         )
     if _category_value(sub) != old_category:
         events.append(
