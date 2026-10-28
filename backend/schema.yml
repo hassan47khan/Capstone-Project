@@ -1470,6 +1470,7 @@ components:
       enum:
       - created
       - price_change
+      - currency_change
       - category_change
       - cycle_change
       - cancelled
@@ -1477,6 +1478,7 @@ components:
       description: |-
         * `created` - created
         * `price_change` - price_change
+        * `currency_change` - currency_change
         * `category_change` - category_change
         * `cycle_change` - cycle_change
         * `cancelled` - cancelled

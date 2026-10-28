@@ -213,14 +213,19 @@ class PriceHistoryEvent(models.Model):
     """Append-only history; drives the price chart, Edit History and price alerts.
 
     Values are JSON with money as decimal strings, e.g. {"price": "13.99",
-    "currency": "USD"}. price_change events written before currency was
-    recorded have only "price"; they never switched currency.
+    "currency": "USD"}. A price_change never crosses currencies: switching
+    currency writes a currency_change (same price, old and new currency), and
+    a new price in a new currency writes that currency_change, then the
+    price_change in the new currency, at the same instant. price_change events
+    written before currency was recorded have only "price"
+    (operations.price_events works out theirs).
     Kept when a subscription is soft-deleted; removed only by a purge.
     """
 
     class EventType(models.TextChoices):
         CREATED = "created"
         PRICE_CHANGE = "price_change"
+        CURRENCY_CHANGE = "currency_change"
         CATEGORY_CHANGE = "category_change"
         CYCLE_CHANGE = "cycle_change"
         CANCELLED = "cancelled"

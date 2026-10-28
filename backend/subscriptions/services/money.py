@@ -179,10 +179,37 @@ def annual(monthly: Decimal) -> Decimal:
 
 @dataclass(frozen=True)
 class PriceChange:
-    """The price became `price` on `on`; bills on or after that date use it."""
+    """The price became `price` (in `currency`, when the timeline tracks one)
+    on `on`; bills on or after that date use it."""
 
     on: date
     price: Decimal
+    currency: str | None = None
+
+
+def _charges(
+    start: date,
+    cycle: Cycle,
+    initial: PriceChange,
+    *,
+    today: date,
+    price_changes: Sequence[PriceChange],
+    cycle_changes: Sequence[CycleChange],
+    ended_on: date | None,
+    first_charge_on: date | None,
+):
+    """The price in effect for each bill charged before `today`. Same-day
+    changes apply in the order given (the sort is stable)."""
+    stop = min(today, ended_on) if ended_on else today
+    changes = sorted(price_changes, key=lambda c: c.on)
+    for due in bill_dates(start, cycle, cycle_changes, before=stop):
+        if first_charge_on and due < first_charge_on:
+            continue
+        current = initial
+        for change in changes:
+            if change.on <= due:
+                current = change
+        yield current
 
 
 def total_spent(
@@ -201,18 +228,45 @@ def total_spent(
     A bill due today is upcoming, not spent. `ended_on` is the cancellation
     date; `first_charge_on` skips bills inside a free trial.
     """
-    stop = min(today, ended_on) if ended_on else today
-    changes = sorted(price_changes, key=lambda c: c.on)
-    spent = Decimal(0)
-    for due in bill_dates(start, cycle, cycle_changes, before=stop):
-        if first_charge_on and due < first_charge_on:
-            continue
-        price = initial_price
-        for change in changes:
-            if change.on <= due:
-                price = change.price
-        spent += price
-    return spent
+    charges = _charges(
+        start,
+        cycle,
+        PriceChange(start, initial_price),
+        today=today,
+        price_changes=price_changes,
+        cycle_changes=cycle_changes,
+        ended_on=ended_on,
+        first_charge_on=first_charge_on,
+    )
+    return sum((charge.price for charge in charges), Decimal(0))
+
+
+def spent_by_currency(
+    start: date,
+    cycle: Cycle,
+    initial: PriceChange,
+    *,
+    today: date,
+    price_changes: Sequence[PriceChange] = (),
+    cycle_changes: Sequence[CycleChange] = (),
+    ended_on: date | None = None,
+    first_charge_on: date | None = None,
+) -> dict[str, Decimal]:
+    """total_spent, kept apart by the currency each bill was charged in, so a
+    subscription that switched currency is never summed across them."""
+    spent: dict[str, Decimal] = defaultdict(Decimal)
+    for charge in _charges(
+        start,
+        cycle,
+        initial,
+        today=today,
+        price_changes=price_changes,
+        cycle_changes=cycle_changes,
+        ended_on=ended_on,
+        first_charge_on=first_charge_on,
+    ):
+        spent[charge.currency] += charge.price
+    return dict(spent)
 
 
 # Shared plans (§6a) ----------------------------------------------------------

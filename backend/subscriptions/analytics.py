@@ -68,7 +68,7 @@ def _histories(subs) -> dict:
     by_sub = {sub.pk: [] for sub in subs}
     pipeline = [
         {"$match": {"subscription_id": {"$in": list(by_sub)}}},
-        {"$sort": {"subscription_id": 1, "occurred_at": 1}},
+        {"$sort": {"subscription_id": 1, "occurred_at": 1, "_id": 1}},
     ]
     for event in PriceHistoryEvent.objects.raw_aggregate(pipeline):
         by_sub[event.subscription_id].append(event)
@@ -108,12 +108,13 @@ def _price_change_events(user, start: date, end: date | None, subscription=None)
 # Timelines ---------------------------------------------------------------------
 
 
-def _price_on(sub, history, day: date) -> Decimal:
-    price, changes = operations.price_timeline(sub, history)
+def _price_on(sub, history, day: date) -> engine.PriceChange:
+    """The price in effect on `day`, with the currency it was in."""
+    current, changes = operations.price_timeline(sub, history)
     for change in changes:
         if change.on <= day:
-            price = change.price
-    return price
+            current = change
+    return current
 
 
 def _cycle_on(sub, history, day: date) -> Cycle:
@@ -198,7 +199,7 @@ def _run_rate(subs, histories, as_of: date, ctx) -> Decimal:
     the price and cycle in effect then."""
     items = []
     for sub in subs:
-        if not ctx.can_convert(sub.billing_currency) or sub.start_date > as_of:
+        if sub.start_date > as_of:
             continue
         if sub.cancelled_on and sub.cancelled_on <= as_of:
             continue
@@ -206,9 +207,11 @@ def _run_rate(subs, histories, as_of: date, ctx) -> Decimal:
             continue
         history = histories[sub.pk]
         price = _price_on(sub, history, as_of)
+        if not ctx.can_convert(price.currency):
+            continue
         cycle = _cycle_on(sub, history, as_of)
         items.append(
-            engine.LineItem(engine.normalize_to_monthly(price, cycle), sub.billing_currency, None)
+            engine.LineItem(engine.normalize_to_monthly(price.price, cycle), price.currency, None)
         )
     return engine.monthly_total(items, ctx.currency, ctx.rates)
 
@@ -277,8 +280,8 @@ def upcoming(user, ctx: presenters.Context, start: date, end: date) -> dict:
                     "service_mark": ctx.marks.get(sub.name),
                     "bill_date": due,
                     "days_until": (due - ctx.today).days,
-                    "amount": ctx.display(price, sub.billing_currency),
-                    "billing_amount": money(price, sub.billing_currency),
+                    "amount": ctx.display(price.price, price.currency),
+                    "billing_amount": money(price.price, price.currency),
                     **presenters.cycle_fields(_cycle_on(sub, history, due)),
                     "is_trial": sub.is_trial and due == sub.trial_ends_on,
                 }
@@ -306,13 +309,16 @@ def price_changes(
         for sub in _subscriptions(user, {"_id": {"$in": [e.subscription_id for e in events]}})
     }
     histories = _histories(subs.values())
+    # A price_change is always within one currency (a switch is a currency_change).
+    currencies = {
+        event.pk: new
+        for sub in subs.values()
+        for event, _, new in operations.price_events(sub, histories[sub.pk])
+    }
     items = []
     for event in events:
         sub = subs[event.subscription_id]
-        # Events written before currency was recorded never switched one.
-        currency = event.old_value.get("currency", sub.billing_currency)
-        if event.new_value.get("currency", currency) != currency:
-            continue  # A currency switch is not a rise or a fall in one currency.
+        currency = currencies[event.pk]
         on = _event_day(event)
         old, new = Decimal(event.old_value["price"]), Decimal(event.new_value["price"])
         cycle = _cycle_on(sub, histories[sub.pk], on)
