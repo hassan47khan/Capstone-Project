@@ -44,7 +44,7 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 │   ├── pyproject.toml  # ruff, pytest and coverage configuration
 │   ├── requirements.txt / requirements-dev.txt
 │   └── .env.example  # Template for local backend environment variables
-├── mobile/           # React Native (Expo SDK 57) client
+├── mobile/           # React Native (Expo SDK 58) client
 │   └── src/          # api/ components/ features/ navigation/ session/ theme/ test/
 ├── docs/design/      # System design specification, design notes, retired prototype PDF
 ├── docs/handoff/     # Developer handoff specs 00–12, one per task area
