@@ -48,7 +48,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Matches the Node major the team develops on. Expo SDK 57 needs 20+.
+          # Matches the Node major the team develops on. Expo SDK 58 (expo,
+          # react-native, metro) needs ^22.13.0; '22' resolves to the newest 22.x.
           node-version: '22'
           cache: npm
           cache-dependency-path: mobile/package-lock.json
