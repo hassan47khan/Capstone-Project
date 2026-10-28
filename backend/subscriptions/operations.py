@@ -80,9 +80,10 @@ def update_subscription(
 ) -> list[PriceHistoryEvent]:
     """Apply `changes` and write one history event per tracked change.
 
-    Price events carry the currency on both sides. A currency switch is a
-    currency_change at the old price; a new price is a price_change in the
-    new currency, after the currency_change when both happen at once.
+    Price events carry the currency on both sides. Any change of currency is
+    one currency_change from the old price and currency to the new ones, even
+    when the price changed too; a price_change is only ever within one
+    currency, so the price-changes feed never compares across currencies.
     """
     at = at or timezone.now()
     old_price, old_currency = sub.billing_price, sub.billing_currency
@@ -92,22 +93,12 @@ def update_subscription(
     sub.full_clean()
 
     events = []
+    old_money = {"price": str(old_price), "currency": old_currency}
+    new_money = {"price": str(sub.billing_price), "currency": sub.billing_currency}
     if sub.billing_currency != old_currency:
-        events.append(
-            (
-                Event.CURRENCY_CHANGE,
-                {"price": str(old_price), "currency": old_currency},
-                {"price": str(old_price), "currency": sub.billing_currency},
-            )
-        )
-    if sub.billing_price != old_price:
-        events.append(
-            (
-                Event.PRICE_CHANGE,
-                {"price": str(old_price), "currency": sub.billing_currency},
-                {"price": str(sub.billing_price), "currency": sub.billing_currency},
-            )
-        )
+        events.append((Event.CURRENCY_CHANGE, old_money, new_money))
+    elif sub.billing_price != old_price:
+        events.append((Event.PRICE_CHANGE, old_money, new_money))
     if _category_value(sub) != old_category:
         events.append(
             (Event.CATEGORY_CHANGE, {"category": old_category}, {"category": _category_value(sub)})

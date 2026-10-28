@@ -154,25 +154,20 @@ def test_a_currency_switch_at_the_same_price_is_a_currency_change(make):
     ]
 
 
-def test_a_new_price_in_a_new_currency_switches_currency_then_price(make):
-    sub = make()
+def test_a_new_price_in_a_new_currency_is_one_currency_change(make):
+    sub = make(billing_price=D("10.99"))
 
-    operations.update_subscription(
-        sub, today=TODAY, billing_price=D("12.99"), billing_currency="EUR"
+    written = operations.update_subscription(
+        sub, today=TODAY, billing_price=D("9.99"), billing_currency="EUR"
     )
 
-    # Read back in history order: the price_change never crosses currencies.
-    assert [(e.event_type, e.old_value, e.new_value) for e in operations._history(sub)[1:]] == [
+    # No price_change: the user never paid 10.99 EUR.
+    assert [(e.event_type, e.old_value, e.new_value) for e in written] == [
         (
             Event.CURRENCY_CHANGE,
-            {"price": "13.99", "currency": "USD"},
-            {"price": "13.99", "currency": "EUR"},
-        ),
-        (
-            Event.PRICE_CHANGE,
-            {"price": "13.99", "currency": "EUR"},
-            {"price": "12.99", "currency": "EUR"},
-        ),
+            {"price": "10.99", "currency": "USD"},
+            {"price": "9.99", "currency": "EUR"},
+        )
     ]
 
 

@@ -181,11 +181,9 @@ def test_total_spent_converts_each_period_from_its_own_currency(api, contract, s
 
     # Six bills of $10.00, then three of EUR 9.00 at 0.9177 EUR per dollar.
     assert body["total_spent_to_date"] == usd("89.42")
-    assert [e["event_type"] for e in body["history"]] == [
-        "price_change",
-        "currency_change",
-        "created",
-    ]
+    assert [e["event_type"] for e in body["history"]] == ["currency_change", "created"]
+    assert body["history"][0]["old_value"] == {"price": "10.00", "currency": "USD"}
+    assert body["history"][0]["new_value"] == {"price": "9.00", "currency": "EUR"}
 
 
 def test_total_spent_is_null_when_a_period_has_no_rate(api, switched):

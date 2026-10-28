@@ -361,8 +361,11 @@ def test_a_currency_switch_is_not_a_price_change_alert(api, alex):
     assert [item["name"] for item in body["items"]] == ["Netflix"]
 
 
-def test_a_new_price_in_a_new_currency_is_a_change_in_that_currency(api, alex, contract):
+def test_a_new_price_in_a_new_currency_is_not_a_price_change_alert(api, alex):
+    # Ankit's case on #142: 10.99 USD to 9.99 EUR is not a 10.99 EUR -> 9.99 EUR drop.
     spotify = Subscription.objects.get(owner=alex, name="Spotify")
+    spotify.billing_price = Decimal("10.99")
+    spotify.save()
     operations.update_subscription(
         spotify,
         today=date(2026, 10, 1),
@@ -371,14 +374,9 @@ def test_a_new_price_in_a_new_currency_is_a_change_in_that_currency(api, alex, c
         billing_currency="EUR",
     )
 
-    body = contract(api.get("/api/v1/analytics/price-changes"), "/analytics/price-changes")
+    body = api.get("/api/v1/analytics/price-changes").json()
 
-    item = next(i for i in body["items"] if i["name"] == "Spotify")
-    # The currency_change comes first, so the price_change is EUR to EUR.
-    assert item["old_price"] == {"amount": "10.99", "currency": "EUR"}
-    assert item["new_price"] == {"amount": "9.99", "currency": "EUR"}
-    assert item["direction"] == "down"
-    assert item["monthly_change"]["currency"] == "USD"
+    assert [item["name"] for item in body["items"]] == ["Netflix"]
 
 
 def test_a_change_from_before_currencies_keeps_the_currency_it_was_in(api, alex):
