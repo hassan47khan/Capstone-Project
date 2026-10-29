@@ -34,6 +34,8 @@ export type TrialDecision = (typeof TRIAL_DECISIONS)[number];
 export const HISTORY_EVENT_TYPES = [
   'created',
   'price_change',
+  // A switch of billing currency, with the price on both sides (#142).
+  'currency_change',
   'category_change',
   'cycle_change',
   'cancelled',

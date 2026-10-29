@@ -56,8 +56,9 @@ export const netflixDetail: SubscriptionDetail = {
       id: 'evt-netflix-3',
       event_type: 'price_change',
       occurred_at: '2026-10-01T00:00:00Z',
-      old_value: { price: '13.99' },
-      new_value: { price: '15.49' },
+      // The real server records the currency on both sides since #140.
+      old_value: { price: '13.99', currency: 'USD' },
+      new_value: { price: '15.49', currency: 'USD' },
     },
     {
       id: 'evt-netflix-2',

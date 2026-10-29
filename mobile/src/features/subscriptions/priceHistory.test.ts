@@ -313,3 +313,80 @@ describe('review fixes', () => {
     ).toBe('Price history for the last 12 months: ¥1,500, with no changes.');
   });
 });
+
+describe('currency_change events (#142)', () => {
+  // The shape the real server sends (checked on 2026-10-28): the price and
+  // currency on both sides, even when only the currency changed.
+  const currencyChange = (
+    at: string,
+    [fromPrice, fromCurrency]: [string, string],
+    [toPrice, toCurrency]: [string, string],
+  ): HistoryEvent => ({
+    id: `cur-${at}`,
+    event_type: 'currency_change',
+    occurred_at: at,
+    old_value: { price: fromPrice, currency: fromCurrency },
+    new_value: { price: toPrice, currency: toCurrency },
+  });
+  const createdUsd: HistoryEvent = {
+    id: 'created',
+    event_type: 'created',
+    occurred_at: '2025-01-05T10:00:00.000000Z',
+    old_value: null,
+    new_value: { price: '10.99', currency: 'USD', category: 'entertainment' },
+  };
+
+  it('a switch at the same price is a step, not dropped as "no change"', () => {
+    const history = [
+      currencyChange('2026-06-01T09:00:00.000000Z', ['10.99', 'USD'], ['10.99', 'EUR']),
+      createdUsd,
+    ];
+    const series = build(history, '10.99', '2026-10-28', { currency: 'EUR' });
+
+    expect(series.steps).toEqual([
+      { date: '2026-06-01', price: '10.99', currency: 'EUR' },
+    ]);
+    expect(describePriceHistory(series)).toBe(
+      'Price history for the last 12 months: $10.99, changed to €10.99 on June 1, 2026.',
+    );
+  });
+
+  it('a new price in a new currency is one step, from the real old price', () => {
+    const history = [
+      currencyChange('2026-06-01T09:00:00.000000Z', ['10.99', 'USD'], ['9.99', 'EUR']),
+      createdUsd,
+    ];
+    const series = build(history, '9.99', '2026-10-28', { currency: 'EUR' });
+
+    expect(describePriceHistory(series)).toBe(
+      'Price history for the last 12 months: $10.99, changed to €9.99 on June 1, 2026.',
+    );
+  });
+
+  it("without a 'created' event, the opening price keeps its own currency", () => {
+    const history = [
+      currencyChange('2026-06-01T09:00:00.000000Z', ['10.99', 'USD'], ['9.99', 'EUR']),
+    ];
+    const series = build(history, '9.99', '2026-10-28', { currency: 'EUR' });
+
+    expect(series.startPrice).toBe('10.99');
+    expect(series.startCurrency).toBe('USD');
+  });
+
+  it('a later change in the new currency is a rise or a fall again', () => {
+    const history = [
+      {
+        ...change('2026-09-01T09:00:00.000000Z', '9.99', '8.99'),
+        old_value: { price: '9.99', currency: 'EUR' },
+        new_value: { price: '8.99', currency: 'EUR' },
+      },
+      currencyChange('2026-06-01T09:00:00.000000Z', ['10.99', 'USD'], ['9.99', 'EUR']),
+      createdUsd,
+    ];
+    const series = build(history, '8.99', '2026-10-28', { currency: 'EUR' });
+
+    expect(describePriceHistory(series)).toBe(
+      'Price history for the last 12 months: $10.99, changed to €9.99 on June 1, 2026, then decreased to €8.99 on September 1, 2026.',
+    );
+  });
+});

@@ -80,9 +80,10 @@ def update_subscription(
 ) -> list[PriceHistoryEvent]:
     """Apply `changes` and write one history event per tracked change.
 
-    A price_change carries the currency on both sides, and a currency switch
-    at the same price is a price_change too, so the history always says which
-    currency every price was in.
+    Price events carry the currency on both sides. Any change of currency is
+    one currency_change from the old price and currency to the new ones, even
+    when the price changed too; a price_change is only ever within one
+    currency, so the price-changes feed never compares across currencies.
     """
     at = at or timezone.now()
     old_price, old_currency = sub.billing_price, sub.billing_currency
@@ -92,14 +93,12 @@ def update_subscription(
     sub.full_clean()
 
     events = []
-    if (sub.billing_price, sub.billing_currency) != (old_price, old_currency):
-        events.append(
-            (
-                Event.PRICE_CHANGE,
-                {"price": str(old_price), "currency": old_currency},
-                {"price": str(sub.billing_price), "currency": sub.billing_currency},
-            )
-        )
+    old_money = {"price": str(old_price), "currency": old_currency}
+    new_money = {"price": str(sub.billing_price), "currency": sub.billing_currency}
+    if sub.billing_currency != old_currency:
+        events.append((Event.CURRENCY_CHANGE, old_money, new_money))
+    elif sub.billing_price != old_price:
+        events.append((Event.PRICE_CHANGE, old_money, new_money))
     if _category_value(sub) != old_category:
         events.append(
             (Event.CATEGORY_CHANGE, {"category": old_category}, {"category": _category_value(sub)})
@@ -168,7 +167,9 @@ def convert_due_trials(*, today: date) -> int:
 
 
 def _history(sub: Subscription) -> list[PriceHistoryEvent]:
-    return list(PriceHistoryEvent.objects.filter(subscription=sub).order_by("occurred_at"))
+    # The id breaks ties: a currency_change and its price_change share an instant.
+    events = PriceHistoryEvent.objects.filter(subscription=sub)
+    return list(events.order_by("occurred_at", "pk"))
 
 
 def cycle_timeline(
@@ -185,24 +186,54 @@ def cycle_timeline(
     return initial, [CycleChange(e.occurred_at.date(), _cycle_from(e.new_value)) for e in changes]
 
 
+_PRICE_EVENTS = (Event.PRICE_CHANGE, Event.CURRENCY_CHANGE)
+
+
+def price_events(
+    sub: Subscription, history: list[PriceHistoryEvent]
+) -> list[tuple[PriceHistoryEvent, str, str]]:
+    """Price and currency changes, oldest first, as (event, old currency, new
+    currency).
+
+    A price_change written before currency was recorded has only "price". It
+    was in the currency in effect after it: the old side of the next event that
+    names one, or the current billing currency if none does.
+    """
+    events = [e for e in history if e.event_type in _PRICE_EVENTS]
+    known = sub.billing_currency
+    sided = []
+    for event in reversed(events):
+        new = event.new_value.get("currency", known)
+        old = event.old_value.get("currency", new)
+        sided.append((event, old, new))
+        known = old
+    return sided[::-1]
+
+
 def price_timeline(
     sub: Subscription, history: list[PriceHistoryEvent] | None = None
-) -> tuple[Decimal, list[money.PriceChange]]:
-    """The price the subscription started at, and every change since."""
+) -> tuple[money.PriceChange, list[money.PriceChange]]:
+    """The price the subscription started at and every change since, each in
+    its own currency."""
     if history is None:
         history = _history(sub)
-    changes = [e for e in history if e.event_type == Event.PRICE_CHANGE]
-    initial = Decimal(changes[0].old_value["price"]) if changes else sub.billing_price
+    events = price_events(sub, history)
+    if not events:
+        return money.PriceChange(sub.start_date, sub.billing_price, sub.billing_currency), []
+    first, first_currency, _ = events[0]
+    initial = money.PriceChange(sub.start_date, Decimal(first.old_value["price"]), first_currency)
     return initial, [
-        money.PriceChange(e.occurred_at.date(), Decimal(e.new_value["price"])) for e in changes
+        money.PriceChange(e.occurred_at.date(), Decimal(e.new_value["price"]), currency)
+        for e, _, currency in events
     ]
 
 
-def total_spent_to_date(sub: Subscription, *, today: date) -> Decimal:
+def total_spent_to_date(sub: Subscription, *, today: date) -> dict[str, Decimal]:
+    """What has been charged so far, by the currency it was charged in."""
     history = _history(sub)
     initial_price, price_changes = price_timeline(sub, history)
     initial_cycle, cycle_changes = cycle_timeline(sub, history)
-    return money.total_spent(
+    return money.spent_by_currency(
         sub.start_date,
         initial_cycle,
         initial_price,
