@@ -164,20 +164,6 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
-MAILERS = {
-    "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
-    },
-}
-DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "SubTrak <no-reply@subtrak.app>")
-
-# Verification and reset emails link into the app (mobile/src/navigation/linking.ts).
-APP_LINK_PREFIX = os.environ.get("SUBTRAK_APP_LINK_PREFIX", "subtrak://")
-
-
 # Cache: holds the auth rate-limit counters and resend cooldowns. Per process,
 # which is enough for one server; a shared cache (Redis) comes with Celery.
 
@@ -230,6 +216,49 @@ GOOGLE_OAUTH_REDIRECT_URIS = [
 # default: without a key Gmail must stop working, never fall back to one that
 # is in the repository.
 GMAIL_TOKEN_ENCRYPTION_KEY = os.environ.get("GMAIL_TOKEN_ENCRYPTION_KEY")
+
+
+# Email
+# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+#
+# Resend when a key is configured, Django's console backend otherwise, so a
+# checkout with no .env still prints the verification link a developer needs.
+# The suite uses neither: setup_test_environment() swaps every MAILERS alias
+# for the in-memory backend, so tests cannot send real mail whatever sits in
+# a developer's .env.
+#
+# Resend's SMTP service takes the literal username "resend" and the API key
+# as the password, and 587 is its STARTTLS port
+# (https://resend.com/docs/send-with-smtp). That fits MAILERS as Django 6.1
+# ships it, so SubTrak needs no email backend of its own. The timeout is
+# section 12's budget for one send; phase 2 adds the two retries.
+
+MAILERS = {
+    "default": (
+        {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "OPTIONS": {
+                "host": "smtp.resend.com",
+                "port": 587,
+                "username": "resend",
+                "password": RESEND_API_KEY,
+                "use_tls": True,
+                "timeout": 5,
+            },
+        }
+        if RESEND_API_KEY
+        else {"BACKEND": "django.core.mail.backends.console.EmailBackend"}
+    )
+}
+
+# Resend rejects a From address that is neither onboarding@resend.dev nor on
+# a domain verified in its dashboard, so this has to match what is set up
+# there before any real send works.
+DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "SubTrak <no-reply@subtrak.app>")
+
+# Where a tapped link hands off to the app (mobile/src/navigation/linking.ts).
+# With PUBLIC_BASE_URL set, emails point at the bridge in core/links.py first.
+APP_LINK_PREFIX = os.environ.get("SUBTRAK_APP_LINK_PREFIX", "subtrak://")
 
 
 # REST API
