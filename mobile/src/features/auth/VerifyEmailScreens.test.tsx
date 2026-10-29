@@ -86,7 +86,7 @@ describe('Check your email (05 §4)', () => {
   });
 
   it('opens the mail app', async () => {
-    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     await renderAt('VerifyEmailSent', { email: 'new@subtrak.test' });
 
     await fireEvent.press(screen.getByTestId('verify-open-mail'));
