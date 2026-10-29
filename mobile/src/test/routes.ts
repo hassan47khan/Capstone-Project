@@ -27,6 +27,7 @@ import type { ApiErrorBody, Subscription } from '@/api/types';
 
 import { contractHomeFor } from './contractFixtures';
 import {
+  cancelMockSubscription,
   createMockSubscription,
   deleteMockSubscription,
   resetCreatedSubscriptions,
@@ -493,6 +494,21 @@ export const routes: Route[] = [
       if (result.error) {
         return fail(400, result.error.code, result.error.message, result.error.fields);
       }
+      return ok(result.detail);
+    }),
+  },
+
+  {
+    method: 'POST',
+    pattern: '/subscriptions/:id/cancel',
+    // Same store as the other routes; 409 when it already was cancelled (like the server).
+    handler: protectedRoute((request, account) => {
+      const result = cancelMockSubscription(
+        account.profile.email,
+        request.params.id ?? '',
+      );
+      if (!result) return fail(404, 'not_found', 'This subscription could not be found.');
+      if (result.error) return fail(409, result.error.code, result.error.message);
       return ok(result.detail);
     }),
   },

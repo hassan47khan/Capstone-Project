@@ -138,6 +138,14 @@ export function updateSubscription(
   });
 }
 
+// Marks it cancelled (07 §7): out of totals, history kept, saved_per_year set.
+// A 409 `already_cancelled` means it already was.
+export function cancelSubscription(id: string): Promise<SubscriptionDetail> {
+  return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+  });
+}
+
 // Loads one subscription. A 404 means "not found or not yours".
 export function getSubscription(id: string): Promise<SubscriptionDetail> {
   return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}`);
