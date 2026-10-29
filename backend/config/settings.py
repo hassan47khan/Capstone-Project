@@ -62,6 +62,11 @@ INSTALLED_APPS = [
     "core",
     "accounts",
     "subscriptions",
+    # No models yet: phase 4 fills notifications (spec section 8) and phase 5
+    # fills extraction (section 7). Registered now so their clients, tasks and
+    # migrations have an app to land in.
+    "notifications",
+    "extraction",
 ]
 
 MIDDLEWARE = [
@@ -177,6 +182,54 @@ APP_LINK_PREFIX = os.environ.get("SUBTRAK_APP_LINK_PREFIX", "subtrak://")
 # which is enough for one server; a shared cache (Redis) comes with Celery.
 
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
+
+# Outside services
+#
+# Every variable below is optional and none has a working default, so a
+# checkout with no .env still runs: each feature falls back to the stand-in
+# it has today (console email, the fixed seeded rates, the in-app inbox) or,
+# for extraction, reports itself unavailable rather than guessing a key.
+# Real values live only in backend/.env, which is gitignored. Spec section
+# 11: no secret is ever defaulted in code.
+
+# Celery broker and, from phase 2, the shared cache behind CACHES above.
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+# Resend. Unset keeps the console email backend above.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+
+# Public HTTPS origin of this backend. Emailed links and the Gmail OAuth
+# callback need an https:// URL a mail app will open; unset, emails keep
+# linking straight at APP_LINK_PREFIX as they do today.
+PUBLIC_BASE_URL = os.environ.get("SUBTRAK_PUBLIC_BASE_URL", "").rstrip("/")
+
+# Expo push. Optional: Expo accepts unauthenticated sends for Expo Go.
+EXPO_ACCESS_TOKEN = os.environ.get("EXPO_ACCESS_TOKEN")
+
+# AI extraction (section 7). The key is server-side only and never reaches the
+# client. EXTRACTION_ENABLED is the kill switch and EXTRACTION_DAILY_CAP the
+# per-user cap that together bound what one bad day can cost.
+LLM_API_KEY = os.environ.get("LLM_API_KEY")
+LLM_MODEL = os.environ.get("LLM_MODEL")
+EXTRACTION_ENABLED = os.environ.get("EXTRACTION_ENABLED", "true").strip().lower() == "true"
+EXTRACTION_DAILY_CAP = int(os.environ.get("EXTRACTION_DAILY_CAP", "30"))
+
+# Gmail OAuth: a Web application client with the read-only scope. The redirect
+# allowlist is exact-match, so an attacker cannot talk this backend into
+# exchanging a code against a URL the team never registered.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+GOOGLE_OAUTH_REDIRECT_URIS = [
+    uri.strip()
+    for uri in os.environ.get("GOOGLE_OAUTH_REDIRECT_URIS", "").split(",")
+    if uri.strip()
+]
+
+# Fernet key encrypting the stored Gmail refresh tokens. Deliberately no
+# default: without a key Gmail must stop working, never fall back to one that
+# is in the repository.
+GMAIL_TOKEN_ENCRYPTION_KEY = os.environ.get("GMAIL_TOKEN_ENCRYPTION_KEY")
 
 
 # REST API

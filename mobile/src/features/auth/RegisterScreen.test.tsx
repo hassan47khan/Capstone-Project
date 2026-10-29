@@ -93,7 +93,7 @@ describe('layout (05 §3)', () => {
 
   it('announces the terms as a checkbox and the documents as links', async () => {
     await renderRegister();
-    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
 
     expect(
       screen.getByRole('checkbox', { name: 'I agree to the Terms and Privacy Policy' }),

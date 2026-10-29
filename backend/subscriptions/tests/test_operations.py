@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from accounts.models import NotificationRule, User, UserSettings, rules_for, settings_for
 from subscriptions import operations
@@ -105,7 +106,12 @@ def test_a_missing_start_date_is_reported_by_name(owner, categories):
 @pytest.mark.parametrize(
     ("change", "event_type", "old", "new"),
     [
-        ({"billing_price": D("15.49")}, Event.PRICE_CHANGE, {"price": "13.99"}, {"price": "15.49"}),
+        (
+            {"billing_price": D("15.49")},
+            Event.PRICE_CHANGE,
+            {"price": "13.99", "currency": "USD"},
+            {"price": "15.49", "currency": "USD"},
+        ),
         (
             {"category": "other"},
             Event.CATEGORY_CHANGE,
@@ -132,6 +138,88 @@ def test_each_tracked_change_writes_exactly_one_event(
     assert [e.event_type for e in written] == [event_type]
     assert [e.event_type for e in history(sub)] == [Event.CREATED, event_type]
     assert (written[0].old_value, written[0].new_value) == (old, new)
+
+
+def test_a_currency_switch_at_the_same_price_is_a_currency_change(make):
+    sub = make()
+
+    written = operations.update_subscription(sub, today=TODAY, billing_currency="EUR")
+
+    assert [(e.event_type, e.old_value, e.new_value) for e in written] == [
+        (
+            Event.CURRENCY_CHANGE,
+            {"price": "13.99", "currency": "USD"},
+            {"price": "13.99", "currency": "EUR"},
+        )
+    ]
+
+
+def test_a_new_price_in_a_new_currency_is_one_currency_change(make):
+    sub = make(billing_price=D("10.99"))
+
+    written = operations.update_subscription(
+        sub, today=TODAY, billing_price=D("9.99"), billing_currency="EUR"
+    )
+
+    # No price_change: the user never paid 10.99 EUR.
+    assert [(e.event_type, e.old_value, e.new_value) for e in written] == [
+        (
+            Event.CURRENCY_CHANGE,
+            {"price": "10.99", "currency": "USD"},
+            {"price": "9.99", "currency": "EUR"},
+        )
+    ]
+
+
+def test_a_price_change_from_before_currencies_takes_the_next_known_one(make):
+    # Created in USD, a legacy 13.99 -> 15.49 (no currency), then a switch to EUR.
+    sub = make()
+    legacy = PriceHistoryEvent.objects.create(
+        subscription=sub,
+        event_type=Event.PRICE_CHANGE,
+        occurred_at=timezone.now(),
+        old_value={"price": "13.99"},
+        new_value={"price": "15.49"},
+    )
+    sub.billing_price = D("15.49")
+    sub.save()
+    operations.update_subscription(sub, today=TODAY, billing_currency="EUR")
+
+    sided = {e.pk: (old, new) for e, old, new in operations.price_events(sub, history(sub))}
+
+    assert sided[legacy.pk] == ("USD", "USD")
+
+
+def test_a_price_change_from_before_currencies_with_nothing_later_is_current(make):
+    sub = make(billing_currency="EUR")
+    legacy = PriceHistoryEvent.objects.create(
+        subscription=sub,
+        event_type=Event.PRICE_CHANGE,
+        occurred_at=timezone.now(),
+        old_value={"price": "13.99"},
+        new_value={"price": "15.49"},
+    )
+
+    sided = {e.pk: (old, new) for e, old, new in operations.price_events(sub, history(sub))}
+
+    assert sided[legacy.pk] == ("EUR", "EUR")
+
+
+def test_total_spent_keeps_each_currency_apart(make):
+    # Bills on the 12th: Jan-Jun in USD, then EUR from Jul 1 at a new price.
+    sub = make()
+    operations.update_subscription(
+        sub,
+        today=date(2026, 7, 1),
+        at=operations.at_start_of(date(2026, 7, 1)),
+        billing_price=D("12.99"),
+        billing_currency="EUR",
+    )
+
+    assert operations.total_spent_to_date(sub, today=date(2026, 10, 13)) == {
+        "USD": 6 * D("13.99"),
+        "EUR": 4 * D("12.99"),
+    }
 
 
 def test_changing_all_three_writes_three_events_and_nothing_else_writes_none(make, categories):
@@ -196,7 +284,7 @@ def test_cycle_change_mid_life_recomputes_next_bill_date(make):
     operations.refresh_next_bill_date(sub, today=date(2026, 10, 13))
     assert sub.next_bill_date == date(2027, 1, 12)
     # Spent: Jan-Apr monthly, then Jul 12 and Oct 12 quarterly.
-    assert operations.total_spent_to_date(sub, today=date(2026, 10, 13)) == 6 * D("13.99")
+    assert operations.total_spent_to_date(sub, today=date(2026, 10, 13)) == {"USD": 6 * D("13.99")}
 
 
 def test_shortening_the_cycle_mid_life_counts_only_real_bills(make):
@@ -211,7 +299,7 @@ def test_shortening_the_cycle_mid_life_counts_only_real_bills(make):
     )
     assert sub.next_bill_date == date(2026, 2, 15)
 
-    assert operations.total_spent_to_date(sub, today=date(2026, 3, 15)) == D("60.00")
+    assert operations.total_spent_to_date(sub, today=date(2026, 3, 15)) == {"USD": D("60.00")}
     operations.refresh_next_bill_date(sub, today=date(2026, 3, 9))
     assert sub.next_bill_date == date(2026, 3, 15)
 
@@ -238,7 +326,7 @@ def test_cancelled_drops_out_of_totals_and_keeps_its_history(make):
     ]
     assert keep.status == Subscription.Status.ACTIVE
     # Cancelling stops the spending: no bills after the cancellation date.
-    assert operations.total_spent_to_date(sub, today=date(2027, 1, 1)) == 9 * D("13.99")
+    assert operations.total_spent_to_date(sub, today=date(2027, 1, 1)) == {"USD": 9 * D("13.99")}
 
 
 def test_soft_delete_lowers_the_total_by_exactly_its_amount_and_restore_puts_it_back(
@@ -325,7 +413,7 @@ def test_total_spent_skips_the_free_trial(make):
     ends = date(2026, 9, 10)
     sub = make(start_date=ends, is_trial=True, trial_ends_on=ends, trial_length_days=30)
     operations.convert_due_trials(today=ends)
-    assert operations.total_spent_to_date(sub, today=TODAY) == D("13.99")
+    assert operations.total_spent_to_date(sub, today=TODAY) == {"USD": D("13.99")}
 
 
 # FX and the remaining reads -------------------------------------------------

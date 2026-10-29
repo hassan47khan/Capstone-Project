@@ -1,6 +1,7 @@
 """Contract tests for /subscriptions (handoff 04 §5): each response matches
 schema.yml and carries the canonical figures, and writes are kept."""
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -142,9 +143,67 @@ def test_detail_has_total_spent_and_history(api, alex, contract):
         "category_change",
         "created",
     ]
+    assert body["history"][0]["old_value"] == {"price": "13.99", "currency": "USD"}
+    assert body["history"][0]["new_value"] == {"price": "15.49", "currency": "USD"}
+    assert body["history"][0]["occurred_at"].startswith(TODAY)
+
+
+@pytest.fixture
+def switched(alex, categories):
+    """$10.00 on the 12th from January, then 9.00 in another currency from July."""
+
+    def switched(currency):
+        sub = operations.create_subscription(
+            today=SEED_TODAY,
+            at=operations.at_start_of(date(2026, 1, 12)),
+            owner=alex,
+            name="Figma",
+            billing_price=Decimal("10.00"),
+            start_date=date(2026, 1, 12),
+            category=categories["productivity"],
+        )
+        operations.update_subscription(
+            sub,
+            today=SEED_TODAY,
+            at=operations.at_start_of(date(2026, 7, 1)),
+            billing_price=Decimal("9.00"),
+            billing_currency=currency,
+        )
+        return str(sub.pk)
+
+    return switched
+
+
+def test_total_spent_converts_each_period_from_its_own_currency(api, contract, switched):
+    body = contract(
+        api.get(f"/api/v1/subscriptions/{switched('EUR')}"), "/subscriptions/{subscription_id}"
+    )
+
+    # Six bills of $10.00, then three of EUR 9.00 at 0.9177 EUR per dollar.
+    assert body["total_spent_to_date"] == usd("89.42")
+    assert [e["event_type"] for e in body["history"]] == ["currency_change", "created"]
+    assert body["history"][0]["old_value"] == {"price": "10.00", "currency": "USD"}
+    assert body["history"][0]["new_value"] == {"price": "9.00", "currency": "EUR"}
+
+
+def test_total_spent_is_null_when_a_period_has_no_rate(api, switched):
+    body = api.get(f"/api/v1/subscriptions/{switched('GBP')}").json()
+
+    assert body["total_spent_to_date"] is None
+
+
+def test_history_from_before_currency_was_recorded_still_serializes(api, alex, contract):
+    event = PriceHistoryEvent.objects.get(subscription__name="Netflix", event_type="price_change")
+    event.old_value, event.new_value = {"price": "13.99"}, {"price": "15.49"}
+    event.save()
+
+    body = contract(
+        api.get(f"/api/v1/subscriptions/{sub_id(alex, 'Netflix')}"),
+        "/subscriptions/{subscription_id}",
+    )
+
     assert body["history"][0]["old_value"] == {"price": "13.99"}
     assert body["history"][0]["new_value"] == {"price": "15.49"}
-    assert body["history"][0]["occurred_at"].startswith(TODAY)
 
 
 @pytest.mark.parametrize("bad_id", ["not-an-id", "6a0000000000000000000000"])
@@ -282,7 +341,7 @@ def test_patch_price_writes_one_history_event(api, alex, contract):
     assert body["billing_price"] == "16.99"
     assert body["normalized_monthly"] == usd("16.99")
     assert [e["event_type"] for e in body["history"]][:2] == ["price_change", "price_change"]
-    assert body["history"][0]["old_value"] == {"price": "15.49"}
+    assert body["history"][0]["old_value"] == {"price": "15.49", "currency": "USD"}
     after = api.get(f"/api/v1/subscriptions/{netflix}").json()
     assert after["billing_price"] == "16.99"
     assert len(after["history"]) == 4

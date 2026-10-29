@@ -347,6 +347,52 @@ def test_a_new_user_starts_from_nothing(db, contract):
     assert client.get("/api/v1/analytics/upcoming").json()["items"] == []
 
 
+def test_a_currency_switch_is_not_a_price_change_alert(api, alex):
+    spotify = Subscription.objects.get(owner=alex, name="Spotify")
+    operations.update_subscription(
+        spotify,
+        today=date(2026, 10, 1),
+        at=operations.at_start_of(date(2026, 10, 1)),
+        billing_currency="EUR",
+    )
+
+    body = api.get("/api/v1/analytics/price-changes").json()
+
+    assert [item["name"] for item in body["items"]] == ["Netflix"]
+
+
+def test_a_new_price_in_a_new_currency_is_not_a_price_change_alert(api, alex):
+    # Ankit's case on #142: 10.99 USD to 9.99 EUR is not a 10.99 EUR -> 9.99 EUR drop.
+    spotify = Subscription.objects.get(owner=alex, name="Spotify")
+    spotify.billing_price = Decimal("10.99")
+    spotify.save()
+    operations.update_subscription(
+        spotify,
+        today=date(2026, 10, 1),
+        at=operations.at_start_of(date(2026, 10, 1)),
+        billing_price=Decimal("9.99"),
+        billing_currency="EUR",
+    )
+
+    body = api.get("/api/v1/analytics/price-changes").json()
+
+    assert [item["name"] for item in body["items"]] == ["Netflix"]
+
+
+def test_a_change_from_before_currencies_keeps_the_currency_it_was_in(api, alex):
+    netflix = Subscription.objects.get(owner=alex, name="Netflix")
+    event = PriceHistoryEvent.objects.get(subscription=netflix, event_type="price_change")
+    event.old_value, event.new_value = {"price": "13.99"}, {"price": "15.49"}
+    event.save()
+    operations.update_subscription(netflix, today=date(2026, 10, 1), billing_currency="EUR")
+
+    item = api.get("/api/v1/analytics/price-changes").json()["items"][0]
+
+    assert item["name"] == "Netflix"
+    assert item["old_price"] == usd("13.99")
+    assert item["new_price"] == usd("15.49")
+
+
 def test_a_deleted_subscriptions_price_change_is_not_an_alert(api, alex):
     operations.soft_delete(Subscription.objects.get(owner=alex, name="Netflix"))
 
