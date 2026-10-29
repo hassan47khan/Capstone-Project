@@ -302,3 +302,34 @@ describe('second review fixes', () => {
     await waitFor(() => expect(screen.queryByTestId('form-name')).toBeNull());
   });
 });
+
+// 07 §8 on Edit: renaming to another subscription's name warns; its own doesn't.
+describe('duplicate name warning (07 §8)', () => {
+  // The empty slot is hidden from screen readers, so include hidden elements.
+  const warning = () =>
+    screen.getByTestId('form-name-message', { includeHiddenElements: true });
+
+  it("its own name isn't a duplicate", async () => {
+    await renderFromDetail();
+    await act(async () => {});
+
+    expect(screen.getByTestId('form-name').props.value).toBe('Netflix');
+    expect(warning()).not.toHaveTextContent(/already track/);
+  });
+
+  it("renaming it to another subscription's name warns, and still saves", async () => {
+    await renderFromDetail();
+
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'spotify');
+
+    await waitFor(() =>
+      expect(warning()).toHaveTextContent('You already track a Spotify.'),
+    );
+    await fireEvent.press(screen.getByTestId('edit-save'));
+    await waitFor(() =>
+      expect(subscriptionDetailFor(MOCK_EMAILS.full, 'sub-netflix')?.name).toBe(
+        'spotify',
+      ),
+    );
+  });
+});

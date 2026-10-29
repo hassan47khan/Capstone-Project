@@ -31,8 +31,11 @@
  * is a new subscription. A 409 `idempotency_key_in_use` means the first save is
  * still going through, so the key stays for the next try.
  *
- * Not built yet: the service picker (no catalog endpoint), the duplicate-name
- * warning, and queueing a save made offline.
+ * A name already in the list gets a soft warning under it, "You already track
+ * a Netflix." (07 §8); saving stays allowed.
+ *
+ * Not built yet: the service picker (no catalog endpoint) and queueing a save
+ * made offline.
  */
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -67,6 +70,7 @@ import {
   type FormValues,
 } from './formRules';
 import { localToday } from './today';
+import { useDuplicateNameWarning } from './useDuplicateNameWarning';
 
 export const ADD_COPY = {
   title: 'Add subscription',
@@ -112,6 +116,7 @@ export function AddSubscriptionScreen() {
 
   const errors = validateForm(values, localToday());
   const valid = Object.keys(errors).length === 0;
+  const nameWarning = useDuplicateNameWarning(values.name);
   const hint = saveHint(errors);
 
   // While saving, block every way of closing (X, swipe, Android back).
@@ -278,6 +283,7 @@ export function AddSubscriptionScreen() {
         onChange={change}
         onBlur={blur}
         disabled={create.isPending}
+        nameWarning={nameWarning}
       />
 
       {sheet}

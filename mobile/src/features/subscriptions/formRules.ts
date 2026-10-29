@@ -243,3 +243,25 @@ export function visibleErrors(
   }
   return shown;
 }
+
+// "Netflix", " netflix " and "NETFLIX" are the same name.
+function sameName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+/**
+ * 07 §8: the same service twice is allowed, with a soft warning. Null when the
+ * name is new. `ownId` is the one being edited, which never counts.
+ */
+export function duplicateNameWarning(
+  name: string,
+  others: readonly { id: string; name: string }[],
+  ownId?: string,
+): string | null {
+  const wanted = sameName(name);
+  const match = others.find((s) => s.id !== ownId && sameName(s.name) === wanted);
+  if (!match) return null;
+  // "a Netflix", "an iCloud+".
+  const article = /^[aeiou]/i.test(match.name.trim()) ? 'an' : 'a';
+  return `You already track ${article} ${match.name.trim()}.`;
+}
