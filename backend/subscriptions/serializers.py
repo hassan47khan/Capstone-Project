@@ -186,7 +186,14 @@ class HistoryValueSerializer(serializers.Serializer):
 class HistoryEventSerializer(serializers.Serializer):
     id = serializers.CharField()
     event_type = serializers.ChoiceField(
-        choices=["created", "price_change", "category_change", "cycle_change", "cancelled"]
+        choices=[
+            "created",
+            "price_change",
+            "currency_change",
+            "category_change",
+            "cycle_change",
+            "cancelled",
+        ]
     )
     occurred_at = serializers.DateTimeField()
     old_value = HistoryValueSerializer(allow_null=True)

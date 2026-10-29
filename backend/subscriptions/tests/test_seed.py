@@ -105,7 +105,7 @@ def test_netflix_history_and_total_spent(demo):
     assert events[1].new_value == {"category": "entertainment"}
     assert events[2].old_value == {"price": "13.99", "currency": "USD"}
     assert events[2].new_value == {"price": "15.49", "currency": "USD"}
-    assert operations.total_spent_to_date(netflix, today=SEED_TODAY) == D("433.69")
+    assert operations.total_spent_to_date(netflix, today=SEED_TODAY) == {"USD": D("433.69")}
 
 
 def test_every_start_date_shares_its_day_with_the_next_bill(demo):
@@ -216,7 +216,7 @@ def test_every_date_derives_from_the_anchor(db, anchor):
     assert price_change.occurred_at.date() == anchor
     assert netflix.next_bill_date.day == 12
     assert anchor <= netflix.next_bill_date < anchor + timedelta(days=32)
-    assert operations.total_spent_to_date(netflix, today=anchor) == 31 * D("13.99")
+    assert operations.total_spent_to_date(netflix, today=anchor) == {"USD": 31 * D("13.99")}
     for sub in Subscription.objects.all():
         assert sub.next_bill_date >= anchor
         assert sub.start_date.day == sub.next_bill_date.day
