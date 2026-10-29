@@ -127,9 +127,11 @@ nobody "fixes" them back.
 - **MSW v3 renamed `onUnhandledRequest` to `onUnhandledFrame`.** The old name is
   ignored silently, so a copied v2 snippet quietly stops failing on unmocked
   requests.
-- **Expo SDK 57 has no standalone `babel-preset-expo`** — it is
-  `expo/internal/babel-preset`. And no top-level `splash` key; splash is a config
-  plugin.
+- **Since Expo SDK 57 the Babel preset ships inside `expo`** — reference it as
+  `expo/internal/babel-preset`, not `babel-preset-expo`. And no top-level
+  `splash` key; splash is a config plugin.
+- **React Native 0.88 (SDK 58) dropped `StyleSheet.NamedStyles` from its
+  types.** `makeStyles` defines its own; don't reach for the old one.
 
 ## Definition of done
 

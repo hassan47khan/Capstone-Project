@@ -32,7 +32,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['subtrak://'],
 
   async getInitialURL() {
-    return routeIncomingUrl(await Linking.getInitialURL());
+    return routeIncomingUrl((await Linking.getInitialURL()) ?? null);
   },
 
   subscribe(listener) {

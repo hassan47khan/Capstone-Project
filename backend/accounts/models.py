@@ -1,7 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
-from django_mongodb_backend.fields import ArrayField
 
 from .services.timezones import DEFAULT_SEND_TIME
 
@@ -165,18 +164,25 @@ class RevokedRefreshToken(models.Model):
 
 
 class LoginFailures(models.Model):
-    """Recent failed logins for one email, and the lockout they caused: five
-    inside 10 minutes lock it for 15 (spec section 6).
+    """Failed logins for one email, and the lockout they caused: five inside
+    the 10 minutes after the first lock it for 15 (spec section 6).
 
     Keyed by the SHA-256 of the normalized email, whether or not an account
     has it, so an unknown email locks exactly like a known one and the 423
     reveals nothing. The digest also keeps typed-in emails out of the database.
+
+    `count` only ever changes by single atomic updates (accounts.auth), so
+    parallel failures all count. A TTL index on `expires_at` (migration 0005)
+    lets MongoDB delete a row once it no longer matters.
     """
 
     email_digest = models.CharField(max_length=64, unique=True)
-    # The last five failures, newest last.
-    failed_at = ArrayField(models.DateTimeField(), default=list, blank=True)
+    count = models.PositiveSmallIntegerField(default=0)
+    # Failures count toward a lock until then; the first one after starts over.
+    window_ends = models.DateTimeField()
     locked_until = models.DateTimeField(null=True, blank=True)
+    # The later of window_ends and locked_until.
+    expires_at = models.DateTimeField()
 
     class Meta:
         db_table = "login_failures"

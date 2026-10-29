@@ -20,12 +20,24 @@
  *   the scheme's `colors` object, which ThemeProvider shares across all
  *   consumers. Flipping light/dark builds the other sheet once and keeps both.
  */
-import { StyleSheet } from 'react-native';
+import {
+  StyleSheet,
+  type ImageStyle,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 
 import { useTheme, type SchemeTheme } from './ThemeProvider';
 import type { ColorTokens } from './tokens';
 
-export function makeStyles<T extends StyleSheet.NamedStyles<T>>(
+/**
+ * React Native 0.88's types no longer export `StyleSheet.NamedStyles`. This is its
+ * old definition. It must stay a mapped type over `T` so each style literal keeps
+ * its narrow types (`flexDirection: 'row'`, not `string`).
+ */
+type NamedStyles<T> = { [P in keyof T]: ViewStyle | TextStyle | ImageStyle };
+
+export function makeStyles<T extends NamedStyles<T>>(
   factory: (theme: SchemeTheme) => T,
 ): () => T {
   const cache = new WeakMap<ColorTokens, T>();
