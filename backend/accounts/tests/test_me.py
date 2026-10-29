@@ -29,12 +29,12 @@ def client_with(token):
 
 @pytest.mark.django_db
 def test_me_rejects_missing_token():
-    assert APIClient().get("/api/v1/me/").status_code == 401
+    assert APIClient().get("/api/v1/me").status_code == 401
 
 
 @pytest.mark.django_db
 def test_me_rejects_malformed_token():
-    assert client_with("not.a.jwt").get("/api/v1/me/").status_code == 401
+    assert client_with("not.a.jwt").get("/api/v1/me").status_code == 401
 
 
 @pytest.mark.django_db
@@ -42,7 +42,7 @@ def test_me_rejects_expired_token(user):
     token = versioned(user)
     token.set_exp(lifetime=-timedelta(seconds=1))
 
-    assert client_with(token).get("/api/v1/me/").status_code == 401
+    assert client_with(token).get("/api/v1/me").status_code == 401
 
 
 @pytest.mark.django_db
@@ -50,12 +50,12 @@ def test_me_rejects_token_for_deleted_user(user):
     token = versioned(user)
     user.delete()
 
-    assert client_with(token).get("/api/v1/me/").status_code == 401
+    assert client_with(token).get("/api/v1/me").status_code == 401
 
 
 @pytest.mark.django_db
 def test_me_returns_profile_for_valid_token(user):
-    response = client_with(versioned(user)).get("/api/v1/me/")
+    response = client_with(versioned(user)).get("/api/v1/me")
 
     assert response.status_code == 200
     # Exactly the UserProfile shape the mobile client expects, and nothing
@@ -74,18 +74,18 @@ def test_me_reports_verified_email(user):
     user.email_verified_at = timezone.now()
     user.save()
 
-    response = client_with(versioned(user)).get("/api/v1/me/")
+    response = client_with(versioned(user)).get("/api/v1/me")
 
     assert response.json()["email_verified"] is True
 
 
 @pytest.mark.django_db
-def test_me_without_trailing_slash_is_served_not_redirected(user):
-    # The mobile client requests `/me`; a 301 would drop PATCH bodies later.
-    response = client_with(versioned(user)).get("/api/v1/me")
+def test_me_has_no_trailing_slash(user):
+    # Contract paths have none; `/me/` is not a second spelling of it.
+    client = client_with(versioned(user))
 
-    assert response.status_code == 200
-    assert response.json()["email"] == "sam@example.com"
+    assert client.get("/api/v1/me").json()["email"] == "sam@example.com"
+    assert client.get("/api/v1/me/").status_code == 404
 
 
 @pytest.mark.django_db
@@ -95,14 +95,14 @@ def test_user_email_is_unique_regardless_of_case(user):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("path", ["/api/v1/me", "/api/v1/me/"])
-def test_patch_me_records_first_run_and_the_name(user, contract, path):
+def test_patch_me_records_first_run_and_the_name(user, contract):
     client = client_with(versioned(user))
+    path = "/api/v1/me"
 
     response = client.patch(path, {"has_completed_first_run": True}, format="json")
     renamed = client.patch(path, {"name": "Sam Lee"}, format="json")
 
-    assert contract(response, "/me/")["has_completed_first_run"] is True
+    assert contract(response, "/me")["has_completed_first_run"] is True
     assert renamed.json()["name"] == "Sam Lee"
     assert renamed.json()["has_completed_first_run"] is True
     assert client.get("/api/v1/auth/me").json()["has_completed_first_run"] is True
@@ -114,7 +114,7 @@ def test_patch_me_keeps_a_cleared_name_apart_from_null(user, contract):
 
     cleared = client.patch("/api/v1/me", {"name": ""}, format="json")
 
-    assert contract(cleared, "/me/")["name"] == ""
+    assert contract(cleared, "/me")["name"] == ""
     assert User.objects.get(pk=user.pk).name == ""
     unset = client.patch("/api/v1/me", {"name": None}, format="json")
     assert unset.json()["name"] is None
@@ -123,10 +123,10 @@ def test_patch_me_keeps_a_cleared_name_apart_from_null(user, contract):
 
 @pytest.mark.django_db
 def test_patch_me_validates(user, contract):
-    response = client_with(versioned(user)).patch("/api/v1/me/", {"name": "x" * 151}, format="json")
+    response = client_with(versioned(user)).patch("/api/v1/me", {"name": "x" * 151}, format="json")
 
     assert response.status_code == 400
-    assert "name" in contract(response, "/me/")["error"]["fields"]
+    assert "name" in contract(response, "/me")["error"]["fields"]
 
 
 @pytest.mark.django_db

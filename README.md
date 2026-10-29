@@ -44,7 +44,7 @@ Sprint 0. Both halves of the stack are scaffolded and proven; no user story is f
 │   ├── pyproject.toml  # ruff, pytest and coverage configuration
 │   ├── requirements.txt / requirements-dev.txt
 │   └── .env.example  # Template for local backend environment variables
-├── mobile/           # React Native (Expo SDK 57) client
+├── mobile/           # React Native (Expo SDK 58) client
 │   └── src/          # api/ components/ features/ navigation/ session/ theme/ test/
 ├── docs/design/      # System design specification, design notes, retired prototype PDF
 ├── docs/handoff/     # Developer handoff specs 00–12, one per task area
@@ -194,7 +194,7 @@ lives in `backend/schema.yml` and is also served at runtime.
 | Endpoint | Auth | Description |
 |----------|------|-------------|
 | `GET /api/v1/health/`     | public | Liveness. Reports MongoDB; 503 when it is unreachable |
-| `GET /api/v1/me/`         | JWT    | The signed-in user's profile |
+| `GET`/`PATCH /api/v1/me`  | JWT    | The signed-in user's profile |
 | `GET /api/v1/schema/`     | public | OpenAPI 3.0 document for this server |
 | `/admin/`                 | staff  | Django admin |
 | `/`                       | public | Placeholder landing page |

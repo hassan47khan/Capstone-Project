@@ -20,6 +20,7 @@ from django.contrib.auth.hashers import make_password
 from django.core.cache import cache
 from django.core.mail import send_mail
 from django.db import IntegrityError
+from django.db.models import F
 from django.utils import timezone
 from django_mongodb_backend import transaction
 
@@ -190,14 +191,30 @@ def _locked(failures: LoginFailures, now: datetime) -> ApiError:
 
 
 def _record_failure(email: str, now: datetime) -> ApiError:
-    """Count a failed login for `email`, account or not, and return the 401."""
-    failures = LoginFailures.objects.get_or_create(email_digest=_digest(email))[0]
-    recent = [at for at in failures.failed_at if now - at < LOCKOUT_WINDOW]
-    failures.failed_at = [*recent, now][-LOCKOUT_FAILURES:]
-    if len(failures.failed_at) >= LOCKOUT_FAILURES:
-        failures.locked_until = now + LOCKOUT_DURATION
-        failures.failed_at = []
-    failures.save(update_fields=["failed_at", "locked_until"])
+    """Count a failed login for `email`, account or not, and return the 401.
+
+    Every step is one conditional update, so parallel failures all count and
+    only one of them sets the lock. A failure that raced past the lock check
+    while another request was locking leaves the lock alone: the window and
+    the lock are only rewritten once no lock is live, so `expires_at` never
+    falls before `locked_until` and the TTL cannot end a lock early.
+    """
+    rows = LoginFailures.objects.filter(email_digest=_digest(email))
+    unlocked = rows.exclude(locked_until__gt=now)
+    window = {"window_ends": now + LOCKOUT_WINDOW, "expires_at": now + LOCKOUT_WINDOW}
+    if not rows.exists():
+        try:
+            LoginFailures.objects.create(email_digest=_digest(email), **window)
+        except IntegrityError:
+            pass  # A parallel failure created it first; count against that row.
+    unlocked.filter(window_ends__lte=now).update(count=0, **window)
+    rows.update(count=F("count") + 1)
+    unlocked.filter(count__gte=LOCKOUT_FAILURES).update(
+        count=0,
+        window_ends=now,
+        locked_until=now + LOCKOUT_DURATION,
+        expires_at=now + LOCKOUT_DURATION,
+    )
     return ApiError(401, "invalid_credentials", INVALID_CREDENTIALS)
 
 

@@ -159,4 +159,17 @@ module.exports = {
   ],
 
   clearMocks: true,
+
+  /**
+   * Raises the per-test timeout from Jest's default 5s to 20s.
+   *
+   * The first test in a worker to touch one of React Native's lazily loaded
+   * modules (`Animated` is the big one) pays to transform and load it, and on a
+   * cold cache that counts against the test's own timeout. CI is always cold. On
+   * SDK 58 the SettingsRow toggle test took 6.2s alone and 7.3s in a full run
+   * (3 workers, coverage on) and failed at 5s, against 3.2s on SDK 57; the same
+   * test takes 18ms once warm. 20s leaves headroom for slower runners and still
+   * fails a test that really hangs. Measured 2026-10-27.
+   */
+  testTimeout: 20_000,
 };
