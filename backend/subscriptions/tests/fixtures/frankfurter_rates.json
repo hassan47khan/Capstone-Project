@@ -1,0 +1,92 @@
+[
+  {
+    "date": "2026-10-28",
+    "base": "USD",
+    "quote": "ANG",
+    "rate": 1.79
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "AUD",
+    "rate": 1.4219
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "BRL",
+    "rate": 5.3517
+  },
+  {
+    "date": "2026-10-28",
+    "base": "USD",
+    "quote": "BTC",
+    "rate": 1.2436e-05
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "CAD",
+    "rate": 1.4013
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "CHF",
+    "rate": 0.82897
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "CNY",
+    "rate": 6.6637
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "EUR",
+    "rate": 0.89619
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "GBP",
+    "rate": 0.75097
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "INR",
+    "rate": 95.22
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "JPY",
+    "rate": 158.0
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "MXN",
+    "rate": 18.6913
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "USD",
+    "rate": 1.0
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "XAU",
+    "rate": 0.00024734
+  },
+  {
+    "date": "2026-10-29",
+    "base": "USD",
+    "quote": "XDR",
+    "rate": 0.73913
+  }
+]
