@@ -9,9 +9,11 @@ import { Button, PixelRatio, Text } from 'react-native';
 
 import { SessionProvider } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
+import { subscriptionWriteInvalidations } from '@/api/queryKeys';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
+import { subscriptionListFor } from '@/test/subscriptionFixtures';
 
 import { ADD_COPY, AddSubscriptionScreen } from './AddSubscriptionScreen';
 import { SUCCESS_COPY } from './AddSuccess';
@@ -40,7 +42,7 @@ function Home({ navigation }: { navigation: { navigate: (name: string) => void }
   );
 }
 
-async function renderAdd() {
+async function renderAdd(queryClient = createTestQueryClient()) {
   await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
   await renderWithProviders(
     <SessionProvider>
@@ -52,7 +54,7 @@ async function renderAdd() {
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
-    { queryClient: createTestQueryClient(), reduceMotion: true },
+    { queryClient, reduceMotion: true },
   );
   await fireEvent.press(screen.getByText('Open add'));
   await screen.findByTestId('add-screen');
@@ -582,5 +584,124 @@ describe('second review fixes', () => {
       'To save, check: category and start date.',
     );
     expect(screen.getByTestId('add-save')).toBeDisabled();
+  });
+});
+
+// What the server answers a retried Idempotency-Key (#141; same messages as the
+// real server on 2026-10-28). The mock keeps keys like the server does.
+describe('Idempotency-Key answers (#141)', () => {
+  // Put fetch back even when a test fails part-way, so it can't leak.
+  afterEach(() => jest.restoreAllMocks());
+
+  // Subscriptions this test added to Alex's account.
+  const added = () =>
+    subscriptionListFor(MOCK_EMAILS.full, {}).results.filter((s) =>
+      s.id.startsWith('sub_new_'),
+    );
+
+  // The first save reaches the server and is saved, but the app's timer gives up.
+  const landThenTimeOut = () => {
+    const realFetch = global.fetch;
+    let done = false;
+    return jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      if (!done && init?.method === 'POST' && String(input).endsWith('/subscriptions')) {
+        done = true;
+        await realFetch(input, init);
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+      }
+      return realFetch(input, init);
+    });
+  };
+
+  // The Idempotency-Key of every create the mock server sees.
+  const recordKeys = () => {
+    const keys: (string | null)[] = [];
+    server.use(
+      http.post('*/subscriptions', ({ request }) => {
+        keys.push(request.headers.get('idempotency-key'));
+        return undefined;
+      }),
+    );
+    return keys;
+  };
+
+  it('a timed-out save that landed, then edited: says it is already added, and the next Save is new', async () => {
+    landThenTimeOut();
+    const keys = recordKeys();
+    const queryClient = createTestQueryClient();
+    const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
+    await renderAdd(queryClient);
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByTestId('add-form-error')).toHaveTextContent(
+      ADD_COPY.timeout,
+    );
+    expect(invalidate).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByTestId('form-notes'), 'Family plan');
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('add-form-error')).toHaveTextContent(
+        ADD_COPY.alreadySaved,
+      ),
+    );
+    expect(added()).toHaveLength(1);
+    // It was added, so lists and totals refresh to show it.
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: subscriptionWriteInvalidations[0],
+    });
+
+    // Saving again is a deliberate second one, with a fresh key.
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
+    expect(added()).toHaveLength(2);
+    expect(keys).toHaveLength(3);
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).not.toBe(keys[0]);
+  });
+
+  it('a timed-out save that landed, retried as it was: shows it as added, with no duplicate', async () => {
+    landThenTimeOut();
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    await screen.findByTestId('add-form-error');
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
+    expect(added()).toHaveLength(1);
+  });
+
+  it('an earlier save still going through: says to wait, and keeps the key', async () => {
+    const keys: (string | null)[] = [];
+    server.use(
+      http.post('*/subscriptions', ({ request }) => {
+        keys.push(request.headers.get('idempotency-key'));
+        if (keys.length > 1) return undefined;
+        return HttpResponse.json(
+          {
+            error: {
+              code: 'idempotency_key_in_use',
+              message:
+                'A save with this Idempotency-Key is still going through. Try again in a moment.',
+            },
+          },
+          { status: 409 },
+        );
+      }),
+    );
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByTestId('add-form-error')).toHaveTextContent(
+      ADD_COPY.stillSaving,
+    );
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
+    expect(keys[1]).toBe(keys[0]);
   });
 });

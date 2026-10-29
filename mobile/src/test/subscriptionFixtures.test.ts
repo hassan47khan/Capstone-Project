@@ -5,6 +5,7 @@ import { MOCK_EMAILS } from './fixtures';
 import {
   cancelMockSubscription,
   createMockSubscription,
+  createMockSubscriptionWithKey,
   deleteMockSubscription,
   nextBillDateFor,
   resetCreatedSubscriptions,
@@ -353,5 +354,90 @@ describe('cancelling (POST /cancel), like operations.cancel_subscription', () =>
   it('a plan with no known annual figure gets null, not a made-up one', () => {
     const added = createMockSubscription(ALEX, figma).detail!;
     expect(cancelMockSubscription(ALEX, added.id)!.detail!.saved_per_year).toBeNull();
+  });
+});
+
+// Same rules as the real server's (#141, backend/subscriptions/tests/test_idempotency.py).
+describe('Idempotency-Key on create', () => {
+  const FIGMA = {
+    name: 'Figma',
+    billing_price: '15.00',
+    billing_currency: 'USD',
+    billing_cycle: 'monthly',
+    custom_cycle_count: null,
+    custom_cycle_unit: null,
+    start_date: '2026-09-20',
+    category: 'productivity',
+    notes: '',
+    payment_label: '',
+  };
+  const figmas = (email: string = ALEX) =>
+    subscriptionListFor(email, {}).results.filter((s) => s.name === 'Figma');
+
+  it('a retry with the same key and body gets the same subscription', () => {
+    const first = createMockSubscriptionWithKey(ALEX, FIGMA, 'k-1');
+    const retry = createMockSubscriptionWithKey(ALEX, FIGMA, 'k-1');
+
+    expect(retry.detail?.id).toBe(first.detail?.id);
+    expect(figmas()).toHaveLength(1);
+  });
+
+  it('the same body in another key order is still a repeat', () => {
+    createMockSubscriptionWithKey(ALEX, FIGMA, 'k-1');
+    const reversed = Object.fromEntries(Object.entries(FIGMA).reverse());
+
+    expect(createMockSubscriptionWithKey(ALEX, reversed, 'k-1').error).toBeUndefined();
+    expect(figmas()).toHaveLength(1);
+  });
+
+  it('a reused key with a different body is a 409, with the server message', () => {
+    createMockSubscriptionWithKey(ALEX, FIGMA, 'k-1');
+
+    const result = createMockSubscriptionWithKey(
+      ALEX,
+      { ...FIGMA, notes: 'Team' },
+      'k-1',
+    );
+
+    expect(result.error).toEqual({
+      code: 'idempotency_key_reused',
+      message: 'This Idempotency-Key was already used for a different subscription.',
+      status: 409,
+    });
+    expect(figmas()).toHaveLength(1);
+  });
+
+  it('keys are per account', () => {
+    createMockSubscriptionWithKey(ALEX, FIGMA, 'k-1');
+
+    expect(
+      createMockSubscriptionWithKey(MOCK_EMAILS.empty, FIGMA, 'k-1').detail,
+    ).toBeDefined();
+    expect(figmas()).toHaveLength(1);
+    expect(figmas(MOCK_EMAILS.empty)).toHaveLength(1);
+  });
+
+  it('a create that failed validation does not use up the key', () => {
+    const failed = createMockSubscriptionWithKey(ALEX, { ...FIGMA, name: ' ' }, 'k-1');
+    expect(failed.error?.code).toBe('validation_error');
+
+    expect(createMockSubscriptionWithKey(ALEX, FIGMA, 'k-1').detail).toBeDefined();
+  });
+
+  it.each(['', '   ', 'k'.repeat(256)])('an unusable key %j is a 400', (key) => {
+    const message = 'Send an Idempotency-Key of 1 to 255 characters, or none.';
+    expect(createMockSubscriptionWithKey(ALEX, FIGMA, key).error).toEqual({
+      code: 'validation_error',
+      message,
+      fields: { 'Idempotency-Key': [message] },
+    });
+    expect(figmas()).toHaveLength(0);
+  });
+
+  it('without a key every create creates', () => {
+    createMockSubscriptionWithKey(ALEX, FIGMA, undefined);
+    createMockSubscriptionWithKey(ALEX, FIGMA, undefined);
+
+    expect(figmas()).toHaveLength(2);
   });
 });
