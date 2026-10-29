@@ -6,8 +6,8 @@
  * (success): these are log entries, not alerts, and red is never used.
  *
  * Prices use the currency the event recorded, else the current billing
- * currency (currencyOf, the same rule as the price chart). The server doesn't
- * record a currency on price changes yet, so that fallback is a best guess.
+ * currency (currencyOf, the same rule as the price chart). Only price changes
+ * from before the server recorded currency need that fallback.
  */
 import {
   formatCycleSuffix,
@@ -100,6 +100,8 @@ export function describeEvent(event: HistoryEvent, currency: string): HistoryLin
 
   switch (event.event_type) {
     case 'price_change':
+    // Same badge and sentence: "Price changed from $10.99 to €9.99".
+    case 'currency_change':
       return {
         ...base,
         badge: { label: 'Price update', tone: 'warning' },

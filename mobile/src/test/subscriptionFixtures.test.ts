@@ -89,8 +89,8 @@ describe('editing (PATCH) on every id the app can reach', () => {
     updateMockSubscription(ALEX, 'sub-netflix', { billing_price: '17.99' });
     const [latest, earlier] = subscriptionDetailFor(ALEX, 'sub-netflix')!.history;
 
-    expect(latest!.new_value).toEqual({ price: '17.99' });
-    expect(earlier!.new_value).toEqual({ price: '16.99' });
+    expect(latest!.new_value).toEqual({ price: '17.99', currency: 'USD' });
+    expect(earlier!.new_value).toEqual({ price: '16.99', currency: 'USD' });
     expect(Date.parse(latest!.occurred_at)).toBeGreaterThan(
       Date.parse(earlier!.occurred_at),
     );
@@ -191,6 +191,34 @@ describe('editing (PATCH)', () => {
     payment_label: 'Visa ••4242',
   };
 
+  // Same events the real server wrote for these edits (checked 2026-10-28).
+  it.each([
+    ['only the currency', { billing_currency: 'EUR' }, '15.49'],
+    [
+      'the currency and the price',
+      { billing_currency: 'EUR', billing_price: '13.99' },
+      '13.99',
+    ],
+  ])(
+    'a switch of %s writes one currency_change and no price_change',
+    (_, change, price) => {
+      const result = updateMockSubscription(ALEX, 'sub-netflix', {
+        ...netflixInput,
+        ...change,
+      });
+
+      const history = result!.detail!.history;
+      // Everything this edit wrote shares its instant: just the one event.
+      const written = history.filter((e) => e.occurred_at === history[0]!.occurred_at);
+      expect(written).toHaveLength(1);
+      expect(written[0]).toMatchObject({
+        event_type: 'currency_change',
+        old_value: { price: '15.49', currency: 'USD' },
+        new_value: { price, currency: 'EUR' },
+      });
+    },
+  );
+
   it('a price change writes one price_change event, newest first', () => {
     const result = updateMockSubscription(ALEX, 'sub-netflix', {
       ...netflixInput,
@@ -201,8 +229,8 @@ describe('editing (PATCH)', () => {
     const [latest, ...rest] = result!.detail!.history;
     expect(latest).toMatchObject({
       event_type: 'price_change',
-      old_value: { price: '15.49' },
-      new_value: { price: '16.99' },
+      old_value: { price: '15.49', currency: 'USD' },
+      new_value: { price: '16.99', currency: 'USD' },
     });
     expect(rest.map((e) => e.event_type)).toEqual([
       'price_change',

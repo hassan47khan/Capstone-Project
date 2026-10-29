@@ -215,6 +215,20 @@ describe('review fixes', () => {
     expect(line.text).toBe('Price changed from $13.99 to €14.99');
   });
 
+  it('a currency switch reads as a price update, in both currencies (#142)', () => {
+    // The real server's shape: one currency_change, even when the price changed too.
+    const line = describeEvent(
+      event({
+        event_type: 'currency_change',
+        old_value: { price: '10.99', currency: 'USD' },
+        new_value: { price: '9.99', currency: 'EUR' },
+      }),
+      'EUR',
+    );
+    expect(line.badge).toEqual({ label: 'Price update', tone: 'warning' });
+    expect(line.text).toBe('Price changed from $10.99 to €9.99');
+  });
+
   it('the created line keeps its recorded currency after a switch (real seed shape)', () => {
     const created = netflixDetail.history.find((e) => e.event_type === 'created')!;
     expect(describeEvent(created, 'EUR').text).toBe(

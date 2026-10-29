@@ -455,8 +455,14 @@ export function updateMockSubscription(
       new_value,
     });
 
-  if (price !== current.billing_price) {
-    event('price_change', { price: current.billing_price }, { price });
+  // Like operations.update_subscription: a currency switch is one
+  // currency_change from the old price and currency to the new ones, even if
+  // the price changed too; otherwise a new price is a price_change.
+  const before = { price: current.billing_price, currency: current.billing_currency };
+  if (currency !== current.billing_currency) {
+    event('currency_change', before, { price, currency });
+  } else if (price !== current.billing_price) {
+    event('price_change', before, { price, currency });
   }
   if (slug !== (current.category?.slug ?? null)) {
     event(
