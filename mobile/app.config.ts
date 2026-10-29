@@ -60,6 +60,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-secure-store',
     'expo-font',
+    // SDK 58 asks for both packages' config plugins to be declared.
+    '@react-native-community/datetimepicker',
+    'expo-status-bar',
     // Biometric unlock on Log In (handoff 05 §5). iOS shows this string the
     // first time the app asks for Face ID.
     [

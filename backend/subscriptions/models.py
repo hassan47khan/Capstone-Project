@@ -212,7 +212,9 @@ class Subscription(models.Model):
 class PriceHistoryEvent(models.Model):
     """Append-only history; drives the price chart, Edit History and price alerts.
 
-    Values are JSON with money as decimal strings, e.g. {"price": "13.99"}.
+    Values are JSON with money as decimal strings, e.g. {"price": "13.99",
+    "currency": "USD"}. price_change events written before currency was
+    recorded have only "price"; they never switched currency.
     Kept when a subscription is soft-deleted; removed only by a purge.
     """
 

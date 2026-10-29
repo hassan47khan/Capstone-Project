@@ -347,6 +347,20 @@ def test_a_new_user_starts_from_nothing(db, contract):
     assert client.get("/api/v1/analytics/upcoming").json()["items"] == []
 
 
+def test_a_currency_switch_is_not_a_price_change_alert(api, alex):
+    spotify = Subscription.objects.get(owner=alex, name="Spotify")
+    operations.update_subscription(
+        spotify,
+        today=date(2026, 10, 1),
+        at=operations.at_start_of(date(2026, 10, 1)),
+        billing_currency="EUR",
+    )
+
+    body = api.get("/api/v1/analytics/price-changes").json()
+
+    assert [item["name"] for item in body["items"]] == ["Netflix"]
+
+
 def test_a_deleted_subscriptions_price_change_is_not_an_alert(api, alex):
     operations.soft_delete(Subscription.objects.get(owner=alex, name="Netflix"))
 

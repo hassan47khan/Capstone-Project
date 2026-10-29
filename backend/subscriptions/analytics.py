@@ -309,6 +309,10 @@ def price_changes(
     items = []
     for event in events:
         sub = subs[event.subscription_id]
+        # Events written before currency was recorded never switched one.
+        currency = event.old_value.get("currency", sub.billing_currency)
+        if event.new_value.get("currency", currency) != currency:
+            continue  # A currency switch is not a rise or a fall in one currency.
         on = _event_day(event)
         old, new = Decimal(event.old_value["price"]), Decimal(event.new_value["price"])
         cycle = _cycle_on(sub, histories[sub.pk], on)
@@ -321,10 +325,10 @@ def price_changes(
                 "service_mark": ctx.marks.get(sub.name),
                 "effective_on": on,
                 "is_upcoming": on > today,
-                "old_price": money(old, sub.billing_currency),
-                "new_price": money(new, sub.billing_currency),
-                "monthly_change": ctx.display(monthly, sub.billing_currency),
-                "annual_change": ctx.display(engine.annual(monthly), sub.billing_currency),
+                "old_price": money(old, currency),
+                "new_price": money(new, currency),
+                "monthly_change": ctx.display(monthly, currency),
+                "annual_change": ctx.display(engine.annual(monthly), currency),
                 "direction": "up" if new > old else "down",
                 "days_left": None,
                 **presenters.cycle_fields(cycle),
