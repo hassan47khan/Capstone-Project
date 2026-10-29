@@ -64,18 +64,21 @@ export const mockProfiles: Record<string, UserProfile> = {
     email: MOCK_EMAILS.full,
     name: 'Alex Kim',
     email_verified: true,
+    has_completed_first_run: true,
   },
   sam: {
     id: 'usr_sam',
     email: MOCK_EMAILS.empty,
     name: 'Sam Rivera',
     email_verified: true,
+    has_completed_first_run: true,
   },
   rosa: {
     id: 'usr_rosa',
     email: MOCK_EMAILS.missingRate,
     name: 'Rosa Delgado',
     email_verified: true,
+    has_completed_first_run: true,
   },
 };
 
