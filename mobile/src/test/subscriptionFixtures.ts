@@ -666,3 +666,24 @@ export function createMockSubscriptionWithKey(
   if (result.detail) idempotencyKeys[slot] = { digest, id: result.detail.id };
   return result;
 }
+
+/**
+ * POST /subscriptions/:id/restore for the mock API, like operations.restore:
+ * a deleted subscription comes back as it was (its status and history are
+ * untouched by the delete); one that isn't deleted comes back unchanged. Null
+ * when it isn't this account's.
+ */
+export function restoreMockSubscription(
+  email: string,
+  id: string,
+): SubscriptionDetail | null {
+  const own = [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])];
+  const found = own.find((s) => s.id === id);
+  if (!found) return null;
+  if (deleted.has(id)) {
+    deleted.delete(id);
+    // The server saves the row again, so updated_at moves on.
+    edited[id] = { ...(edited[id] ?? found), updated_at: nextInstant() };
+  }
+  return subscriptionDetailFor(email, id);
+}

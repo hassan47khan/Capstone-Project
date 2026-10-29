@@ -46,14 +46,15 @@ function cycleName(value: HistoryValue | null): string {
   });
 }
 
-// "/mo", "/yr", "/2mo" for a cycle (quarterly is every 3 months).
+// "/mo", "/yr", "/2mo" for a cycle (quarterly is every 3 months). Also the
+// Delete sheet's "Netflix ($15.49/mo)".
 const SUFFIX_UNIT: Record<CustomCycleUnit, string> = {
   days: 'day',
   weeks: 'week',
   months: 'month',
   years: 'year',
 };
-function cycleSuffix(value: HistoryValue | null): string {
+export function cycleSuffix(value: HistoryValue | null): string {
   const cycle: BillingCycle = value?.billing_cycle ?? 'monthly';
   if (cycle === 'weekly') return formatCycleSuffix('week', 1);
   if (cycle === 'quarterly') return formatCycleSuffix('month', 3);

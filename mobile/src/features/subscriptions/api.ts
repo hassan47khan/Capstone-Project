@@ -146,6 +146,20 @@ export function cancelSubscription(id: string): Promise<SubscriptionDetail> {
   });
 }
 
+// Soft-deletes it (07 §7): it leaves every list and total, its history is
+// kept. 204 with no body; a 404 means it's already gone or not yours.
+export function deleteSubscription(id: string): Promise<void> {
+  return request<void>(`/subscriptions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// Undoes a delete (the Undo toast): it comes back with the status it had,
+// active or cancelled. Restoring one that isn't deleted changes nothing.
+export function restoreSubscription(id: string): Promise<SubscriptionDetail> {
+  return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}/restore`, {
+    method: 'POST',
+  });
+}
+
 // Loads one subscription. A 404 means "not found or not yours".
 export function getSubscription(id: string): Promise<SubscriptionDetail> {
   return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}`);

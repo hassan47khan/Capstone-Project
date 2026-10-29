@@ -9,6 +9,7 @@ import {
   deleteMockSubscription,
   nextBillDateFor,
   resetCreatedSubscriptions,
+  restoreMockSubscription,
   subscriptionDetailFor,
   subscriptionListFor,
   updateMockSubscription,
@@ -439,5 +440,51 @@ describe('Idempotency-Key on create', () => {
     createMockSubscriptionWithKey(ALEX, FIGMA, undefined);
 
     expect(figmas()).toHaveLength(2);
+  });
+});
+
+// What the real server answered on 2026-10-28 (scratch database): restore puts
+// back the status from before the delete, adds no history, and 404s ids that
+// aren't the caller's.
+describe('restoring (POST /restore), like operations.restore', () => {
+  it('a deleted one comes back exactly as it was, with no new history', () => {
+    const before = subscriptionDetailFor(ALEX, 'sub-netflix')!;
+    deleteMockSubscription(ALEX, 'sub-netflix');
+    expect(subscriptionDetailFor(ALEX, 'sub-netflix')).toBeNull();
+
+    const restored = restoreMockSubscription(ALEX, 'sub-netflix')!;
+
+    const { updated_at: _a, ...rest } = restored;
+    const { updated_at: _b, ...was } = before;
+    expect(rest).toEqual(was);
+    expect(restored.updated_at).not.toBe(before.updated_at);
+    expect(subscriptionListFor(ALEX, {}).results.map((s) => s.id)).toContain(
+      'sub-netflix',
+    );
+  });
+
+  it('a cancelled one comes back cancelled', () => {
+    cancelMockSubscription(ALEX, 'sub-spotify');
+    deleteMockSubscription(ALEX, 'sub-spotify');
+
+    const restored = restoreMockSubscription(ALEX, 'sub-spotify')!;
+
+    expect(restored.status).toBe('cancelled');
+    expect(restored.next_bill_date).toBeNull();
+    expect(restored.saved_per_year).toEqual({ amount: '131.88', currency: 'USD' });
+  });
+
+  it('one that is not deleted comes back unchanged', () => {
+    const before = subscriptionDetailFor(ALEX, 'sub-netflix');
+
+    expect(restoreMockSubscription(ALEX, 'sub-netflix')).toEqual(before);
+  });
+
+  it("an unknown id, or another account's, is not found", () => {
+    deleteMockSubscription(ALEX, 'sub-netflix');
+
+    expect(restoreMockSubscription(ALEX, 'sub-nope')).toBeNull();
+    expect(restoreMockSubscription(MOCK_EMAILS.empty, 'sub-netflix')).toBeNull();
+    expect(subscriptionDetailFor(ALEX, 'sub-netflix')).toBeNull();
   });
 });

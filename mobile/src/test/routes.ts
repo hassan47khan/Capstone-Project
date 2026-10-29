@@ -31,6 +31,7 @@ import {
   createMockSubscriptionWithKey,
   deleteMockSubscription,
   resetCreatedSubscriptions,
+  restoreMockSubscription,
   subscriptionDetailFor,
   subscriptionListFor,
   updateMockSubscription,
@@ -515,6 +516,21 @@ export const routes: Route[] = [
       if (!result) return fail(404, 'not_found', 'This subscription could not be found.');
       if (result.error) return fail(409, result.error.code, result.error.message);
       return ok(result.detail);
+    }),
+  },
+
+  {
+    method: 'POST',
+    pattern: '/subscriptions/:id/restore',
+    // Undo for a delete; 404 for an id that isn't this account's (like the server).
+    handler: protectedRoute((request, account) => {
+      const restored = restoreMockSubscription(
+        account.profile.email,
+        request.params.id ?? '',
+      );
+      if (!restored)
+        return fail(404, 'not_found', 'This subscription could not be found.');
+      return ok(restored);
     }),
   },
 

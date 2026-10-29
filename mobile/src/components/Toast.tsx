@@ -17,6 +17,11 @@
  *   `useToast().show('Subscription saved')`. One toast at a time: a new one
  *   replaces the current one rather than stacking.
  *
+ * With an action
+ *   `show('Subscription deleted', 'neutral', { action: { label: 'Undo', onPress },
+ *   holdMs: 6000 })` adds a button and keeps the toast up longer (07 §7). Only a
+ *   toast with an action takes touches; pressing it hides the toast.
+ *
  * Accessibility
  *   The message is announced as it appears (`announceForAccessibility` plus a
  *   polite live region), because a screen-reader user cannot see it float in.
@@ -39,21 +44,37 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AccessibilityInfo, Animated, Text } from 'react-native';
+import { AccessibilityInfo, Animated, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { makeStyles, radius, sizes, spacing, useMotion, useTheme } from '@/theme';
 
+import { Button } from './Button';
+
 export type ToastTone = 'success' | 'neutral';
 
-interface ToastMessage {
+/** A button in the toast, e.g. Undo. */
+export interface ToastAction {
+  label: string;
+  onPress: () => void;
+  /** Spoken name when the label alone is unclear ("Undo delete"). */
+  accessibilityLabel?: string;
+}
+
+export interface ToastOptions {
+  action?: ToastAction;
+  /** How long it stays up, in ms. Default: the motion token (3s). */
+  holdMs?: number;
+}
+
+interface ToastMessage extends ToastOptions {
   id: number;
   message: string;
   tone: ToastTone;
 }
 
 interface ToastApi {
-  show: (message: string, tone?: ToastTone) => void;
+  show: (message: string, tone?: ToastTone, options?: ToastOptions) => void;
 }
 
 const ToastContext = createContext<ToastApi>({ show: () => {} });
@@ -67,10 +88,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<ToastMessage | null>(null);
   const counter = useRef(0);
 
-  const show = useCallback((message: string, tone: ToastTone = 'success') => {
-    counter.current += 1;
-    setCurrent({ id: counter.current, message, tone });
-  }, []);
+  const show = useCallback(
+    (message: string, tone: ToastTone = 'success', options: ToastOptions = {}) => {
+      counter.current += 1;
+      setCurrent({ id: counter.current, message, tone, ...options });
+    },
+    [],
+  );
 
   const api = useMemo(() => ({ show }), [show]);
 
@@ -82,14 +106,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           key={current.id}
           message={current.message}
           tone={current.tone}
-          onHidden={() => setCurrent(null)}
+          action={current.action}
+          holdMs={current.holdMs}
+          // Only clears its own toast, so a late hide can't remove a newer one.
+          onHidden={() =>
+            setCurrent((shown) => (shown?.id === current.id ? null : shown))
+          }
         />
       ) : null}
     </ToastContext.Provider>
   );
 }
 
-export interface ToastProps {
+export interface ToastProps extends ToastOptions {
   message: string;
   tone?: ToastTone;
   /** Called once the toast has finished hiding. */
@@ -100,6 +129,8 @@ export interface ToastProps {
 export function Toast({
   message,
   tone = 'success',
+  action,
+  holdMs,
   onHidden,
   testID = 'toast',
 }: ToastProps) {
@@ -108,9 +139,17 @@ export function Toast({
   const m = useMotion();
   const insets = useSafeAreaInsets();
   const progress = useState(() => new Animated.Value(0))[0];
+  // The latest onHidden, so a parent re-render doesn't restart the timer.
+  const hidden = useRef(onHidden);
+  useEffect(() => {
+    hidden.current = onHidden;
+  });
 
   useEffect(() => {
-    AccessibilityInfo.announceForAccessibility(message);
+    // Say there's a button, since it can't be seen floating in.
+    AccessibilityInfo.announceForAccessibility(
+      action ? `${message}. ${action.label} available.` : message,
+    );
     const enter = Animated.timing(progress, {
       toValue: 1,
       duration: m.toast,
@@ -124,20 +163,27 @@ export function Toast({
         duration: m.toast,
         easing: m.easeIn,
         useNativeDriver: true,
-      }).start(() => onHidden?.());
-    }, m.toastHold);
+      }).start(() => hidden.current?.());
+    }, holdMs ?? m.toastHold);
     return () => {
       clearTimeout(timer);
       enter.stop();
     };
-  }, [message, progress, m, onHidden]);
+  }, [message, progress, m, holdMs, action]);
+
+  // The action hides the toast at once; its job is done.
+  const press = () => {
+    hidden.current?.();
+    action?.onPress();
+  };
 
   const Icon = tone === 'success' ? CheckCircle2 : Info;
   const iconColor = tone === 'success' ? colors.success : colors.text;
 
   return (
     <Animated.View
-      pointerEvents="none"
+      // Touches pass through, unless there's a button to press.
+      pointerEvents={action ? 'box-none' : 'none'}
       style={[
         styles.toast,
         tone === 'success' ? styles.success : styles.neutral,
@@ -171,6 +217,17 @@ export function Toast({
       >
         {message}
       </Text>
+      {action ? (
+        <View style={styles.action}>
+          <Button
+            label={action.label}
+            variant="ghost"
+            onPress={press}
+            accessibilityLabel={action.accessibilityLabel}
+            testID={`${testID}-action`}
+          />
+        </View>
+      ) : null}
     </Animated.View>
   );
 }
@@ -203,5 +260,8 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   },
   neutralText: {
     color: colors.text,
+  },
+  action: {
+    marginLeft: spacing.xs,
   },
 }));
