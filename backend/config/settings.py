@@ -267,6 +267,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "subscriptions.tasks.convert_expired_trials",
         "schedule": crontab(minute=0),
     },
+    # Frankfurter publishes once a day; 02:00 UTC is after the ECB update
+    # and in the quiet hours for every zone SubTrak serves.
+    "refresh-exchange-rates": {
+        "task": "subscriptions.tasks.refresh_exchange_rates",
+        "schedule": crontab(hour=2, minute=0),
+    },
 }
 
 
