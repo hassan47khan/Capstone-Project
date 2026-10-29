@@ -15,7 +15,6 @@ import math
 import secrets
 from datetime import datetime, timedelta
 
-from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.core.cache import cache
 from django.core.mail import send_mail
@@ -25,6 +24,7 @@ from django.utils import timezone
 from django_mongodb_backend import transaction
 
 from core.contract import ApiError
+from core.links import app_link
 
 from . import tokens
 from .models import EmailLinkToken, LoginFailures, User, rules_for, settings_for
@@ -120,7 +120,9 @@ _MAIL = {
 
 def _send_link(user: User, purpose: str) -> None:
     token = issue_link(user, purpose)
-    link = f"{settings.APP_LINK_PREFIX}{LINK_PATHS[purpose]}?token={token}"
+    # core.links decides whether that is the deep link or the HTTPS bridge,
+    # because many mail apps will not open a subtrak:// URL.
+    link = app_link(LINK_PATHS[purpose], token=token)
     subject, body = _MAIL[purpose]
     send_mail(subject, body.format(link=link), None, [user.email])
 
