@@ -377,7 +377,7 @@ describe('tab stacks (03 §1)', () => {
 describe('the full tree is navigable (03 §1)', () => {
   const APP_ROUTES: [keyof AppStackParamList, object | undefined, string][] = [
     ['AddSubscription', undefined, 'Add subscription'],
-    ['SubscriptionDetail', { id: 'sub_1' }, 'Subscription'],
+    ['SubscriptionDetail', { id: 'sub_1' }, 'Subscription detail'],
     ['EditSubscription', { id: 'sub_1' }, 'Edit subscription'],
     ['EditHistory', { id: 'sub_1' }, 'Edit history'],
     ['SelectCurrency', undefined, 'Currency'],
@@ -597,7 +597,9 @@ describe('deep links (03 §6)', () => {
     await renderApp();
 
     await waitFor(() =>
-      expect(screen.getByRole('header', { name: 'Subscription' })).toBeOnTheScreen(),
+      expect(
+        screen.getByRole('header', { name: 'Subscription detail' }),
+      ).toBeOnTheScreen(),
     );
   });
 
@@ -627,7 +629,9 @@ describe('deep links (03 §6)', () => {
     await fireEvent.press(screen.getByText('test-sign-in'));
 
     await waitFor(() =>
-      expect(screen.getByRole('header', { name: 'Subscription' })).toBeOnTheScreen(),
+      expect(
+        screen.getByRole('header', { name: 'Subscription detail' }),
+      ).toBeOnTheScreen(),
     );
   });
 
@@ -640,7 +644,9 @@ describe('deep links (03 §6)', () => {
     await deliver('subtrak://subscription/sub_9');
 
     await waitFor(() =>
-      expect(screen.getByRole('header', { name: 'Subscription' })).toBeOnTheScreen(),
+      expect(
+        screen.getByRole('header', { name: 'Subscription detail' }),
+      ).toBeOnTheScreen(),
     );
   });
 });

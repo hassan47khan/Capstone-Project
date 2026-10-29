@@ -117,8 +117,18 @@ def history_event(event: PriceHistoryEvent) -> dict:
 
 
 def history(sub: Subscription) -> list[dict]:
-    events = PriceHistoryEvent.objects.filter(subscription=sub).order_by("-occurred_at")
+    events = PriceHistoryEvent.objects.filter(subscription=sub).order_by("-occurred_at", "-pk")
     return [history_event(event) for event in events]
+
+
+def _spent(sub: Subscription, ctx: Context) -> dict | None:
+    """Total spent in the display currency, each period converted from the
+    currency it was charged in; None if any of them has no rate."""
+    by_currency = operations.total_spent_to_date(sub, today=ctx.today)
+    converted = [ctx.convert(amount, currency) for currency, amount in by_currency.items()]
+    if None in converted:
+        return None
+    return money(sum(converted, Decimal(0)), ctx.currency)
 
 
 def subscription_detail(sub: Subscription, ctx: Context) -> dict:
@@ -126,10 +136,9 @@ def subscription_detail(sub: Subscription, ctx: Context) -> dict:
     if sub.status == Subscription.Status.CANCELLED:
         monthly = engine.normalize_to_monthly(sub.billing_price, sub.cycle)
         saved = ctx.display(engine.annual(monthly), sub.billing_currency)
-    spent = operations.total_spent_to_date(sub, today=ctx.today)
     return {
         **subscription(sub, ctx),
-        "total_spent_to_date": ctx.display(spent, sub.billing_currency),
+        "total_spent_to_date": _spent(sub, ctx),
         "saved_per_year": saved,
         "history": history(sub),
     }

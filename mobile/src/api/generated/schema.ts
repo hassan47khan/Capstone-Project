@@ -470,6 +470,9 @@ export interface paths {
          * @description Add a subscription. next_bill_date is computed from start_date and the cycle.
          *
          *     400 `price_invalid`: "Enter a valid price greater than $0."
+         *     409 `idempotency_key_reused`: the Idempotency-Key was already used with a
+         *     different body. 409 `idempotency_key_in_use`: parallel requests with the
+         *     key kept colliding; retrying with the same key is safe.
          */
         post: operations["subscriptions_create"];
         delete?: never;
@@ -665,12 +668,13 @@ export interface components {
         /**
          * @description * `created` - created
          *     * `price_change` - price_change
+         *     * `currency_change` - currency_change
          *     * `category_change` - category_change
          *     * `cycle_change` - cycle_change
          *     * `cancelled` - cancelled
          * @enum {string}
          */
-        EventTypeEnum: "created" | "price_change" | "category_change" | "cycle_change" | "cancelled";
+        EventTypeEnum: "created" | "price_change" | "currency_change" | "category_change" | "cycle_change" | "cancelled";
         /** @description Every value is null when it was not found in the email (the grounding rule). */
         ExtractedFields: {
             service_name: string | null;
@@ -2393,7 +2397,10 @@ export interface operations {
     subscriptions_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional, up to 255 characters. A retry with the same key and body returns the subscription the first request created, for 24 hours. */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2424,6 +2431,15 @@ export interface operations {
             };
             /** @description Missing, expired or invalid token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflicts with the current state. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
