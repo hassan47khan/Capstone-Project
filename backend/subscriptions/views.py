@@ -4,10 +4,14 @@ engine, and payloads through `presenters`; the analytics reads are in
 `analytics`."""
 
 import re
+import time
 from datetime import timedelta
 
 from bson import ObjectId
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from django.db import DatabaseError
+from django_mongodb_backend import transaction
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -15,7 +19,7 @@ from rest_framework.views import APIView
 from core.clock import today_for
 from core.contract import ApiError, errors, not_found
 
-from . import analytics, operations, presenters
+from . import analytics, idempotency, operations, presenters
 from .models import Category, Subscription
 from .serializers import (
     STATUSES,
@@ -106,17 +110,59 @@ class SubscriptionsView(APIView):
         operation_id="subscriptions_create",
         tags=["subscriptions"],
         request=SubscriptionInputSerializer,
-        responses={201: SubscriptionDetailSerializer, **errors(400, 401)},
+        parameters=[
+            OpenApiParameter(
+                idempotency.HEADER,
+                OpenApiTypes.STR,
+                OpenApiParameter.HEADER,
+                description=(
+                    "Optional, up to 255 characters. A retry with the same key and body "
+                    "returns the subscription the first request created, for 24 hours."
+                ),
+            )
+        ],
+        responses={201: SubscriptionDetailSerializer, **errors(400, 401, 409)},
     )
     def post(self, request):
         """Add a subscription. next_bill_date is computed from start_date and the cycle.
 
         400 `price_invalid`: "Enter a valid price greater than $0."
+        409 `idempotency_key_reused`: the Idempotency-Key was already used with a
+        different body. 409 `idempotency_key_in_use`: parallel requests with the
+        key kept colliding; retrying with the same key is safe.
         """
+        key = idempotency.key_from(request)
+        if key is None:
+            return self._created(self._create(request), request)
+        request_digest = idempotency.digest(request.data)
+        for attempt in range(idempotency.ATTEMPTS):
+            if attempt:
+                time.sleep(idempotency.RETRY_PAUSE_SECONDS * attempt)
+            record = idempotency.stored(request.user, key)
+            if record is not None:
+                return self._created(idempotency.check(record, request_digest), request)
+            try:
+                with transaction.atomic():
+                    sub = self._create(request)
+                    idempotency.remember(request.user, key, request_digest, sub)
+                return self._created(sub, request)
+            except DatabaseError as error:
+                # A parallel request with this key won: ours rolled back, and the
+                # next lookup finds the winner's subscription.
+                if not idempotency.lost_race(error):
+                    raise
+        raise idempotency.still_in_progress()
+
+    def _create(self, request) -> Subscription:
         fields = body(SubscriptionInputSerializer, request)
-        sub = operations.create_subscription(
+        return operations.create_subscription(
             today=today_for(request.user), owner=request.user, **fields
         )
+
+    def _created(self, sub, request):
+        # As stored, so a retry's answer matches the first one exactly (BSON
+        # keeps milliseconds; the unsaved instance still has microseconds).
+        sub.refresh_from_db()
         return Response(detail(sub, request), status=status.HTTP_201_CREATED)
 
 
