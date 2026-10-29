@@ -3,6 +3,7 @@
  */
 import { MOCK_EMAILS } from './fixtures';
 import {
+  cancelMockSubscription,
   createMockSubscription,
   deleteMockSubscription,
   nextBillDateFor,
@@ -273,5 +274,84 @@ describe('editing (PATCH)', () => {
     expect(
       updateMockSubscription(MOCK_EMAILS.empty, 'sub-netflix', netflixInput),
     ).toBeNull();
+  });
+});
+
+describe('cancelling (POST /cancel), like operations.cancel_subscription', () => {
+  it('cancels: no next bill, out of totals, saved per year, history kept plus an event', () => {
+    const result = cancelMockSubscription(ALEX, 'sub-netflix')!;
+
+    expect(result.detail).toMatchObject({
+      status: 'cancelled',
+      cancelled_on: '2026-10-01',
+      next_bill_date: null,
+      counts_toward_totals: false,
+      saved_per_year: { amount: '185.88', currency: 'USD' },
+    });
+    expect(result.detail!.history.map((e) => e.event_type)).toEqual([
+      'cancelled',
+      'price_change',
+      'category_change',
+      'created',
+    ]);
+    // Same shape as the real server's event.
+    expect(result.detail!.history[0]).toMatchObject({
+      old_value: null,
+      new_value: { cancelled_on: '2026-10-01' },
+    });
+    expect(result.detail!.history[0]!.occurred_at).toMatch(/\.\d{6}Z$/);
+    expect(subscriptionDetailFor(ALEX, 'sub-netflix')!.status).toBe('cancelled');
+  });
+
+  it("saved per year matches the real server's figure for every seed subscription", () => {
+    // Captured from the real backend: cancel each one, read saved_per_year.
+    const real: Record<string, string> = {
+      'sub-adobe-cc': '659.88',
+      'sub-chatgpt-plus': '240.00',
+      'sub-duolingo-max': '167.88',
+      'sub-headspace': '77.94',
+      'sub-hulu': '215.88',
+      'sub-netflix': '185.88',
+      'sub-new-york-times': '51.00',
+      'sub-notion-ai': '120.00',
+      'sub-spotify': '131.88',
+      'sub-youtube-premium': '167.88',
+      'sub-icloud-': '35.88',
+    };
+    for (const [id, amount] of Object.entries(real)) {
+      expect([
+        id,
+        cancelMockSubscription(ALEX, id)!.detail!.saved_per_year?.amount,
+      ]).toEqual([id, amount]);
+    }
+  });
+
+  it('a second cancel is a 409 already_cancelled, and changes nothing', () => {
+    cancelMockSubscription(ALEX, 'sub-netflix');
+    const before = subscriptionDetailFor(ALEX, 'sub-netflix');
+
+    expect(cancelMockSubscription(ALEX, 'sub-netflix')!.error).toEqual({
+      code: 'already_cancelled',
+      message: 'This subscription is already cancelled.',
+    });
+    expect(subscriptionDetailFor(ALEX, 'sub-netflix')).toBe(before);
+  });
+
+  it('is null (a 404) for someone else, a missing id, or a deleted one', () => {
+    expect(cancelMockSubscription(MOCK_EMAILS.empty, 'sub-netflix')).toBeNull();
+    expect(cancelMockSubscription(ALEX, 'sub-nope')).toBeNull();
+    deleteMockSubscription(ALEX, 'sub-headspace');
+    expect(cancelMockSubscription(ALEX, 'sub-headspace')).toBeNull();
+  });
+
+  it('cancelled sorts last in the list (as the real server does)', () => {
+    cancelMockSubscription(ALEX, 'sub-icloud-');
+    const ids = subscriptionListFor(ALEX, {}).results.map((r) => r.id);
+    expect(ids.at(-1)).toBe('sub-icloud-');
+  });
+
+  it('a plan with no known annual figure gets null, not a made-up one', () => {
+    const added = createMockSubscription(ALEX, figma).detail!;
+    expect(cancelMockSubscription(ALEX, added.id)!.detail!.saved_per_year).toBeNull();
   });
 });

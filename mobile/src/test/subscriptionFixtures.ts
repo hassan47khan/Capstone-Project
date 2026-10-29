@@ -521,3 +521,76 @@ export function updateMockSubscription(
   edited[id] = updated;
   return { detail: updated };
 }
+
+// "Saved per year" the real server gives on cancel (operations.cancel_subscription:
+// the unrounded monthly equivalent x 12, rounded at the end). Captured from the
+// real backend for all 11 of Alex's seed subscriptions on 2026-10-27.
+const KNOWN_ANNUAL: Record<string, string> = {
+  '2.99 monthly': '35.88', // iCloud+
+  '4.25 monthly': '51.00', // New York Times
+  '10.00 monthly': '120.00', // Notion AI (trial)
+  '10.99 monthly': '131.88', // Spotify
+  '12.99 custom 2 months': '77.94', // Headspace: 12.99 x 6, not 6.50 x 12
+  '13.99 monthly': '167.88', // YouTube Premium, Duolingo Max (trial)
+  '15.49 monthly': '185.88', // Netflix
+  '17.99 monthly': '215.88', // Hulu (trial)
+  '20.00 monthly': '240.00', // ChatGPT Plus
+  '54.99 monthly': '659.88', // Adobe CC
+};
+
+type CancelResult =
+  | { detail: SubscriptionDetail; error?: undefined }
+  | { detail?: undefined; error: { code: string; message: string } };
+
+/**
+ * POST /subscriptions/:id/cancel for the mock API, like operations.cancel_subscription:
+ * status cancelled, no next bill, out of totals, history kept plus a "cancelled"
+ * event. Null when not found; a 409 error when it already was cancelled.
+ */
+export function cancelMockSubscription(email: string, id: string): CancelResult | null {
+  const current = subscriptionDetailFor(email, id);
+  if (!current) return null;
+  if (current.status === 'cancelled') {
+    return {
+      error: {
+        code: 'already_cancelled',
+        message: 'This subscription is already cancelled.',
+      },
+    };
+  }
+
+  const key = [
+    current.billing_price,
+    current.billing_cycle,
+    current.custom_cycle_count ?? '',
+    current.custom_cycle_unit ?? '',
+  ]
+    .join(' ')
+    .trim();
+  const annual = KNOWN_ANNUAL[key];
+  const now = nextInstant();
+
+  const cancelled: SubscriptionDetail = {
+    ...current,
+    status: 'cancelled',
+    cancelled_on: SEED_TODAY,
+    next_bill_date: null,
+    counts_toward_totals: false,
+    // Unknown plans get null rather than a made-up figure (the mock does no money math).
+    saved_per_year: annual ? { amount: annual, currency: 'USD' } : null,
+    updated_at: now,
+    history: [
+      {
+        id: `evt-cancel-${nextEventId++}`,
+        event_type: 'cancelled',
+        occurred_at: now,
+        old_value: null,
+        new_value: { cancelled_on: SEED_TODAY },
+      },
+      ...current.history,
+    ],
+  };
+
+  edited[id] = cancelled;
+  return { detail: cancelled };
+}
