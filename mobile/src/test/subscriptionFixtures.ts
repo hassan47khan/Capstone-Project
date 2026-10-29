@@ -149,6 +149,9 @@ let edited: Record<string, SubscriptionDetail> = {};
 let nextId = 1; // sub_new_<n> and its evt-new-<n>
 let nextEventId = 1; // edit and cancel events, counted on their own
 let clock = 0; // seconds past the seed's noon, one per write
+// Idempotency-Keys used on POST /subscriptions, per account: the body's digest
+// and what it created (the server's IdempotencyKey table, #141).
+let idempotencyKeys: Record<string, { digest: string; id: string }> = {};
 
 // The time of the next write: always later than the last, like a real server
 // stamping "now" (with microseconds, as the server sends them).
@@ -164,6 +167,7 @@ export function resetCreatedSubscriptions(): void {
   nextId = 1;
   nextEventId = 1;
   clock = 0;
+  idempotencyKeys = {};
 }
 
 // Everything one account has: the seed fixtures plus anything added, with
@@ -218,7 +222,13 @@ type CreateResult =
   | { detail: SubscriptionDetail; error?: undefined }
   | {
       detail?: undefined;
-      error: { code: string; message: string; fields: Record<string, string[]> };
+      // status: 400 unless given.
+      error: {
+        code: string;
+        message: string;
+        fields?: Record<string, string[]>;
+        status?: number;
+      };
     };
 
 const PRICE_MESSAGE = 'Enter a valid price greater than $0.';
@@ -593,4 +603,66 @@ export function cancelMockSubscription(email: string, id: string): CancelResult 
 
   edited[id] = cancelled;
   return { detail: cancelled };
+}
+
+const KEY_MESSAGE = 'Send an Idempotency-Key of 1 to 255 characters, or none.';
+
+// The same body gives the same digest, whatever order its keys came in.
+function digestOf(value: unknown): string {
+  const sorted = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(sorted)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(
+            Object.entries(v)
+              .sort(([a], [b]) => (a < b ? -1 : 1))
+              .map(([k, inner]) => [k, sorted(inner)]),
+          )
+        : v;
+  return JSON.stringify(sorted(value ?? {}));
+}
+
+/**
+ * POST /subscriptions with its Idempotency-Key header, like the real server
+ * (#141): a repeat with the same key and body gets the first subscription
+ * back; the same key with a different body is a 409. No key: a plain create.
+ */
+export function createMockSubscriptionWithKey(
+  email: string,
+  body: unknown,
+  idempotencyKey: string | undefined,
+): CreateResult {
+  if (idempotencyKey === undefined) return createMockSubscription(email, body);
+  const key = idempotencyKey.trim();
+  if (!key || key.length > 255) {
+    return {
+      error: {
+        code: 'validation_error',
+        message: KEY_MESSAGE,
+        fields: { 'Idempotency-Key': [KEY_MESSAGE] },
+      },
+    };
+  }
+
+  const slot = `${email} ${key}`;
+  const digest = digestOf(body);
+  const record = idempotencyKeys[slot];
+  if (record) {
+    if (record.digest !== digest) {
+      return {
+        error: {
+          code: 'idempotency_key_reused',
+          message: 'This Idempotency-Key was already used for a different subscription.',
+          status: 409,
+        },
+      };
+    }
+    const first = subscriptionDetailFor(email, record.id);
+    if (first) return { detail: first };
+  }
+
+  // Only a create that worked records the key (the server's transaction).
+  const result = createMockSubscription(email, body);
+  if (result.detail) idempotencyKeys[slot] = { digest, id: result.detail.id };
+  return result;
 }

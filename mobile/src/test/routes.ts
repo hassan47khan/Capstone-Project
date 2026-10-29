@@ -28,7 +28,7 @@ import type { ApiErrorBody, Subscription } from '@/api/types';
 import { contractHomeFor } from './contractFixtures';
 import {
   cancelMockSubscription,
-  createMockSubscription,
+  createMockSubscriptionWithKey,
   deleteMockSubscription,
   resetCreatedSubscriptions,
   subscriptionDetailFor,
@@ -458,9 +458,14 @@ export const routes: Route[] = [
     pattern: '/subscriptions',
     // Frozen contract shape (04 §5); see subscriptionFixtures.ts.
     handler: protectedRoute((request, account) => {
-      const result = createMockSubscription(account.profile.email, request.body);
+      const result = createMockSubscriptionWithKey(
+        account.profile.email,
+        request.body,
+        request.headers['idempotency-key'],
+      );
       if (result.error) {
-        return fail(400, result.error.code, result.error.message, result.error.fields);
+        const { status = 400, code, message, fields } = result.error;
+        return fail(status, code, message, fields);
       }
       return ok(result.detail, 201);
     }),

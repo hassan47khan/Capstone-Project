@@ -25,8 +25,11 @@
  * Retries reuse the same Idempotency-Key while the form is unchanged, so a
  * save retried after a dropped connection can't create the subscription twice.
  * After a timeout or lost connection we can't know whether the save landed, so
- * the key stays pinned even if the form is then edited: a server that already
- * saved it returns that subscription instead of making a second one.
+ * the key stays pinned even if the form is then edited. If it did land, the
+ * server answers the same form with that subscription, and an edited one with
+ * a 409 `idempotency_key_reused`: we say it's already added, and the next Save
+ * is a new subscription. A 409 `idempotency_key_in_use` means the first save is
+ * still going through, so the key stays for the next try.
  *
  * Not built yet: the service picker (no catalog endpoint), the duplicate-name
  * warning, and queueing a save made offline.
@@ -72,6 +75,9 @@ export const ADD_COPY = {
   offline: "You're offline, so this wasn't saved. Connect and try again.",
   timeout:
     "We couldn't confirm this saved. Check your subscriptions before adding it again, or try Save once more.",
+  alreadySaved:
+    'Your earlier save went through, so this subscription is already added. Check your subscriptions before adding it again.',
+  stillSaving: 'Your earlier save is still going through. Try Save again in a moment.',
 } as const;
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
@@ -146,6 +152,20 @@ export function AddSubscriptionScreen() {
       if (error instanceof ApiError && error.isOffline) {
         if (lastAttempt.current) lastAttempt.current.unsure = true;
         setFormError(error.code === 'timeout' ? ADD_COPY.timeout : ADD_COPY.offline);
+        return;
+      }
+      // The save that timed out did land, with the form as it was then.
+      if (error instanceof ApiError && error.code === 'idempotency_key_reused') {
+        lastAttempt.current = null; // the next Save is a new subscription
+        for (const queryKey of subscriptionWriteInvalidations) {
+          void queryClient.invalidateQueries({ queryKey });
+        }
+        setFormError(ADD_COPY.alreadySaved);
+        return;
+      }
+      // It's still landing: keep the key, so the next try gets its answer.
+      if (error instanceof ApiError && error.code === 'idempotency_key_in_use') {
+        setFormError(ADD_COPY.stillSaving);
         return;
       }
       const fieldErrors =
