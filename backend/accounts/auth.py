@@ -17,7 +17,6 @@ from datetime import datetime, timedelta
 
 from django.contrib.auth.hashers import make_password
 from django.core.cache import cache
-from django.core.mail import send_mail
 from django.db import IntegrityError
 from django.db.models import F
 from django.utils import timezone
@@ -25,6 +24,7 @@ from django_mongodb_backend import transaction
 
 from core.contract import ApiError
 from core.links import app_link
+from core.tasks import queue_email
 
 from . import tokens
 from .models import EmailLinkToken, LoginFailures, User, rules_for, settings_for
@@ -124,7 +124,9 @@ def _send_link(user: User, purpose: str) -> None:
     # because many mail apps will not open a subtrak:// URL.
     link = app_link(LINK_PATHS[purpose], token=token)
     subject, body = _MAIL[purpose]
-    send_mail(subject, body.format(link=link), None, [user.email])
+    # Off the request thread when Redis is up, inline when it is not: signing
+    # up must not depend on the broker (spec section 6).
+    queue_email(subject, body.format(link=link), [user.email])
 
 
 def _cooldown(purpose: str, email: str) -> dict:
