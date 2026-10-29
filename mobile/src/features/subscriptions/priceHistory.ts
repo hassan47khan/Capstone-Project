@@ -108,9 +108,9 @@ export function formatMonthYear(date: DateOnly): string {
 // --- The chart's data -------------------------------------------------------
 
 /**
- * The currency a recorded price was charged in. The `created` event records
- * it; `price_change` events don't (the server stores only the price), so those
- * fall back to the subscription's current billing currency.
+ * The currency a recorded price was charged in. Events record it; a
+ * `price_change` from before the server did has only the price, so it falls
+ * back to the subscription's current billing currency.
  */
 export function currencyOf(
   value: HistoryValue | null | undefined,
@@ -140,21 +140,27 @@ export interface PriceSeries {
 
 // A price change, with the price before it when the server sent one.
 interface PriceChange extends PriceStep {
-  previous: MoneyString | undefined;
+  previous: Price | undefined;
   at: string; // the exact instant, to order two changes on the same day
 }
 
-// Every price change, oldest first (by exact time, not just the day).
+// Every price or currency change, oldest first (by exact time, not just the day).
+// A currency_change is a step too: the price may be the same, the money isn't.
 function priceChanges(history: HistoryEvent[], currency: CurrencyCode): PriceChange[] {
   const changes: PriceChange[] = [];
   for (const event of history) {
     const price = event.new_value?.price;
-    if (event.event_type === 'price_change' && price) {
+    const kind = event.event_type;
+    if ((kind === 'price_change' || kind === 'currency_change') && price) {
+      const before = event.old_value?.price;
       changes.push({
         date: dateOf(event.occurred_at),
         price,
         currency: currencyOf(event.new_value, currency),
-        previous: event.old_value?.price,
+        previous:
+          before === undefined
+            ? undefined
+            : { price: before, currency: currencyOf(event.old_value, currency) },
         at: event.occurred_at,
       });
     }
@@ -200,9 +206,7 @@ export function buildPriceSeries(
           price: createdPrice,
           currency: currencyOf(created?.new_value, current.currency),
         }
-      : firstPrevious !== undefined
-        ? { price: firstPrevious, currency: current.currency }
-        : undefined;
+      : firstPrevious;
   // ...updated by every change up to lineStart.
   for (const change of changes) {
     if (change.date <= lineStart) start = change;
@@ -226,12 +230,18 @@ export function buildPriceSeries(
   }
 
   // Drop "changes" to the same value ("15.5" -> "15.50"): not a step on the
-  // chart, and not something to announce as an increase or a decrease.
+  // chart, and not something to announce as an increase or a decrease. The
+  // same number in another currency ($10.99 -> €10.99) is a real change.
   const real: PriceStep[] = [];
-  let price = start.price;
+  let previous: Price = start;
   for (const step of steps) {
-    if (compareDecimal(step.price, price) !== 0) real.push(step);
-    price = step.price;
+    if (
+      compareDecimal(step.price, previous.price) !== 0 ||
+      step.currency !== previous.currency
+    ) {
+      real.push(step);
+    }
+    previous = step;
   }
 
   return {
