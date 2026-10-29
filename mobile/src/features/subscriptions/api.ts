@@ -160,6 +160,14 @@ export function restoreSubscription(id: string): Promise<SubscriptionDetail> {
   });
 }
 
+// Every subscription the user has (deleted ones excluded). The server sends
+// them all in one page; `next` is always null.
+export function listSubscriptions(): Promise<SubscriptionRow[]> {
+  return request<{ results: SubscriptionRow[] }>('/subscriptions').then(
+    (page) => page.results,
+  );
+}
+
 // Loads one subscription. A 404 means "not found or not yours".
 export function getSubscription(id: string): Promise<SubscriptionDetail> {
   return request<SubscriptionDetail>(`/subscriptions/${encodeURIComponent(id)}`);

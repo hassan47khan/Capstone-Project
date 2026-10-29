@@ -5,7 +5,7 @@ import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
-import { Button, PixelRatio, Text } from 'react-native';
+import { AccessibilityInfo, Button, PixelRatio, Text } from 'react-native';
 
 import { SessionProvider } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
@@ -13,7 +13,7 @@ import { subscriptionWriteInvalidations } from '@/api/queryKeys';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
-import { subscriptionListFor } from '@/test/subscriptionFixtures';
+import { deleteMockSubscription, subscriptionListFor } from '@/test/subscriptionFixtures';
 
 import { ADD_COPY, AddSubscriptionScreen } from './AddSubscriptionScreen';
 import { SUCCESS_COPY } from './AddSuccess';
@@ -703,5 +703,83 @@ describe('Idempotency-Key answers (#141)', () => {
 
     expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
     expect(keys[1]).toBe(keys[0]);
+  });
+});
+
+// 07 §8: a name already in the list is allowed, with a soft warning.
+describe('duplicate name warning (07 §8)', () => {
+  // The empty slot is hidden from screen readers, so include hidden elements.
+  const warning = () =>
+    screen.getByTestId('form-name-message', { includeHiddenElements: true });
+
+  it('us7_duplicate_name_is_allowed_with_a_soft_warning', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'netflix');
+
+    await waitFor(() =>
+      expect(warning()).toHaveTextContent('You already track a Netflix.'),
+    );
+    expect(announce).toHaveBeenCalledWith('You already track a Netflix.');
+    // A warning, not an error: nothing red, and saving still works.
+    expect(screen.queryByTestId('form-name-error')).toBeNull();
+    expect(screen.getByTestId('add-save')).toBeEnabled();
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
+    expect(
+      subscriptionListFor(MOCK_EMAILS.full, {}).results.filter(
+        (r) => r.name === 'netflix',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('a new name has no warning (and the warning goes once the name changes)', async () => {
+    await renderAdd();
+    // A known name first, so we know the list has loaded.
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'Hulu');
+    await waitFor(() => expect(warning()).toHaveTextContent('You already track a Hulu.'));
+
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'Figma');
+
+    expect(warning()).not.toHaveTextContent(/already track/);
+  });
+
+  it("a deleted subscription doesn't count", async () => {
+    deleteMockSubscription(MOCK_EMAILS.full, 'sub-netflix');
+    await renderAdd();
+
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'Netflix');
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'Spotify');
+
+    // Spotify is still there, so the list has loaded; Netflix gave nothing.
+    await waitFor(() =>
+      expect(warning()).toHaveTextContent('You already track a Spotify.'),
+    );
+    await fireEvent.changeText(screen.getByTestId('form-name'), 'Netflix');
+    expect(warning()).not.toHaveTextContent(/already track/);
+  });
+
+  it('if the list fails to load, there is no warning and the form still works', async () => {
+    let listCalls = 0;
+    server.use(
+      http.get('*/subscriptions', () => {
+        listCalls += 1;
+        return HttpResponse.json(
+          { error: { code: 'server_error', message: 'Down.' } },
+          { status: 503 },
+        );
+      }),
+    );
+    await renderAdd();
+    // Headspace is in the list, so it would warn if the list had loaded.
+    await fillHeadspace();
+    await waitFor(() => expect(listCalls).toBeGreaterThan(0));
+    await act(async () => {});
+
+    expect(warning()).not.toHaveTextContent(/already track/);
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
   });
 });
