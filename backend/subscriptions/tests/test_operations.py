@@ -105,7 +105,12 @@ def test_a_missing_start_date_is_reported_by_name(owner, categories):
 @pytest.mark.parametrize(
     ("change", "event_type", "old", "new"),
     [
-        ({"billing_price": D("15.49")}, Event.PRICE_CHANGE, {"price": "13.99"}, {"price": "15.49"}),
+        (
+            {"billing_price": D("15.49")},
+            Event.PRICE_CHANGE,
+            {"price": "13.99", "currency": "USD"},
+            {"price": "15.49", "currency": "USD"},
+        ),
         (
             {"category": "other"},
             Event.CATEGORY_CHANGE,
@@ -132,6 +137,32 @@ def test_each_tracked_change_writes_exactly_one_event(
     assert [e.event_type for e in written] == [event_type]
     assert [e.event_type for e in history(sub)] == [Event.CREATED, event_type]
     assert (written[0].old_value, written[0].new_value) == (old, new)
+
+
+def test_a_currency_switch_at_the_same_price_is_a_price_change(make):
+    sub = make()
+
+    written = operations.update_subscription(sub, today=TODAY, billing_currency="EUR")
+
+    assert [(e.event_type, e.old_value, e.new_value) for e in written] == [
+        (
+            Event.PRICE_CHANGE,
+            {"price": "13.99", "currency": "USD"},
+            {"price": "13.99", "currency": "EUR"},
+        )
+    ]
+
+
+def test_a_new_price_in_a_new_currency_is_one_event(make):
+    sub = make()
+
+    written = operations.update_subscription(
+        sub, today=TODAY, billing_price=D("12.99"), billing_currency="EUR"
+    )
+
+    assert [(e.old_value, e.new_value) for e in written] == [
+        ({"price": "13.99", "currency": "USD"}, {"price": "12.99", "currency": "EUR"})
+    ]
 
 
 def test_changing_all_three_writes_three_events_and_nothing_else_writes_none(make, categories):

@@ -24,7 +24,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState } from 'react-native';
 
 import { useToast } from '@/components';
 import { biometricStore } from '@/session/biometricStore';
@@ -87,7 +87,7 @@ export function useBiometricUnlock(): BiometricUnlock {
   // Coming back from the background counts as reopening the app.
   useEffect(() => {
     // currentState can be null before the first change event.
-    let previous: AppStateStatus | null = AppState.currentState;
+    let previous: string | null | undefined = AppState.currentState;
     const subscription = AppState.addEventListener('change', (next) => {
       if ((previous === 'background' || previous === 'inactive') && next === 'active') {
         autoPromptDeclined = false;
