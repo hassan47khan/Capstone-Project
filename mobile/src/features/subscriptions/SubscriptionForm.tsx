@@ -67,6 +67,8 @@ export interface SubscriptionFormProps {
   disabled?: boolean;
   /** Edit only: shows a "History" link above the name (07 §5). */
   onHistory?: () => void;
+  /** "You already track a Netflix." under the name; never an error (07 §8). */
+  nameWarning?: string | null;
 }
 
 export function SubscriptionForm({
@@ -76,6 +78,7 @@ export function SubscriptionForm({
   onBlur,
   disabled = false,
   onHistory,
+  nameWarning,
 }: SubscriptionFormProps) {
   const styles = useStyles();
   // While saving, ignore every change, however it arrives. The Stepper and the
@@ -118,6 +121,7 @@ export function SubscriptionForm({
         onBlur={() => onBlur('name')}
         placeholder="e.g. Netflix, Spotify…"
         error={errors.name}
+        helper={nameWarning ?? undefined}
         editable={!disabled}
         autoCapitalize="words"
         testID="form-name"

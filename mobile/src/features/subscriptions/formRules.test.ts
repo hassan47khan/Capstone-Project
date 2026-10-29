@@ -8,6 +8,7 @@ import {
   EMPTY_FORM,
   FORM_COPY,
   describeCycle,
+  duplicateNameWarning,
   fitsCurrency,
   formErrorsFromServer,
   formFromDetail,
@@ -245,5 +246,42 @@ describe('changedInput (what Edit sends)', () => {
       custom_cycle_count: 2,
       custom_cycle_unit: 'months',
     });
+  });
+});
+
+// 07 §8, with names from the real seed (Alex's subscriptions).
+describe('duplicateNameWarning', () => {
+  const alex = [
+    { id: 'sub-netflix', name: 'Netflix' },
+    { id: 'sub-icloud-', name: 'iCloud+' },
+    { id: 'sub-new-york-times', name: 'New York Times' },
+  ];
+
+  it('matches the same name, whatever the case or spacing', () => {
+    expect(duplicateNameWarning('  netflix ', alex)).toBe('You already track a Netflix.');
+    expect(duplicateNameWarning('new  york   TIMES', alex)).toBe(
+      'You already track a New York Times.',
+    );
+  });
+
+  it('says "an" before a vowel', () => {
+    expect(duplicateNameWarning('icloud+', alex)).toBe('You already track an iCloud+.');
+  });
+
+  it("doesn't match a different or partial name", () => {
+    expect(duplicateNameWarning('Netflix Family', alex)).toBeNull();
+    expect(duplicateNameWarning('Net', alex)).toBeNull();
+  });
+
+  it('never counts the one being edited', () => {
+    expect(duplicateNameWarning('Netflix', alex, 'sub-netflix')).toBeNull();
+    expect(duplicateNameWarning('iCloud+', alex, 'sub-netflix')).toBe(
+      'You already track an iCloud+.',
+    );
+  });
+
+  it('says nothing for an empty name or an empty list', () => {
+    expect(duplicateNameWarning('   ', alex)).toBeNull();
+    expect(duplicateNameWarning('Netflix', [])).toBeNull();
   });
 });
