@@ -197,48 +197,10 @@ def test_remind_errors(api, contract, plan, payment, status):
 # Extractions ------------------------------------------------------------------------
 
 
-def test_pending_extractions(api, alex, contract):
-    body = contract(api.get("/api/v1/extractions/pending"), "/extractions/pending")
-
-    assert body["scanning"] is False
-    figma, disney, hulu = body["results"]
-    assert figma["fields"]["price"] == "15.00"
-    assert figma["flagged"] == []
-    # 18 days after SEED_TODAY: the Figma frame's "Oct 19", derived, not typed.
-    assert disney["fields"]["trial_ends_on"] == "2026-10-19"
-    assert disney["confidence"]["trial_ends_on"] == 0.54
-    assert disney["flagged"] == ["trial_ends_on", "start_date"]
-    assert disney["fields"]["plan_name"] is None
-    assert "Oct 3, 2026" in hulu["source"]["snippet"]
-    assert hulu["duplicate_of"] == str(Subscription.objects.get(owner=alex, name="Hulu").pk)
-    assert all(len(r["source"]["snippet"]) <= 300 for r in body["results"])
-
-
-def test_scan_starts_and_answers_202(api, contract):
-    response = api.post("/api/v1/extractions/scan")
-
-    assert response.status_code == 202
-    assert contract(response, "/extractions/scan") == {"status": "scanning"}
-
-
-def test_confirm_creates_the_subscription_from_reviewed_fields(api, contract):
-    figma = api.get("/api/v1/extractions/pending").json()["results"][0]
-    fields = figma["fields"]
-    payload = {
-        "name": fields["service_name"],
-        "billing_price": fields["price"],
-        "billing_currency": fields["currency"],
-        "billing_cycle": fields["billing_cycle"],
-        "start_date": fields["start_date"],
-        "category": fields["category"],
-    }
-
-    response = api.post(f"/api/v1/extractions/{figma['id']}/confirm", payload, format="json")
-    body = contract(response, "/extractions/{extraction_id}/confirm")
-
-    assert response.status_code == 201
-    assert (body["name"], body["next_bill_date"]) == ("Figma", "2026-10-01")
-    assert not Subscription.objects.filter(name="Figma").exists()
+# The scan, the review queue, confirm and discard run for real against a fake
+# Google and a fake model in extraction/tests/test_reviews.py. These two
+# check what holds before any of that: the body is validated like create,
+# and an id that is not the caller's is a 404.
 
 
 def test_confirm_validates_like_create(api, contract):
@@ -264,13 +226,6 @@ def test_confirm_or_discard_an_unknown_extraction_is_404(api, contract):
 
     assert confirm.status_code == discard.status_code == 404
     contract(discard, "/extractions/{extraction_id}")
-
-
-def test_discard(api, contract):
-    response = api.delete("/api/v1/extractions/6a0c00000000000000000002")
-
-    assert response.status_code == 204
-    contract(response, "/extractions/{extraction_id}")
 
 
 # Gmail --------------------------------------------------------------------------------

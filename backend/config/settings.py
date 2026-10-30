@@ -374,5 +374,6 @@ SPECTACULAR_SETTINGS = {
         # price-change kinds out of the name the client is generated from.
         "KindEnum": ["price_change", "trial_ending"],
         "NotificationKindEnum": ["trial_ending", "renewal", "price_increase"],
+        "InsightKindEnum": ["price_increase", "trial_converting", "largest_category"],
     },
 }

@@ -47,7 +47,10 @@ Backend, from `backend/` with MongoDB up (`docker compose up -d --wait` at the r
 
 - **Charts:** drawn with `react-native-svg` directly, no chart library. It is already a dependency, works in Expo Go, and the charts are simple shapes (Home's donut first; Analytics' bars and the price-history step line follow).
 
-(add here: AI input path and retention window, Family privacy option)
+- **AI input path (11 §2.1):** Gmail only, read-only (`gmail.readonly`, the narrowest scope that can search), Google OAuth in Testing mode; Outlook hidden for the MVP; no pasted text. The pipeline is input-agnostic (`raw_text → fields`, `backend/extraction/pipeline.py`) so the eval runs on fixtures. Values not found in the email are blanked and flagged, confidence is computed from checks, and nothing auto-creates: only "Confirm and track" writes a subscription.
+- **Retention (11 §2.9):** the snippet the review screen quotes (≤ 300 characters) lives on a pending extraction with a **24-hour TTL index**, deleted sooner on confirm or discard. Afterwards only the extracted fields and a SHA-256 of the message id, salted per user, remain; email bodies are never stored. Refresh tokens are Fernet-encrypted and access tokens are never stored. Disconnect revokes at Google and deletes every pending extraction. Why: email is as sensitive as the health data dropped from LabelLens, so we keep the minimum for the minimum time.
+
+(add here: Family privacy option)
 
 ## Figma
 Newer file `IKYivyJtmBYzJNQ7g8qPGc` for everything except Home. Home = `4:2901` in the original file `kyUS7F8bg4x7GpcPEF4UDN`. Never build `113:641` or `113:765`.
