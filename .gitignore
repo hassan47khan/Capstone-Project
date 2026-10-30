@@ -50,3 +50,5 @@ Capstone_CSC325/.obsidian/graph.json
 Capstone_CSC325/.obsidian/appearance.json
 # Session logs: local-only, never committed (see root CLAUDE.md)
 Capstone_CSC325/04 - Logs/
+# Celery beat's local schedule state (worker -B).
+celerybeat-schedule*
