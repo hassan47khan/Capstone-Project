@@ -273,6 +273,17 @@ CELERY_BEAT_SCHEDULE = {
         "task": "subscriptions.tasks.refresh_exchange_rates",
         "schedule": crontab(hour=2, minute=0),
     },
+    # Five minutes is the resolution of a reminder: closer costs requests
+    # for nothing, further and a 09:00 alert can arrive at 09:09.
+    "dispatch-due-reminders": {
+        "task": "notifications.tasks.dispatch_due_reminders",
+        "schedule": crontab(minute="*/5"),
+    },
+    # Expo's own guidance is to read receipts about 15 minutes after a send.
+    "check-push-receipts": {
+        "task": "notifications.tasks.check_push_receipts",
+        "schedule": crontab(minute="*/15"),
+    },
 }
 
 
@@ -359,5 +370,9 @@ SPECTACULAR_SETTINGS = {
         "SubscriptionStatusEnum": ["active", "cancelled"],
         "TrialDecisionEnum": ["none", "keep", "remind"],
         "PaymentStatusEnum": ["paid", "pending"],
+        # Pinned so the reminder kinds added in phase 4 cannot push the
+        # price-change kinds out of the name the client is generated from.
+        "KindEnum": ["price_change", "trial_ending"],
+        "NotificationKindEnum": ["trial_ending", "renewal", "price_increase"],
     },
 }

@@ -8,8 +8,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 import mocks
+from accounts.models import rules_for
+from core.clock import today_for
 from core.contract import errors
 
+from . import trials
 from .serializers import (
     GmailConnectInputSerializer,
     GmailConnectionSerializer,
@@ -26,6 +29,15 @@ from .serializers import (
     TrialSerializer,
 )
 from .views import body
+
+
+def _trials(request) -> dict:
+    return trials.trials_for(
+        request.user,
+        today=today_for(request.user),
+        alert_days=rules_for(request.user).trial_alert_days_before,
+    )
+
 
 NO_CONTENT = OpenApiResponse(description="Done; no body.")
 
@@ -97,7 +109,7 @@ class TrialsView(APIView):
     def get(self, request):
         """Trials that have not converted, fewest days left first, with progress
         computed server-side (TrialShield, 11 §2.5)."""
-        return Response(TrialListSerializer(mocks.trials()).data)
+        return Response(TrialListSerializer(_trials(request)).data)
 
 
 class TrialDecisionView(APIView):
@@ -110,9 +122,14 @@ class TrialDecisionView(APIView):
     def post(self, request, subscription_id):
         """Keep it (stop nagging; it converts on its end date) or Remind me."""
         data = body(TrialDecisionInputSerializer, request)
-        return Response(
-            TrialSerializer(mocks.trial_decision(subscription_id, data["decision"])).data
+        decided = trials.decide(
+            request.user,
+            subscription_id,
+            data["decision"],
+            today=today_for(request.user),
+            alert_days=rules_for(request.user).trial_alert_days_before,
         )
+        return Response(TrialSerializer(decided).data)
 
 
 # Shared plans -------------------------------------------------------------------

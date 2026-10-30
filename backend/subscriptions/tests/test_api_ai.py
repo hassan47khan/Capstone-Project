@@ -36,7 +36,9 @@ def test_trials_with_server_computed_progress(api, contract):
     assert hulu["billing_cycle"] == "monthly"
 
 
-def test_keep_takes_a_trial_out_of_at_risk_without_saving(api, alex, contract):
+def test_keep_takes_a_trial_out_of_at_risk_and_is_remembered(api, alex, contract):
+    # The mock used to answer without saving. Now the decision persists,
+    # which is the point of it: "Keep it" has to stop the nagging (11 §2.5).
     hulu = Subscription.objects.get(owner=alex, name="Hulu")
 
     response = api.post(f"/api/v1/trials/{hulu.pk}/decision", {"decision": "keep"}, format="json")
@@ -44,7 +46,7 @@ def test_keep_takes_a_trial_out_of_at_risk_without_saving(api, alex, contract):
 
     assert body["decision"] == "keep"
     assert body["at_risk"] is False
-    assert Subscription.objects.get(pk=hulu.pk).trial_decision == "none"
+    assert Subscription.objects.get(pk=hulu.pk).trial_decision == "keep"
 
 
 def test_remind_turns_the_reminder_on(api, alex):
@@ -296,3 +298,11 @@ def test_connect_needs_a_code(api, contract):
         "code",
         "redirect_uri",
     }
+
+
+def test_a_trial_decision_on_a_nonsense_id_is_not_found(api, alex):
+    response = api.post("/api/v1/trials/not-an-objectid/decision", {"decision": "keep"})
+
+    # 404 rather than 400, so a malformed id tells an attacker nothing more
+    # than a well-formed one that is not theirs.
+    assert response.status_code == 404
