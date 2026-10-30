@@ -9,6 +9,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from extraction import circuit
 from notifications.tasks import OVERDUE_INCIDENT_MINUTES, oldest_overdue_minutes
 
 
@@ -75,7 +76,9 @@ def health(request):
             "database": "ok",
             "redis": redis_state,
             "oldest_overdue_reminder_minutes": overdue,
-            # Phase 5 reports the LLM circuit here.
-            "llm": None,
+            # ok, open (the breaker tripped), disabled (the kill switch) or
+            # unconfigured. Never makes `status` degraded: extraction has a
+            # manual fallback, so the model being away is not an outage.
+            "llm": circuit.state(),
         }
     )
