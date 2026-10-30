@@ -15,7 +15,7 @@ so a crafted query string cannot smuggle anything into the deep link. It is
 served `no-store` with no referrer, so a single-use token does not end up in
 a cache, a shared history entry or the next site's `Referer` header.
 
-Phase 5's Gmail OAuth callback is another row in the same table.
+The Gmail OAuth callback is another row in the same table.
 """
 
 from dataclasses import dataclass
@@ -49,6 +49,16 @@ HANDOFFS = {
         params=("token",),
         title="Reset your password",
         message="Open SubTrak to choose a new password.",
+    ),
+    # Google's consent screen redirects here, because a Web-application
+    # client cannot redirect to a custom scheme. The app checks `state`
+    # against the one it sent, then posts `code` and its PKCE verifier to
+    # POST /integrations/gmail/connect. `error` is how Google says "denied".
+    "gmail-connected": Handoff(
+        app_path="gmail-callback",
+        params=("code", "state", "error"),
+        title="Connect Gmail",
+        message="Open SubTrak to finish connecting Gmail.",
     ),
 }
 
@@ -91,3 +101,12 @@ def handoff_page(request, kind: str) -> HttpResponse:
     response["Cache-Control"] = "no-store"
     response["Referrer-Policy"] = "no-referrer"
     return response
+
+
+def gmail_callback(request) -> HttpResponse:
+    """The redirect URI registered with Google (GOOGLE_OAUTH_REDIRECT_URIS).
+
+    It passes the code to the app and nothing else: redeeming it needs the
+    PKCE verifier, which only the app holds.
+    """
+    return handoff_page(request, "gmail-connected")

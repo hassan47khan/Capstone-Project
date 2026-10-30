@@ -26,11 +26,20 @@ def pinned_settings(settings):
     # Never a developer's Redis: the suite would then share rate-limit
     # counters between runs, and between itself and a running server.
     settings.CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+    # Nor a developer's backend/.env: with a public origin set, emailed links
+    # become the HTTPS bridge, and the tests that read a link out of an
+    # email are written for the deep link. The bridge has its own tests.
+    settings.PUBLIC_BASE_URL = ""
 
 
 @pytest.fixture(autouse=True)
-def fresh_cache():
-    """Rate-limit counters and resend cooldowns live in the cache."""
+def fresh_cache(pinned_settings):
+    """Rate-limit counters and resend cooldowns live in the cache.
+
+    Depends on pinned_settings so it clears the locmem cache the test uses.
+    Without that ordering, a developer whose backend/.env sets REDIS_URL had
+    this clear Redis instead, and cooldowns leaked from one test to the next.
+    """
     cache.clear()
     yield
     cache.clear()
