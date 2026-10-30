@@ -242,3 +242,14 @@ def test_a_bare_sender_address_is_kept_as_is():
 
 def test_a_message_with_no_body_is_empty_text_not_an_error():
     assert gmail.parse_message({"id": "m1"}).text == ""
+
+
+def test_the_received_date_comes_from_gmails_internal_date():
+    # 2026-10-01T12:00:00Z. "Ends in 18 days" is counted from this.
+    message = {**multipart(part("text/plain", "x")), "internalDate": "1790856000000"}
+
+    assert str(gmail.parse_message(message).received_on) == "2026-10-01"
+
+
+def test_no_internal_date_means_no_received_date():
+    assert gmail.parse_message(multipart(part("text/plain", "x"))).received_on is None
