@@ -11,6 +11,7 @@ import mocks
 from accounts.models import rules_for
 from core.clock import today_for
 from core.contract import errors
+from extraction import service as gmail_service
 
 from . import trials
 from .serializers import (
@@ -191,8 +192,8 @@ class GmailConnectView(APIView):
         400 `gmail_denied`: "Access was denied or timed out."
         """
         data = body(GmailConnectInputSerializer, request)
-        connection = mocks.connect_gmail(
-            data["code"], data["redirect_uri"], data.get("code_verifier")
+        connection = gmail_service.connect(
+            request.user, data["code"], data["redirect_uri"], data.get("code_verifier")
         )
         return Response(GmailConnectionSerializer(connection).data)
 
@@ -205,5 +206,5 @@ class GmailView(APIView):
     )
     def delete(self, request):
         """Revoke Gmail access and delete every pending extraction."""
-        mocks.disconnect_gmail()
+        gmail_service.disconnect(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)

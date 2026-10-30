@@ -276,19 +276,9 @@ def test_discard(api, contract):
 # Gmail --------------------------------------------------------------------------------
 
 
-def test_connect_and_disconnect_gmail(api, contract):
-    connected = api.post(
-        "/api/v1/integrations/gmail/connect",
-        {"code": "4/abc", "redirect_uri": "subtrak://oauth"},
-        format="json",
-    )
-    body = contract(connected, "/integrations/gmail/connect")
-    disconnected = api.delete("/api/v1/integrations/gmail")
-
-    assert body["provider"] == "gmail"
-    assert body["email"] == "alex.kim@example.com"
-    assert disconnected.status_code == 204
-    contract(disconnected, "/integrations/gmail")
+# Connecting for real, against a fake Google, is covered in
+# extraction/tests/test_api.py. This one checks only the request validation,
+# which runs before anything is sent to Google.
 
 
 def test_connect_needs_a_code(api, contract):
