@@ -39,6 +39,10 @@ if not SECRET_KEY:
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
+# Render sets this to the service's onrender.com name, and sends its health
+# checks with that Host header, so a deploy works without anyone typing it.
+if os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
+    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
 
 # Pins "today" for every user (core/clock.py), e.g. SUBTRAK_TODAY=2026-10-01 to
 # demo the seed dataset as of SEED_TODAY. Unset, today is each user's local date.
@@ -71,7 +75,12 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # First, so every log line below it carries the id (core/request_id.py).
+    "core.request_id.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Serves the admin's static files from the app itself: no CDN or nginx
+    # to deploy for a backend whose only static files are the admin's.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -163,6 +172,66 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = "static/"
+# collectstatic writes here on deploy; WhiteNoise serves it, compressed.
+# Not the manifest variant: that one fails any page whose file was not
+# collected, which would make the test suite depend on collectstatic.
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
+
+
+# Production hardening (phase 6; Django's deployment checklist)
+#
+# On by default on Render, which sets RENDER=true, and off everywhere else.
+# Not keyed on DEBUG: CI and the test suite run with DEBUG off over plain
+# HTTP, and an HTTPS redirect there would turn every request into a 301.
+# DJANGO_SECURE=true or false overrides it either way.
+
+SECURE = (
+    os.environ.get("DJANGO_SECURE", "true" if os.environ.get("RENDER") == "true" else "false")
+    .strip()
+    .lower()
+    == "true"
+)
+
+if SECURE:
+    # Render terminates TLS and forwards plain HTTP with this header.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    # Render's health check must reach the real check, not a redirect.
+    SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/$"]
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # A year, the usual value. Neither includeSubDomains nor preload: on a
+    # shared onrender.com name that is not ours to promise, and with a
+    # custom domain it is a decision for whoever owns the domain.
+    SECURE_HSTS_SECONDS = 31_536_000
+    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
+
+
+# Logging: one line per event on stdout, which is where Render collects it.
+# Every line carries the request id, or "-" outside a request. Nothing logs
+# a header, token, query string or email (spec section 11).
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"request_id": {"()": "core.request_id.RequestIdFilter"}},
+    "formatters": {
+        "line": {"format": "%(asctime)s %(levelname)s %(name)s [%(request_id)s] %(message)s"}
+    },
+    "handlers": {
+        "stdout": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "filters": ["request_id"],
+            "formatter": "line",
+        }
+    },
+    "root": {"handlers": ["stdout"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
+}
 
 
 # Outside services
@@ -184,9 +253,12 @@ REDIS_URL = os.environ.get("REDIS_URL")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
 # Public HTTPS origin of this backend. Emailed links and the Gmail OAuth
-# callback need an https:// URL a mail app will open; unset, emails keep
-# linking straight at APP_LINK_PREFIX as they do today.
-PUBLIC_BASE_URL = os.environ.get("SUBTRAK_PUBLIC_BASE_URL", "").rstrip("/")
+# callback need an https:// URL a mail app will open. On Render it defaults
+# to the service's own onrender.com URL. Unset anywhere else, emails link
+# straight at APP_LINK_PREFIX.
+PUBLIC_BASE_URL = (
+    os.environ.get("SUBTRAK_PUBLIC_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL", "")
+).rstrip("/")
 
 # Expo push. Optional: Expo accepts unauthenticated sends for Expo Go.
 EXPO_ACCESS_TOKEN = os.environ.get("EXPO_ACCESS_TOKEN")

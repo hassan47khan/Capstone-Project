@@ -20,11 +20,11 @@ Capstone project, CSC 325.
 
 ## Project Status
 
-Sprint 0. Both halves of the stack are scaffolded and proven; no user story is finished yet.
+The backend's stories are built and tested; the mobile screens are still placeholders.
 
 | Area | State |
 | --- | --- |
-| Backend | Sprint 0 spike merged. MongoDB, custom user model, JWT wiring, `GET /health/` and `GET /me/`, plus DST-safe time zone helpers for US-5. 26 tests, 94% coverage, green in CI. No story endpoints yet. |
+| Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction and the AI insight card are built; shared plans still answer from `backend/mocks.py`. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
 | Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. 419 tests. Every screen is still a placeholder. |
 | CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. `verify` and `backend-verify` are required checks — see [Continuous Integration](#continuous-integration). |
 | Docs | System design specification is done. Developer handoff specs `00`–`12` are in `docs/handoff/`. Team notes live in the `Capstone_CSC325/` Obsidian vault. |
@@ -157,14 +157,27 @@ All backend commands run from the `backend/` directory.
 
 ### Backend Environment Variables
 
-Configured via `backend/.env` (see `backend/.env.example`):
+Configured via `backend/.env`, copied from `backend/.env.example`, which documents every
+variable. Only the first is required; every outside service is optional, and each falls back to a
+local stand-in when its key is unset (console email, the seeded exchange rates, the in-app inbox,
+extraction reported as unavailable).
 
-| Variable               | Description                                         | Default                              |
-|------------------------|-----------------------------------------------------|--------------------------------------|
-| `DJANGO_SECRET_KEY`    | Signs sessions and JWTs                             | none — **required**, startup fails without it |
-| `DJANGO_DEBUG`         | Enables Django debug mode; only the value `True` turns it on | `False`                     |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated list of allowed hosts               | empty                                |
-| `MONGODB_URI`          | MongoDB connection string; the path names the database | `mongodb://localhost:27017/subtrak` |
+| Variable | Description | Default |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | Signs sessions and JWTs | none, **required**: startup fails without it |
+| `DJANGO_DEBUG` | Debug mode; only the value `True` turns it on | `False` |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts | empty (on Render, its hostname is added) |
+| `DJANGO_SECURE` | HTTPS redirect, secure cookies, HSTS | on when running on Render, off elsewhere |
+| `MONGODB_URI` | MongoDB connection string; the path names the database | `mongodb://localhost:27017/subtrak` |
+| `REDIS_URL` | Celery broker and shared cache | unset: per-process cache, no worker |
+| `RESEND_API_KEY`, `DJANGO_DEFAULT_FROM_EMAIL` | Outgoing email | unset: printed to the console |
+| `SUBTRAK_PUBLIC_BASE_URL` | Public HTTPS origin for emailed links and the OAuth callback | the Render URL, or unset |
+| `EXPO_ACCESS_TOKEN` | Expo push, only with enhanced security on | unset |
+| `LLM_API_KEY`, `LLM_MODEL` | Anthropic, for extraction and the insight card | unset; model `claude-opus-5-5` |
+| `EXTRACTION_ENABLED`, `EXTRACTION_DAILY_CAP` | Kill switch and per-user daily cap | `true`, `30` |
+| `GOOGLE_OAUTH_CLIENT_ID`, `_SECRET`, `_REDIRECT_URIS` | Gmail OAuth (Web-application client) | unset |
+| `GMAIL_TOKEN_ENCRYPTION_KEY` | Fernet key for stored Gmail refresh tokens | unset: Gmail disabled |
+| `SUBTRAK_TODAY` | Pins "today" for demos of the seed data | unset; **never in production** |
 
 Never commit a real `.env` file or production secret key.
 
@@ -182,9 +195,10 @@ All run from `backend/`.
 | `pytest --cov --cov-report=term-missing`  | Tests with a coverage report             |
 | `ruff check .` / `ruff format .`          | Lint / format                            |
 | `python manage.py spectacular --file schema.yml --validate` | Regenerate the OpenAPI schema; commit it with any API change |
-
-> **Seed data — Pending.** The specification calls for a `manage.py seed_demo` command that builds a
-> synthetic demo dataset. It has not been written yet.
+| `python manage.py seed_demo [--today YYYY-MM-DD]` | Reset and load the `04 §4` demo dataset (never in production) |
+| `celery -A config worker --beat -l info` | The worker and scheduler; exactly one may run |
+| `python manage.py eval_extraction [--write]` | Score the AI extraction on the labelled fixtures (offline; `--live` calls the model) |
+| `python manage.py <check> --live` | One-off checks against real services: `send_test_email`, `refresh_rates`, `send_test_push`, `gmail_check` |
 
 ### API surface
 
@@ -199,18 +213,30 @@ lives in `backend/schema.yml` and is also served at runtime.
 | `/admin/`                 | staff  | Django admin |
 | `/`                       | public | Placeholder landing page |
 
+### Deploying
+
+The backend deploys to Render from `render.yaml`: the API, one Celery worker with the scheduler
+inside it, and Redis. MongoDB stays on Atlas. Read [`docs/ops/backend-deploy.md`](docs/ops/backend-deploy.md)
+before the first deploy; its rules section is what stops a deploy doing damage.
+
 ### Backend status
 
-Sprint 0's spike is merged. It moved the backend off SQLite onto MongoDB and proved the pieces the
-specification depends on: the custom email-keyed user model, an embedded model with an
-`EmbeddedFieldIndex`, DRF with simplejwt defaulting to `IsAuthenticated`, a committed OpenAPI
-schema, and pytest against a real replica set. Time zone helpers with DST-safe local-to-UTC
-conversion for US-5 followed (#71). The suite is 26 tests at 94.41% coverage, green in `backend-ci`.
+Built and tested (1,350 tests at 98% coverage, measured 2026-10-30):
 
-Not built yet: registration, email verification, login, lockout and password reset (Epic A), the
-subscription CRUD and dashboard endpoints (Epic C), Celery and Redis for reminders (Epic E), the
-AI extraction subsystem (Epic D), and the `seed_demo` command. The `token_version` field exists on
-the user but nothing reads it yet; the `tv` claim check in specification section 6 is a follow-up.
+- **Accounts:** registration, email verification, login with lockout, password reset, rotating
+  refresh tokens revoked by `jti`, and a `tv` claim that ends every session on reset.
+- **Subscriptions and analytics:** CRUD with price history, the Decimal money engine, totals,
+  categories, spend over time, upcoming charges and price changes, all server-computed.
+- **Reminders and push:** reminders scheduled in each user's time zone, a Celery dispatcher with
+  retries, Expo push with receipts, and an in-app inbox that works even with the worker down.
+- **Exchange rates:** a daily Frankfurter refresh, with the stored rates kept on failure.
+- **AI extraction (`11 §2`):** read-only Gmail, a pipeline that grounds every value in the email
+  and computes its confidence, a review queue where nothing becomes a subscription until
+  confirmed, and an eval on 25 hand-labelled emails (`docs/ai/extraction-eval.md`).
+- **AI insight card (`08 §2.0`):** one sentence about computed facts, with every number checked.
+- **Deployment:** `render.yaml` and the [runbook](docs/ops/backend-deploy.md).
+
+Still mocked: **shared plans** (`backend/mocks.py`).
 
 ## Getting Started — Mobile
 
