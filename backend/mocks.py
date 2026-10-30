@@ -1,6 +1,7 @@
-"""Mock answers for the AI-epic endpoints (handoff 04 §6a, 11 §2): extractions,
-trials, shared plans and Gmail. These belong to the 11 owner; auth,
-subscriptions and analytics have been real since 04 slice 3.
+"""Mock answers for the AI-epic endpoints (handoff 04 §6a, 11 §2) still without
+models: extractions and shared plans. These belong to the 11 owner; auth,
+subscriptions and analytics have been real since 04 slice 3, trials since
+phase 4 and Gmail since phase 5.
 
 Each view validates its request for real, calls one function in this module,
 and serializes what it returns with the contract's serializers, so replacing a
@@ -18,7 +19,7 @@ How the mock answers
   - Writes run the real operation, read the result, then put the data back as
     it was (`_discarded`), so a mock create or edit returns exactly what the
     real one will, and the dataset never drifts between calls.
-  - Extractions, shared plans and Gmail have no models yet (they are the 11
+  - Extractions and shared plans have no models yet (they are the 11
     owner's, §6a). Their payloads are fixed here, dated from SEED_TODAY, with
     money computed by the engine.
 """
@@ -409,15 +410,3 @@ def confirm_extraction(extraction_id: str, fields: dict) -> dict:
 def discard_extraction(extraction_id: str) -> None:
     if extraction_id not in _EXTRACTION_IDS:
         raise not_found()
-
-
-# Gmail (04 §6a, 11 §2.1) -------------------------------------------------------
-
-
-def connect_gmail(code: str, redirect_uri: str, code_verifier: str | None = None) -> dict:
-    user = demo_user()
-    return {"provider": "gmail", "email": user.email, "connected_at": operations.at_start_of(TODAY)}
-
-
-def disconnect_gmail() -> None:
-    return None
