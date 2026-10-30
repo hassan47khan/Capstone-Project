@@ -9,9 +9,12 @@ django-mongodb-backend==6.1.0
 djangorestframework==3.18.3
 djangorestframework-simplejwt==5.5.1
 drf-spectacular==0.30.0
+# Production web server and static files (phase 6, render.yaml).
+gunicorn==26.2.0
 httpx==0.28.1
 python-dotenv==1.2.4
 redis==8.1.0
+whitenoise==6.12.0
 
 # Transitive
 amqp==5.4.1

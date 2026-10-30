@@ -15,6 +15,9 @@ select = ["E", "F", "W", "I", "B", "UP", "DJ"]
 DJANGO_SETTINGS_MODULE = "config.settings"
 python_files = ["test_*.py"]
 addopts = "--strict-markers"
+# WhiteNoise looks for STATIC_ROOT, which only `collectstatic` creates and the
+# tests never run. Expected there, and noise on every test client.
+filterwarnings = ["ignore:No directory at:UserWarning"]
 
 [tool.coverage.run]
 source = ["."]
