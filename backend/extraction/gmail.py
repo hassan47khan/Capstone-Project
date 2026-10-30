@@ -20,6 +20,7 @@ Every call has spec section 12's 10-second budget and goes through
 import base64
 import os
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from email.utils import parseaddr
 from html import unescape
 from html.parser import HTMLParser
@@ -77,6 +78,8 @@ class Email:
     sender: str
     subject: str
     text: str
+    # "Ends in 18 days" counts from here.
+    received_on: date | None = None
 
 
 def _guard(transport: httpx.BaseTransport | None) -> None:
@@ -281,9 +284,13 @@ def parse_message(message: dict) -> Email:
     text = "\n".join(plain) if plain else html_to_text("\n".join(_bodies(payload, "text/html")))
     name, address = parseaddr(headers.get("from", ""))
     sender = f"{name} <{address}>" if name and address else (address or name)
+    # internalDate is when Google accepted the message, in epoch milliseconds.
+    millis = message.get("internalDate")
+    received = datetime.fromtimestamp(int(millis) / 1000, tz=UTC).date() if millis else None
     return Email(
         message_id=message["id"],
         sender=sender,
         subject=headers.get("subject", ""),
         text=" ".join(text.split()),
+        received_on=received,
     )
