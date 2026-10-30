@@ -542,6 +542,78 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Validation failed; `error.fields` names each problem.
+  /api/v1/devices:
+    post:
+      operationId: devices_register
+      description: |-
+        Register this device for push, or refresh one already registered.
+
+        Idempotent, and it moves the token to the caller: a handset handed
+        to someone else must stop delivering to the previous account.
+      tags:
+      - devices
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeviceRegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeviceRegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/devices/{device_id}:
+    delete:
+      operationId: devices_delete
+      description: Stop sending push to this device. Used on log out.
+      parameters:
+      - in: path
+        name: device_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - devices
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
   /api/v1/extractions/{extraction_id}:
     delete:
       operationId: extractions_discard
@@ -820,6 +892,121 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+  /api/v1/me/notification-rules:
+    get:
+      operationId: notification_rules_retrieve
+      description: The caller's notification settings (handoff 09 §5).
+      tags:
+      - me
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRule'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+    patch:
+      operationId: notification_rules_update
+      description: Change one or more settings, and reschedule what they affect.
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationRuleUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationRuleUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationRuleUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRule'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/notifications:
+    get:
+      operationId: notifications_list
+      description: |-
+        The inbox, newest first.
+
+        Anything of the caller's that is already due but still unsent is
+        materialised into an inbox row first. That is the graded fallback
+        from spec section 12: with Redis or the workers down, a user who
+        opens the app still sees the alert, because the reminder rows were
+        written by the API and never depended on the broker.
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/notifications/{notification_id}/read:
+    post:
+      operationId: notifications_read
+      description: Mark one alert read. Idempotent.
+      parameters:
+      - in: path
+        name: notification_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
   /api/v1/shared-plans:
     get:
       operationId: shared_plans_list
@@ -1444,6 +1631,36 @@ components:
         * `weeks` - weeks
         * `months` - months
         * `years` - years
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        platform:
+          $ref: '#/components/schemas/PlatformEnum'
+        active:
+          type: boolean
+        last_seen_at:
+          type: string
+          format: date-time
+      required:
+      - active
+      - id
+      - last_seen_at
+      - platform
+    DeviceRegisterRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: The Expo push token, e.g. ExponentPushToken[xxxxxxxx].
+          maxLength: 255
+        platform:
+          $ref: '#/components/schemas/PlatformEnum'
+      required:
+      - platform
+      - token
     EmailRequest:
       type: object
       properties:
@@ -1811,6 +2028,117 @@ components:
           minLength: 1
       required:
       - display_name
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/NotificationKindEnum'
+        title:
+          type: string
+        body:
+          type: string
+        subscription_id:
+          type:
+          - string
+          - 'null'
+        created_at:
+          type: string
+          format: date-time
+        read:
+          type: boolean
+        missed:
+          type: boolean
+          description: Every push attempt failed, so the app shows it as a banner
+            (US-13).
+        push_status:
+          $ref: '#/components/schemas/PushStatusEnum'
+      required:
+      - body
+      - created_at
+      - id
+      - kind
+      - missed
+      - push_status
+      - read
+      - subscription_id
+      - title
+    NotificationKindEnum:
+      enum:
+      - trial_ending
+      - renewal
+      - price_increase
+      type: string
+      description: |-
+        * `trial_ending` - Trial Ending
+        * `renewal` - Renewal
+        * `price_increase` - Price Increase
+    NotificationList:
+      type: object
+      properties:
+        unread_count:
+          type: integer
+        missed_count:
+          type: integer
+          description: Unread alerts whose push never arrived, so the app can say
+            so once.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+          description: Newest first.
+      required:
+      - missed_count
+      - results
+      - unread_count
+    NotificationRule:
+      type: object
+      description: Handoff 09 §5's Notifications screen, field for field.
+      properties:
+        days_before_reminder:
+          type: integer
+          maximum: 30
+          minimum: 1
+        reminder_time:
+          type: string
+          format: time
+        send_push:
+          type: boolean
+        send_email:
+          type: boolean
+        alert_on_any_price_change:
+          type: boolean
+        price_alert_threshold:
+          type:
+          - string
+          - 'null'
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Null means any rise.
+        weekly_summary_enabled:
+          type: boolean
+        monthly_report_enabled:
+          type: boolean
+        report_delivery_day:
+          type: integer
+          maximum: 28
+          minimum: 1
+        trial_alert_days_before:
+          type: integer
+          maximum: 14
+          minimum: 1
+      required:
+      - alert_on_any_price_change
+      - days_before_reminder
+      - monthly_report_enabled
+      - price_alert_threshold
+      - reminder_time
+      - report_delivery_day
+      - send_email
+      - send_push
+      - trial_alert_days_before
+      - weekly_summary_enabled
     NullEnum:
       type: 'null'
     Participant:
@@ -1874,6 +2202,42 @@ components:
       required:
       - password
       - token
+    PatchedNotificationRuleUpdateRequest:
+      type: object
+      description: 'Every field optional: the screen saves one row at a time.'
+      properties:
+        days_before_reminder:
+          type: integer
+          maximum: 30
+          minimum: 1
+        reminder_time:
+          type: string
+          format: time
+        send_push:
+          type: boolean
+        send_email:
+          type: boolean
+        alert_on_any_price_change:
+          type: boolean
+        price_alert_threshold:
+          type:
+          - string
+          - 'null'
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Null means any rise.
+        weekly_summary_enabled:
+          type: boolean
+        monthly_report_enabled:
+          type: boolean
+        report_delivery_day:
+          type: integer
+          maximum: 28
+          minimum: 1
+        trial_alert_days_before:
+          type: integer
+          maximum: 14
+          minimum: 1
     PatchedProfileUpdateRequest:
       type: object
       description: PATCH /me. Every field is optional; send only what changes.
@@ -2016,6 +2380,14 @@ components:
       - current_month
       type: string
       description: '* `current_month` - current_month'
+    PlatformEnum:
+      enum:
+      - android
+      - ios
+      type: string
+      description: |-
+        * `android` - Android
+        * `ios` - Ios
     PriceChange:
       type: object
       properties:
@@ -2120,6 +2492,18 @@ components:
       - gmail
       type: string
       description: '* `gmail` - gmail'
+    PushStatusEnum:
+      enum:
+      - not_sent
+      - sent
+      - failed
+      - no_device
+      type: string
+      description: |-
+        * `not_sent` - Not Sent
+        * `sent` - Sent
+        * `failed` - Failed
+        * `no_device` - No Device
     RefreshRequest:
       type: object
       properties:
