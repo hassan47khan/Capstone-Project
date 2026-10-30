@@ -12,6 +12,8 @@ from decimal import Decimal
 from django.utils import timezone
 from django_mongodb_backend import transaction
 
+from notifications.scheduling import reschedule_for_subscription
+
 from .models import FxRate, PriceHistoryEvent, Subscription
 from .services import money
 from .services.cycles import Cycle, CycleChange, next_bill_date
@@ -71,6 +73,7 @@ def create_subscription(*, today: date, at: datetime | None = None, **fields) ->
             **_cycle_value(sub.cycle),
         },
     )
+    reschedule_for_subscription(sub, today=today)
     return sub
 
 
@@ -114,6 +117,7 @@ def update_subscription(
     ]
     refresh_next_bill_date(sub, today=today)
     sub.save()
+    reschedule_for_subscription(sub, today=today)
     return written
 
 
@@ -130,6 +134,7 @@ def cancel_subscription(sub: Subscription, *, today: date) -> Subscription:
         occurred_at=timezone.now(),
         new_value={"cancelled_on": today.isoformat()},
     )
+    reschedule_for_subscription(sub, today=today)
     return sub
 
 
@@ -143,6 +148,7 @@ def soft_delete(sub: Subscription) -> Subscription:
         sub.status = Status.DELETED
         sub.next_bill_date = None
         sub.save()
+        reschedule_for_subscription(sub, today=timezone.localdate())
     return sub
 
 
@@ -153,6 +159,7 @@ def restore(sub: Subscription, *, today: date) -> Subscription:
         sub.status_before_delete = None
         refresh_next_bill_date(sub, today=today)
         sub.save()
+        reschedule_for_subscription(sub, today=today)
     return sub
 
 
