@@ -15,11 +15,16 @@
 #   A required check that is skipped by a path filter never reports, and the
 #   pull request waits on it forever. The jobs are fast enough to always run.
 #
-# Why MongoDB comes from docker-compose.yml and not a service container
+# Why the databases come from docker-compose.yml and not service containers
 #   The compose file starts a single-node replica set and its healthcheck
 #   initiates it; a service container cannot run that setup step. Using the
 #   same file as local development also means CI tests the database a
-#   teammate actually gets.
+#   teammate actually gets. Redis rides along in the same file.
+#
+# Why REDIS_URL is not set here
+#   Unset, the cache stays in-process and Celery tasks run eagerly, which is
+#   what the suite wants: no test should depend on a broker being up. Redis
+#   is still started so the compose healthcheck is exercised on every run.
 
 name: backend-ci
 
@@ -71,8 +76,9 @@ jobs:
             backend/requirements-dev.txt
 
       # Started first so the replica set initiates while dependencies install.
-      # --wait returns only when the healthcheck reports a writable primary.
-      - name: Start MongoDB
+      # --wait returns only once every service with a healthcheck reports
+      # healthy: a writable primary for MongoDB, a PING for Redis.
+      - name: Start MongoDB and Redis
         working-directory: .
         run: docker compose up -d --wait --wait-timeout 120
 

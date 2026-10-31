@@ -14,6 +14,7 @@ import os
 from datetime import date, timedelta
 from pathlib import Path
 
+from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
@@ -164,26 +165,6 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
-MAILERS = {
-    "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
-    },
-}
-DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "SubTrak <no-reply@subtrak.app>")
-
-# Verification and reset emails link into the app (mobile/src/navigation/linking.ts).
-APP_LINK_PREFIX = os.environ.get("SUBTRAK_APP_LINK_PREFIX", "subtrak://")
-
-
-# Cache: holds the auth rate-limit counters and resend cooldowns. Per process,
-# which is enough for one server; a shared cache (Redis) comes with Celery.
-
-CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
-
-
 # Outside services
 #
 # Every variable below is optional and none has a working default, so a
@@ -193,8 +174,11 @@ CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"
 # Real values live only in backend/.env, which is gitignored. Spec section
 # 11: no secret is ever defaulted in code.
 
-# Celery broker and, from phase 2, the shared cache behind CACHES above.
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+# Celery's broker and the shared cache. Deliberately no default: "set" is
+# what moves the cache off this process, so defaulting it would point a
+# machine with no Redis running at one. docker-compose.yml provides it, and
+# .env.example gives the URL to paste.
+REDIS_URL = os.environ.get("REDIS_URL")
 
 # Resend. Unset keeps the console email backend above.
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
@@ -230,6 +214,116 @@ GOOGLE_OAUTH_REDIRECT_URIS = [
 # default: without a key Gmail must stop working, never fall back to one that
 # is in the repository.
 GMAIL_TOKEN_ENCRYPTION_KEY = os.environ.get("GMAIL_TOKEN_ENCRYPTION_KEY")
+
+
+# Cache: holds the auth rate-limit counters and resend cooldowns. Redis when
+# one is configured, so a rate limit counts across the web process and the
+# worker instead of once per process; otherwise per-process, which is enough
+# for a single local server. The suite forces locmem (conftest.py), so tests
+# never share state through a developer's Redis.
+#
+# Redis down must not take login with it (spec section 6), so the backend
+# fails open (core/cache.py), and the short timeouts stop a Redis that is
+# unreachable rather than refusing from holding each request open.
+
+CACHES = {
+    "default": (
+        {
+            "BACKEND": "core.cache.FailOpenRedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {"socket_connect_timeout": 2, "socket_timeout": 2},
+        }
+        if REDIS_URL
+        else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    )
+}
+
+
+# Celery (spec section 8). The app itself is config/celery.py.
+
+# A worker is only ever started on purpose, so unlike the cache this falls
+# back to the compose default rather than refusing to run.
+CELERY_BROKER_URL = REDIS_URL or "redis://localhost:6379/0"
+# With no REDIS_URL nobody runs a worker, so tasks run inline. Otherwise
+# .delay() would put them on compose's Redis, if it happens to be up, where
+# nothing reads them: a verification email queued and never sent. Failures
+# are logged, not raised, the same as they would be on a worker.
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL
+# Nothing waits on a task result, so there is no backend to keep clean.
+CELERY_RESULT_BACKEND = None
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+# Beat schedules in UTC; each task converts to the user's zone itself.
+CELERY_TIMEZONE = "UTC"
+CELERY_ENABLE_UTC = True
+# No task here should run for minutes. The soft limit raises inside the task
+# so it can log what it was doing; the hard limit kills it.
+CELERY_TASK_SOFT_TIME_LIMIT = 90
+CELERY_TASK_TIME_LIMIT = 120
+# A send that fails mid-flight is retried by the worker, not lost on the wire.
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+# With the broker down, .delay() must fail in seconds rather than block a
+# registration request while kombu retries. core/tasks.py catches that and
+# sends inline instead (spec section 6).
+CELERY_TASK_PUBLISH_RETRY = False
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_TRANSPORT_OPTIONS = {"socket_connect_timeout": 2, "socket_timeout": 2}
+
+# The schedule lives here, in code, so it is reviewed like any other change
+# and cannot drift per environment. Phases 3 to 5 add their own rows.
+CELERY_BEAT_SCHEDULE = {
+    # Hourly, matching the management command it shares an implementation
+    # with (subscriptions/tasks.py).
+    "convert-expired-trials": {
+        "task": "subscriptions.tasks.convert_expired_trials",
+        "schedule": crontab(minute=0),
+    },
+}
+
+
+# Email
+# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+#
+# Resend when a key is configured, Django's console backend otherwise, so a
+# checkout with no .env still prints the verification link a developer needs.
+# The suite uses neither: setup_test_environment() swaps every MAILERS alias
+# for the in-memory backend, so tests cannot send real mail whatever sits in
+# a developer's .env.
+#
+# Resend's SMTP service takes the literal username "resend" and the API key
+# as the password, and 587 is its STARTTLS port
+# (https://resend.com/docs/send-with-smtp). That fits MAILERS as Django 6.1
+# ships it, so SubTrak needs no email backend of its own. The timeout is
+# section 12's budget for one send; phase 2 adds the two retries.
+
+MAILERS = {
+    "default": (
+        {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "OPTIONS": {
+                "host": "smtp.resend.com",
+                "port": 587,
+                "username": "resend",
+                "password": RESEND_API_KEY,
+                "use_tls": True,
+                "timeout": 5,
+            },
+        }
+        if RESEND_API_KEY
+        else {"BACKEND": "django.core.mail.backends.console.EmailBackend"}
+    )
+}
+
+# Resend rejects a From address that is neither onboarding@resend.dev nor on
+# a domain verified in its dashboard, so this has to match what is set up
+# there before any real send works.
+DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "SubTrak <no-reply@subtrak.app>")
+
+# Where a tapped link hands off to the app (mobile/src/navigation/linking.ts).
+# With PUBLIC_BASE_URL set, emails point at the bridge in core/links.py first.
+APP_LINK_PREFIX = os.environ.get("SUBTRAK_APP_LINK_PREFIX", "subtrak://")
 
 
 # REST API

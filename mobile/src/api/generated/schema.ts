@@ -342,8 +342,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description Public liveness check. Reports MongoDB only for now; Redis and the LLM
-         *     circuit state join when those subsystems exist (spec section 5).
+         * @description Public liveness check (spec sections 5 and 12).
+         *
+         *     Only MongoDB can make this 503: it is the system of record, and nothing
+         *     works without it. Redis being down is `degraded`, not an outage -- the
+         *     app still reads and writes, reminders are only late, and the rows are
+         *     safe in MongoDB either way.
          */
         get: operations["health_retrieve"];
         put?: never;
@@ -737,6 +741,9 @@ export interface components {
         Health: {
             status: string;
             database: string;
+            redis: string;
+            oldest_overdue_reminder_minutes: number | null;
+            llm: string | null;
         };
         HistoryEvent: {
             id: string;

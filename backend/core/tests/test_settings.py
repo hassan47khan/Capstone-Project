@@ -94,3 +94,45 @@ def test_the_public_base_url_never_keeps_a_trailing_slash():
         read_setting("PUBLIC_BASE_URL", SUBTRAK_PUBLIC_BASE_URL="https://api.test/")
         == "'https://api.test'"
     )
+
+
+# Mail backend selection (phase 1) --------------------------------------------
+
+
+def test_mail_goes_through_resend_once_a_key_is_configured():
+    options = "MAILERS['default']['OPTIONS']"
+
+    assert (
+        read_setting("MAILERS['default']['BACKEND']", RESEND_API_KEY="re_test")
+        == "'django.core.mail.backends.smtp.EmailBackend'"
+    )
+    assert read_setting(f"{options}['host']", RESEND_API_KEY="re_test") == "'smtp.resend.com'"
+    # Resend's SMTP service wants the literal username "resend" and the API
+    # key as the password (https://resend.com/docs/send-with-smtp).
+    assert read_setting(f"{options}['username']", RESEND_API_KEY="re_test") == "'resend'"
+    assert read_setting(f"{options}['password'] == 're_test'", RESEND_API_KEY="re_test") == "True"
+    # 587 is STARTTLS, so use_tls rather than use_ssl.
+    assert read_setting(f"{options}['port']", RESEND_API_KEY="re_test") == "587"
+    assert read_setting(f"{options}['use_tls']", RESEND_API_KEY="re_test") == "True"
+
+
+def test_a_send_gives_up_after_the_five_seconds_section_12_allows_it():
+    assert read_setting("MAILERS['default']['OPTIONS']['timeout']", RESEND_API_KEY="re_test") == "5"
+
+
+def test_mail_falls_back_to_the_console_without_a_key():
+    assert (
+        read_setting("MAILERS['default']['BACKEND']", RESEND_API_KEY="")
+        == "'django.core.mail.backends.console.EmailBackend'"
+    )
+
+
+def test_the_suite_can_never_send_real_mail():
+    """Whatever a developer has in .env, tests use the in-memory backend.
+
+    Django's setup_test_environment() rewrites every MAILERS alias, which is
+    what keeps a configured RESEND_API_KEY from mailing people during a run.
+    """
+    from django.conf import settings as live
+
+    assert live.MAILERS["default"]["BACKEND"] == "django.core.mail.backends.locmem.EmailBackend"

@@ -19,6 +19,13 @@ def pinned_settings(settings):
     settings.SUBTRAK_TODAY = SEED_TODAY
     # A fast hasher: the tests check the rules around passwords, not PBKDF2.
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+    # Tasks run inline, so a test sees their effect without a worker. A test
+    # that wants the broker-down path makes .delay() raise instead.
+    settings.CELERY_TASK_ALWAYS_EAGER = True
+    settings.CELERY_TASK_EAGER_PROPAGATES = True
+    # Never a developer's Redis: the suite would then share rate-limit
+    # counters between runs, and between itself and a running server.
+    settings.CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 
 @pytest.fixture(autouse=True)

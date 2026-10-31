@@ -1,7 +1,10 @@
-# Local MongoDB for the backend, also used by backend-ci.
+# Local MongoDB and Redis for the backend, also used by backend-ci.
 #
-#   docker compose up -d --wait     # returns once MongoDB accepts writes
+#   docker compose up -d --wait     # returns once both accept connections
 #   docker compose down             # stop (add -v to delete the data)
+#
+# --wait waits on every service that declares a healthcheck, so one command
+# still means "the backend's dependencies are usable".
 #
 # Why a single-node replica set and not a plain mongod
 #   MongoDB only allows transactions on a replica set. The Sprint 0 spike found
@@ -9,8 +12,6 @@
 #   (TestCase flushes instead), but the backend's own transaction.atomic() does,
 #   and Atlas is always a replica set. Running one locally keeps "works on my
 #   machine" and "works in production" the same thing.
-#
-# Redis joins this file with the Celery work in Sprint 2.
 
 services:
   mongo:
@@ -39,6 +40,23 @@ services:
       timeout: 10s
       retries: 20
       start_period: 30s
+      start_interval: 1s
+
+  # Celery's broker, and the shared cache behind the auth rate-limit counters
+  # and resend cooldowns. Nothing here is a system of record: everything Redis
+  # holds can be rebuilt, so it runs without a volume and `down -v` costs
+  # nothing. Spec section 12: a Redis outage delays reminders, never loses
+  # them, because the rows live in MongoDB.
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
       start_interval: 1s
 
 volumes:
