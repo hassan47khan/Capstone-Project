@@ -283,6 +283,24 @@ describe('states (06 §5, §6)', () => {
   const eur = (amount: string) => ({ amount, currency: 'EUR' });
   const usd = (amount: string) => ({ amount, currency: 'USD' });
 
+  it('a subscription with no exchange rate is not the first-run state', async () => {
+    server.use(
+      http.get('*/analytics/summary', () =>
+        HttpResponse.json({
+          ...alexSummary,
+          active_count: 0,
+          trial_count: 0,
+          unconverted_count: 1,
+          categories: [],
+        }),
+      ),
+    );
+    await renderHome();
+
+    expect(await screen.findByTestId('spend-card')).toBeOnTheScreen();
+    expect(screen.queryByText(HOME_COPY.emptyTitle)).toBeNull();
+  });
+
   it('EUR display with bills converted from USD shows the chip and the note', async () => {
     server.use(
       http.get('*/analytics/summary', () =>

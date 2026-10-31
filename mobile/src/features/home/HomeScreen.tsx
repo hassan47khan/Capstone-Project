@@ -139,7 +139,13 @@ export function HomeScreen() {
   }
 
   // 05 §6 / 06 §5: a user with no subscriptions sees the first-run state only.
-  if (summary.data && summary.data.active_count === 0 && summary.data.trial_count === 0) {
+  // active_count leaves out what has no exchange rate, and those are still theirs.
+  if (
+    summary.data &&
+    summary.data.active_count === 0 &&
+    summary.data.trial_count === 0 &&
+    summary.data.unconverted_count === 0
+  ) {
     return (
       <Screen testID="home-screen">
         <View style={styles.empty}>

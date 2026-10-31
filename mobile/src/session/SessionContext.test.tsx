@@ -13,13 +13,16 @@
  *   every user who opens the app on the subway, permanently: once the token is
  *   gone, the signal coming back does not bring the session with it.
  */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { Text } from 'react-native';
 
 import { __resetRefreshState, request } from '@/api/client';
+import { queryKeys } from '@/api/queryKeys';
 import { MOCK_EMAILS } from '@/test/fixtures';
+import { createTestQueryClient } from '@/test/render';
 import { server } from '@/test/server';
 
 import { SessionProvider, useSession, type SessionValue } from './SessionContext';
@@ -42,11 +45,13 @@ function Probe() {
   return <Text testID="status">{value.status}</Text>;
 }
 
-async function renderSession() {
+async function renderSession(queryClient = createTestQueryClient()) {
   await render(
-    <SessionProvider>
-      <Probe />
-    </SessionProvider>,
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider>
+        <Probe />
+      </SessionProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -61,6 +66,29 @@ beforeEach(async () => {
   __resetRefreshState();
   await tokenStore.clear();
   session = null;
+});
+
+describe('the server cache', () => {
+  it('signing out leaves nothing of the last user for the next one', async () => {
+    // The test client drops unused data at once; the real one keeps it 5 minutes.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: Infinity } },
+    });
+    await tokenStore.setRefreshToken(VALID_REFRESH);
+    await renderSession(queryClient);
+    await expectStatus('authenticated');
+    queryClient.setQueryData(queryKeys.session.profile(), { email: MOCK_EMAILS.full });
+    queryClient.setQueryData(queryKeys.analytics.summary(), { active_count: 8 });
+    expect(queryClient.getQueryData(queryKeys.session.profile())).toBeDefined();
+
+    await act(async () => {
+      await session!.signOut();
+    });
+
+    await expectStatus('unauthenticated');
+    expect(queryClient.getQueryData(queryKeys.session.profile())).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.analytics.summary())).toBeUndefined();
+  });
 });
 
 describe('cold start', () => {
