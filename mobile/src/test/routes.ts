@@ -23,13 +23,18 @@
  *   discovered against the real thing.
  */
 
-import type { ApiErrorBody, Subscription, SubscriptionInput } from '@/api/types';
+import type { ApiErrorBody, Subscription } from '@/api/types';
 
 import { contractHomeFor } from './contractFixtures';
 import {
+  cancelMockSubscription,
+  createMockSubscriptionWithKey,
   deleteMockSubscription,
   resetCreatedSubscriptions,
+  restoreMockSubscription,
   subscriptionDetailFor,
+  subscriptionListFor,
+  updateMockSubscription,
 } from './subscriptionFixtures';
 
 import {
@@ -141,13 +146,11 @@ function protectedRoute(
  */
 let subscriptionOverrides: Record<string, Subscription[]> = {};
 let preferences = { ...mockNotificationPreferences };
-let nextId = 1;
 
 export function resetMockState(): void {
   subscriptionOverrides = {};
   preferences = { ...mockNotificationPreferences };
   resetCreatedSubscriptions();
-  nextId = 1;
 }
 
 function subscriptionsFor(email: string): Subscription[] {
@@ -445,67 +448,27 @@ export const routes: Route[] = [
   {
     method: 'GET',
     pattern: '/subscriptions',
-    handler: protectedRoute((request, account) => {
-      let results = subscriptionsFor(account.profile.email);
-
-      // Server-side filters the list screen relies on.
-      if (request.query.status) {
-        results = results.filter((s) => s.status === request.query.status);
-      }
-      if (request.query.category) {
-        results = results.filter((s) => s.category === request.query.category);
-      }
-
-      return ok({ results, next: null, count: results.length });
-    }),
+    // Frozen contract shape (04 §5), same store as POST and GET :id.
+    handler: protectedRoute((request, account) =>
+      ok(subscriptionListFor(account.profile.email, request.query)),
+    ),
   },
 
   {
     method: 'POST',
     pattern: '/subscriptions',
+    // Frozen contract shape (04 §5); see subscriptionFixtures.ts.
     handler: protectedRoute((request, account) => {
-      const input = (request.body ?? {}) as Partial<SubscriptionInput>;
-
-      if (!input.name?.trim()) {
-        return fail(400, 'validation_error', 'Enter a name.', {
-          name: ['Enter a name.'],
-        });
+      const result = createMockSubscriptionWithKey(
+        account.profile.email,
+        request.body,
+        request.headers['idempotency-key'],
+      );
+      if (result.error) {
+        const { status = 400, code, message, fields } = result.error;
+        return fail(status, code, message, fields);
       }
-
-      // US-7: the price must be greater than zero. Compared as a string-safe
-      // numeric check, since the value arrives as a decimal string.
-      if (
-        !input.price ||
-        !/^\d+(\.\d+)?$/.test(input.price) ||
-        Number(input.price) <= 0
-      ) {
-        return fail(400, 'price_invalid', 'Enter a valid price greater than $0.', {
-          price: ['Enter a valid price greater than $0.'],
-        });
-      }
-
-      const created: Subscription = {
-        id: `sub_new_${nextId++}`,
-        name: input.name.trim(),
-        category: input.category ?? null,
-        price: input.price,
-        currency: input.currency ?? 'USD',
-        cycle: input.cycle ?? { unit: 'month', count: 1 },
-        next_renewal_on: input.next_renewal_on ?? '2026-11-01',
-        status: input.status ?? 'active',
-        trial: input.trial ?? null,
-        monthly_equivalent: input.price,
-        reminder_enabled: input.reminder_enabled ?? true,
-        revisions: [],
-        created_at: '2026-09-30T12:00:00Z',
-      };
-
-      setSubscriptions(account.profile.email, [
-        ...subscriptionsFor(account.profile.email),
-        created,
-      ]);
-
-      return ok(created, 201);
+      return ok(result.detail, 201);
     }),
   },
 
@@ -526,49 +489,48 @@ export const routes: Route[] = [
   {
     method: 'PATCH',
     pattern: '/subscriptions/:id',
+    // Frozen contract shape (04 §5), same store as the other routes; writes history.
     handler: protectedRoute((request, account) => {
-      const list = subscriptionsFor(account.profile.email);
-      const index = list.findIndex((s) => s.id === request.params.id);
-      if (index === -1)
-        return fail(404, 'not_found', 'This subscription could not be found.');
-
-      const patch = (request.body ?? {}) as Partial<SubscriptionInput>;
-
-      if (
-        patch.price !== undefined &&
-        (!/^\d+(\.\d+)?$/.test(patch.price) || Number(patch.price) <= 0)
-      ) {
-        return fail(400, 'price_invalid', 'Enter a valid price greater than $0.', {
-          price: ['Enter a valid price greater than $0.'],
-        });
+      const result = updateMockSubscription(
+        account.profile.email,
+        request.params.id ?? '',
+        request.body,
+      );
+      if (!result) return fail(404, 'not_found', 'This subscription could not be found.');
+      if (result.error) {
+        return fail(400, result.error.code, result.error.message, result.error.fields);
       }
+      return ok(result.detail);
+    }),
+  },
 
-      const previous = list[index]!;
-      const updated: Subscription = {
-        ...previous,
-        ...patch,
-        // Editing a price appends a revision but raises no alert, because the
-        // user made the change themselves (specification section 9).
-        revisions:
-          patch.price && patch.price !== previous.price
-            ? [
-                ...previous.revisions,
-                {
-                  changed_at: '2026-09-30T12:00:00Z',
-                  field: 'price',
-                  old: previous.price,
-                  new: patch.price,
-                },
-              ]
-            : previous.revisions,
-        monthly_equivalent: patch.price ?? previous.monthly_equivalent,
-      };
+  {
+    method: 'POST',
+    pattern: '/subscriptions/:id/cancel',
+    // Same store as the other routes; 409 when it already was cancelled (like the server).
+    handler: protectedRoute((request, account) => {
+      const result = cancelMockSubscription(
+        account.profile.email,
+        request.params.id ?? '',
+      );
+      if (!result) return fail(404, 'not_found', 'This subscription could not be found.');
+      if (result.error) return fail(409, result.error.code, result.error.message);
+      return ok(result.detail);
+    }),
+  },
 
-      const next = [...list];
-      next[index] = updated;
-      setSubscriptions(account.profile.email, next);
-
-      return ok(updated);
+  {
+    method: 'POST',
+    pattern: '/subscriptions/:id/restore',
+    // Undo for a delete; 404 for an id that isn't this account's (like the server).
+    handler: protectedRoute((request, account) => {
+      const restored = restoreMockSubscription(
+        account.profile.email,
+        request.params.id ?? '',
+      );
+      if (!restored)
+        return fail(404, 'not_found', 'This subscription could not be found.');
+      return ok(restored);
     }),
   },
 

@@ -4,3 +4,5 @@ coverage
 .expo
 expo-env.d.ts
 package-lock.json
+
+src/api/generated

@@ -3,13 +3,21 @@
  * SEED_TODAY 2026-10-01). Written by hand to match what the backend seed
  * sends; the client never computes these figures.
  *
- * Used by the GET and DELETE /subscriptions/:id mock routes in routes.ts.
+ * Used by the /subscriptions mock routes in routes.ts (list, detail, add,
+ * edit and delete all share this one store).
  */
-import type { SubscriptionDetail } from '@/features/subscriptions/api';
+import type {
+  BillingCycle,
+  CustomCycleUnit,
+  HistoryEvent,
+  SubscriptionDetail,
+  SubscriptionInput,
+  SubscriptionRow,
+} from '@/features/subscriptions/api';
 
-import { CATEGORIES } from './contractFixtures';
+import { CATEGORIES, SEED_TODAY } from './contractFixtures';
 import { MOCK_EMAILS } from './fixtures';
-import { alexSeedDetails } from './subscriptionSeed';
+import { alexSeedDetails, rosaSeedDetails } from './subscriptionSeed';
 
 const usd = (amount: string) => ({ amount, currency: 'USD' });
 
@@ -127,13 +135,47 @@ export const headspaceDetail: SubscriptionDetail = {
 // seed subscriptions, so every Home link (contractFixtures.ts) opens one.
 const detailsByEmail: Record<string, SubscriptionDetail[]> = {
   [MOCK_EMAILS.full]: [netflixDetail, headspaceDetail, ...alexSeedDetails],
+  // Rosa: one plan in a currency with no exchange rate (US-4).
+  [MOCK_EMAILS.missingRate]: rosaSeedDetails,
 };
 
-// Ids soft-deleted this session: gone from detail (04 §2).
+// Subscriptions added during this app session or test, per account.
+// resetMockState() in routes.ts clears them between tests.
+let created: Record<string, SubscriptionDetail[]> = {};
+// Ids soft-deleted this session: gone from lists and detail (04 §2).
 let deleted = new Set<string>();
+// Edited copies by id; they replace the seed or added version.
+let edited: Record<string, SubscriptionDetail> = {};
+let nextId = 1; // sub_new_<n> and its evt-new-<n>
+let nextEventId = 1; // edit and cancel events, counted on their own
+let clock = 0; // seconds past the seed's noon, one per write
+// Idempotency-Keys used on POST /subscriptions, per account: the body's digest
+// and what it created (the server's IdempotencyKey table, #141).
+let idempotencyKeys: Record<string, { digest: string; id: string }> = {};
+
+// The time of the next write: always later than the last, like a real server
+// stamping "now" (with microseconds, as the server sends them).
+function nextInstant(): string {
+  const at = new Date(Date.UTC(2026, 9, 1, 12, 0, clock++));
+  return at.toISOString().replace('Z', '000Z');
+}
 
 export function resetCreatedSubscriptions(): void {
+  created = {};
   deleted = new Set();
+  edited = {};
+  nextId = 1;
+  nextEventId = 1;
+  clock = 0;
+  idempotencyKeys = {};
+}
+
+// Everything one account has: the seed fixtures plus anything added, with
+// edits applied, minus deletes.
+function allFor(email: string): SubscriptionDetail[] {
+  return [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])]
+    .filter((s) => !deleted.has(s.id))
+    .map((s) => edited[s.id] ?? s);
 }
 
 /** One subscription for one account, or null (the route turns that into a 404). */
@@ -141,8 +183,32 @@ export function subscriptionDetailFor(
   email: string,
   id: string,
 ): SubscriptionDetail | null {
-  if (deleted.has(id)) return null;
-  return detailsByEmail[email]?.find((s) => s.id === id) ?? null;
+  return allFor(email).find((s) => s.id === id) ?? null;
+}
+
+// A list row is the detail without the detail-only fields.
+function toRow(detail: SubscriptionDetail): SubscriptionRow {
+  const row: Partial<SubscriptionDetail> = { ...detail };
+  delete row.total_spent_to_date;
+  delete row.saved_per_year;
+  delete row.history;
+  return row as SubscriptionRow;
+}
+
+/**
+ * GET /subscriptions for the mock API (contract `SubscriptionList`): soonest
+ * bill first, cancelled last, with the optional status and category filters.
+ */
+export function subscriptionListFor(email: string, query: Record<string, string>) {
+  const rows = allFor(email)
+    .filter((s) => !query.status || s.status === query.status)
+    .filter((s) => !query.category || s.category?.slug === query.category)
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'cancelled' ? 1 : -1;
+      return (a.next_bill_date ?? '9999').localeCompare(b.next_bill_date ?? '9999');
+    })
+    .map(toRow);
+  return { results: rows, next: null, count: rows.length };
 }
 
 /** DELETE /subscriptions/:id for the mock API: a soft delete. False when not found. */
@@ -150,4 +216,474 @@ export function deleteMockSubscription(email: string, id: string): boolean {
   if (!subscriptionDetailFor(email, id)) return false;
   deleted.add(id);
   return true;
+}
+
+type CreateResult =
+  | { detail: SubscriptionDetail; error?: undefined }
+  | {
+      detail?: undefined;
+      // status: 400 unless given.
+      error: {
+        code: string;
+        message: string;
+        fields?: Record<string, string[]>;
+        status?: number;
+      };
+    };
+
+const PRICE_MESSAGE = 'Enter a valid price greater than $0.';
+
+// --- Dates the server works out (dates, not money, so the mock can) -----------
+
+// Bill steps per cycle, as backend/subscriptions/services/cycles.py.
+function stepOf(
+  cycle: BillingCycle,
+  count: number | null,
+  unit: CustomCycleUnit | null,
+): { days: number } | { months: number } {
+  if (cycle === 'weekly') return { days: 7 };
+  if (cycle === 'quarterly') return { months: 3 };
+  if (cycle === 'yearly') return { months: 12 };
+  if (cycle === 'custom') {
+    const n = count ?? 1;
+    if (unit === 'days') return { days: n };
+    if (unit === 'weeks') return { days: 7 * n };
+    if (unit === 'years') return { months: 12 * n };
+    return { months: n };
+  }
+  return { months: 1 };
+}
+
+// The k-th bill after `start`, anchored on start (Jan 31 monthly: Feb 28, Mar 31).
+function nthBill(start: string, step: { days: number } | { months: number }, k: number) {
+  const [y = 0, m = 1, d = 1] = start.split('-').map(Number);
+  if ('days' in step) {
+    return new Date(Date.UTC(y, m - 1, d + step.days * k)).toISOString().slice(0, 10);
+  }
+  const index = y * 12 + (m - 1) + step.months * k;
+  const year = Math.floor(index / 12);
+  const month = index % 12;
+  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(d, last))).toISOString().slice(0, 10);
+}
+
+/**
+ * The first bill on or after the seed's today, like next_bill_date() on the
+ * server. Simplification: past cycle changes aren't replayed; the schedule
+ * runs from start_date on the current cycle.
+ */
+export function nextBillDateFor(
+  start: string,
+  cycle: BillingCycle,
+  count: number | null,
+  unit: CustomCycleUnit | null,
+): string {
+  const step = stepOf(cycle, count, unit);
+  let k = 0;
+  while (nthBill(start, step, k) < SEED_TODAY) k += 1;
+  return nthBill(start, step, k);
+}
+
+// Monthly equivalents the real server gives for non-monthly plans (mock can't do money math).
+// One known answer per billing cycle, from 04 §3.1's factors, rounded at the end.
+const KNOWN_MONTHLY: Record<string, string> = {
+  '12.99 custom 2 months': '6.50', // Headspace (04 §4.2): 12.99 / 2 = 6.495
+  '3.00 weekly': '13.00', // 3.00 × 52 / 12
+  '30.00 quarterly': '10.00', // 30.00 / 3
+  '119.88 yearly': '9.99', // 119.88 / 12
+  '6.00 custom 3 weeks': '8.67', // 6.00 × 52 / (12 × 3) = 8.666…
+  '5.00 custom 10 days': '15.21', // 5.00 × 365 / (12 × 10) = 15.208…
+};
+
+// A monthly plan's equivalent is its price; others come from KNOWN_MONTHLY, else null.
+function monthlyFor(
+  price: string,
+  cycle: string,
+  input: Partial<SubscriptionInput>,
+  currency: string,
+) {
+  if (cycle === 'monthly') return { amount: price, currency };
+  const key = `${price} ${cycle} ${input.custom_cycle_count ?? ''} ${input.custom_cycle_unit ?? ''}`;
+  const amount = KNOWN_MONTHLY[key.trim()];
+  return amount ? { amount, currency } : null;
+}
+
+/**
+ * POST /subscriptions for the mock API: checks what the real server checks
+ * (04 §5) and keeps the new subscription so GET /subscriptions/:id finds it.
+ *
+ * The mock can't do the server's money math, so the money figures it would
+ * compute are left empty (null): no total spent, and a monthly equivalent only
+ * when it is known (see monthlyFor and KNOWN_MONTHLY). The next bill date is a
+ * date, not money, so it is worked out like the server does.
+ */
+export function createMockSubscription(email: string, body: unknown): CreateResult {
+  const input = (body ?? {}) as Partial<SubscriptionInput>;
+  const price = input.billing_price ?? '';
+
+  const fields: Record<string, string[]> = {};
+  if (!input.name?.trim()) fields.name = ['Enter a subscription name.'];
+  if (!input.category) fields.category = ['Choose a category.'];
+  if (!input.start_date) fields.start_date = ['Choose a start date.'];
+  // Price > 0, checked as text: digits, optional fraction, some non-zero digit.
+  const priceOk = /^\d+(\.\d+)?$/.test(price) && /[1-9]/.test(price);
+  if (!priceOk) fields.billing_price = [PRICE_MESSAGE];
+
+  if (Object.keys(fields).length > 0) {
+    return {
+      error: {
+        code: priceOk ? 'validation_error' : 'price_invalid',
+        message: priceOk ? Object.values(fields)[0]![0]! : PRICE_MESSAGE,
+        fields,
+      },
+    };
+  }
+
+  const currency = input.billing_currency ?? 'USD';
+  const cycle = input.billing_cycle ?? 'monthly';
+  const category =
+    Object.values(CATEGORIES).find((c) => c.slug === input.category) ?? null;
+  const now = `${SEED_TODAY}T00:00:00Z`;
+  // One number for both ids, so sub_new_1 gets evt-new-1.
+  const n = nextId++;
+  const detail: SubscriptionDetail = {
+    id: `sub_new_${n}`,
+    name: input.name!.trim(),
+    billing_price: price,
+    billing_currency: currency,
+    billing_cycle: cycle,
+    custom_cycle_count: input.custom_cycle_count ?? null,
+    custom_cycle_unit: input.custom_cycle_unit ?? null,
+    start_date: input.start_date!,
+    next_bill_date: nextBillDateFor(
+      input.start_date!,
+      cycle,
+      input.custom_cycle_count ?? null,
+      input.custom_cycle_unit ?? null,
+    ),
+    category,
+    notes: input.notes ?? '',
+    payment_label: input.payment_label ?? '',
+    status: 'active',
+    cancelled_on: null,
+    is_trial: false,
+    trial_ends_on: null,
+    trial_length_days: null,
+    trial_reminder_enabled: true,
+    trial_decision: 'none',
+    counts_toward_totals: true,
+    normalized_monthly: monthlyFor(price, cycle, input, currency),
+    service_mark: null,
+    created_at: now,
+    updated_at: now,
+    total_spent_to_date: null,
+    saved_per_year: null,
+    history: [
+      {
+        id: `evt-new-${n}`,
+        event_type: 'created',
+        occurred_at: now,
+        old_value: null,
+        new_value: {
+          price,
+          currency,
+          category: input.category ?? null,
+          billing_cycle: cycle,
+          custom_cycle_count: input.custom_cycle_count ?? null,
+          custom_cycle_unit: input.custom_cycle_unit ?? null,
+        },
+      },
+    ],
+  };
+
+  created[email] = [...(created[email] ?? []), detail];
+  return { detail };
+}
+
+// Price > 0, checked as text: digits, optional fraction, some non-zero digit.
+function isPositivePrice(price: string): boolean {
+  return /^\d+(\.\d+)?$/.test(price) && /[1-9]/.test(price);
+}
+
+/**
+ * PATCH /subscriptions/:id for the mock API: applies the changes and, like the
+ * real server (04 §5), writes one history event each for a price, category or
+ * cycle change, and works out the next bill date again. Null when not found
+ * (the route turns that into a 404).
+ */
+export function updateMockSubscription(
+  email: string,
+  id: string,
+  body: unknown,
+): CreateResult | null {
+  const current = subscriptionDetailFor(email, id);
+  if (!current) return null;
+  const input = (body ?? {}) as Partial<SubscriptionInput>;
+
+  if (input.billing_price !== undefined && !isPositivePrice(input.billing_price)) {
+    return {
+      error: {
+        code: 'price_invalid',
+        message: PRICE_MESSAGE,
+        fields: { billing_price: [PRICE_MESSAGE] },
+      },
+    };
+  }
+  if (input.name !== undefined && !input.name.trim()) {
+    const message = 'Enter a subscription name.';
+    return { error: { code: 'validation_error', message, fields: { name: [message] } } };
+  }
+
+  const price = input.billing_price ?? current.billing_price;
+  const currency = input.billing_currency ?? current.billing_currency;
+  const cycle = input.billing_cycle ?? current.billing_cycle;
+  const count =
+    input.custom_cycle_count !== undefined
+      ? input.custom_cycle_count
+      : current.custom_cycle_count;
+  const unit =
+    input.custom_cycle_unit !== undefined
+      ? input.custom_cycle_unit
+      : current.custom_cycle_unit;
+  const slug = input.category ?? current.category?.slug ?? null;
+  const startDate = input.start_date ?? current.start_date;
+  // One time for the whole edit, later than any earlier write (server: now()).
+  const now = nextInstant();
+
+  // One event per kind of change, newest first like the API.
+  const events: HistoryEvent[] = [];
+  const event = (
+    event_type: HistoryEvent['event_type'],
+    old_value: HistoryEvent['old_value'],
+    new_value: HistoryEvent['new_value'],
+  ) =>
+    events.unshift({
+      id: `evt-edit-${nextEventId++}`,
+      event_type,
+      occurred_at: now,
+      old_value,
+      new_value,
+    });
+
+  // Like operations.update_subscription: a currency switch is one
+  // currency_change from the old price and currency to the new ones, even if
+  // the price changed too; otherwise a new price is a price_change.
+  const before = { price: current.billing_price, currency: current.billing_currency };
+  if (currency !== current.billing_currency) {
+    event('currency_change', before, { price, currency });
+  } else if (price !== current.billing_price) {
+    event('price_change', before, { price, currency });
+  }
+  if (slug !== (current.category?.slug ?? null)) {
+    event(
+      'category_change',
+      { category: current.category?.slug ?? null },
+      { category: slug },
+    );
+  }
+  const cycleChanged =
+    cycle !== current.billing_cycle ||
+    count !== current.custom_cycle_count ||
+    unit !== current.custom_cycle_unit;
+  if (cycleChanged) {
+    event(
+      'cycle_change',
+      {
+        billing_cycle: current.billing_cycle,
+        custom_cycle_count: current.custom_cycle_count,
+        custom_cycle_unit: current.custom_cycle_unit,
+      },
+      { billing_cycle: cycle, custom_cycle_count: count, custom_cycle_unit: unit },
+    );
+  }
+
+  const updated: SubscriptionDetail = {
+    ...current,
+    name: input.name?.trim() ?? current.name,
+    billing_price: price,
+    billing_currency: currency,
+    billing_cycle: cycle,
+    custom_cycle_count: count,
+    custom_cycle_unit: unit,
+    start_date: startDate,
+    // Recomputed, never trusted (server: refresh_next_bill_date). None once cancelled.
+    next_bill_date:
+      current.status === 'active'
+        ? nextBillDateFor(startDate, cycle, count, unit)
+        : current.next_bill_date,
+    category: Object.values(CATEGORIES).find((c) => c.slug === slug) ?? null,
+    notes: input.notes ?? current.notes,
+    payment_label: input.payment_label ?? current.payment_label,
+    // Same figure as before unless the price or cycle changed (mock can't do money math).
+    normalized_monthly:
+      price !== current.billing_price || cycleChanged
+        ? monthlyFor(
+            price,
+            cycle,
+            { custom_cycle_count: count, custom_cycle_unit: unit },
+            currency,
+          )
+        : current.normalized_monthly,
+    updated_at: now,
+    history: [...events, ...current.history],
+  };
+
+  edited[id] = updated;
+  return { detail: updated };
+}
+
+// "Saved per year" the real server gives on cancel (operations.cancel_subscription:
+// the unrounded monthly equivalent x 12, rounded at the end). Captured from the
+// real backend for all 11 of Alex's seed subscriptions on 2026-10-27.
+const KNOWN_ANNUAL: Record<string, string> = {
+  '2.99 monthly': '35.88', // iCloud+
+  '4.25 monthly': '51.00', // New York Times
+  '10.00 monthly': '120.00', // Notion AI (trial)
+  '10.99 monthly': '131.88', // Spotify
+  '12.99 custom 2 months': '77.94', // Headspace: 12.99 x 6, not 6.50 x 12
+  '13.99 monthly': '167.88', // YouTube Premium, Duolingo Max (trial)
+  '15.49 monthly': '185.88', // Netflix
+  '17.99 monthly': '215.88', // Hulu (trial)
+  '20.00 monthly': '240.00', // ChatGPT Plus
+  '54.99 monthly': '659.88', // Adobe CC
+};
+
+type CancelResult =
+  | { detail: SubscriptionDetail; error?: undefined }
+  | { detail?: undefined; error: { code: string; message: string } };
+
+/**
+ * POST /subscriptions/:id/cancel for the mock API, like operations.cancel_subscription:
+ * status cancelled, no next bill, out of totals, history kept plus a "cancelled"
+ * event. Null when not found; a 409 error when it already was cancelled.
+ */
+export function cancelMockSubscription(email: string, id: string): CancelResult | null {
+  const current = subscriptionDetailFor(email, id);
+  if (!current) return null;
+  if (current.status === 'cancelled') {
+    return {
+      error: {
+        code: 'already_cancelled',
+        message: 'This subscription is already cancelled.',
+      },
+    };
+  }
+
+  const key = [
+    current.billing_price,
+    current.billing_cycle,
+    current.custom_cycle_count ?? '',
+    current.custom_cycle_unit ?? '',
+  ]
+    .join(' ')
+    .trim();
+  const annual = KNOWN_ANNUAL[key];
+  const now = nextInstant();
+
+  const cancelled: SubscriptionDetail = {
+    ...current,
+    status: 'cancelled',
+    cancelled_on: SEED_TODAY,
+    next_bill_date: null,
+    counts_toward_totals: false,
+    // Unknown plans get null rather than a made-up figure (the mock does no money math).
+    saved_per_year: annual ? { amount: annual, currency: 'USD' } : null,
+    updated_at: now,
+    history: [
+      {
+        id: `evt-cancel-${nextEventId++}`,
+        event_type: 'cancelled',
+        occurred_at: now,
+        old_value: null,
+        new_value: { cancelled_on: SEED_TODAY },
+      },
+      ...current.history,
+    ],
+  };
+
+  edited[id] = cancelled;
+  return { detail: cancelled };
+}
+
+const KEY_MESSAGE = 'Send an Idempotency-Key of 1 to 255 characters, or none.';
+
+// The same body gives the same digest, whatever order its keys came in.
+function digestOf(value: unknown): string {
+  const sorted = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(sorted)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(
+            Object.entries(v)
+              .sort(([a], [b]) => (a < b ? -1 : 1))
+              .map(([k, inner]) => [k, sorted(inner)]),
+          )
+        : v;
+  return JSON.stringify(sorted(value ?? {}));
+}
+
+/**
+ * POST /subscriptions with its Idempotency-Key header, like the real server
+ * (#141): a repeat with the same key and body gets the first subscription
+ * back; the same key with a different body is a 409. No key: a plain create.
+ */
+export function createMockSubscriptionWithKey(
+  email: string,
+  body: unknown,
+  idempotencyKey: string | undefined,
+): CreateResult {
+  if (idempotencyKey === undefined) return createMockSubscription(email, body);
+  const key = idempotencyKey.trim();
+  if (!key || key.length > 255) {
+    return {
+      error: {
+        code: 'validation_error',
+        message: KEY_MESSAGE,
+        fields: { 'Idempotency-Key': [KEY_MESSAGE] },
+      },
+    };
+  }
+
+  const slot = `${email} ${key}`;
+  const digest = digestOf(body);
+  const record = idempotencyKeys[slot];
+  if (record) {
+    if (record.digest !== digest) {
+      return {
+        error: {
+          code: 'idempotency_key_reused',
+          message: 'This Idempotency-Key was already used for a different subscription.',
+          status: 409,
+        },
+      };
+    }
+    const first = subscriptionDetailFor(email, record.id);
+    if (first) return { detail: first };
+  }
+
+  // Only a create that worked records the key (the server's transaction).
+  const result = createMockSubscription(email, body);
+  if (result.detail) idempotencyKeys[slot] = { digest, id: result.detail.id };
+  return result;
+}
+
+/**
+ * POST /subscriptions/:id/restore for the mock API, like operations.restore:
+ * a deleted subscription comes back as it was (its status and history are
+ * untouched by the delete); one that isn't deleted comes back unchanged. Null
+ * when it isn't this account's.
+ */
+export function restoreMockSubscription(
+  email: string,
+  id: string,
+): SubscriptionDetail | null {
+  const own = [...(detailsByEmail[email] ?? []), ...(created[email] ?? [])];
+  const found = own.find((s) => s.id === id);
+  if (!found) return null;
+  if (deleted.has(id)) {
+    deleted.delete(id);
+    // The server saves the row again, so updated_at moves on.
+    edited[id] = { ...(edited[id] ?? found), updated_at: nextInstant() };
+  }
+  return subscriptionDetailFor(email, id);
 }

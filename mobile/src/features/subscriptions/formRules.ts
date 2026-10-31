@@ -1,0 +1,267 @@
+/**
+ * The Add / Edit subscription form's data and rules (07 §2, §3).
+ *
+ * Plain functions, no React, so they are easy to test. The Edit screen will
+ * reuse all of this.
+ *
+ * No money math: the price stays the decimal string the user typed (already
+ * tidied by CurrencyField). The server checks it again and does every sum.
+ */
+import { minorUnits } from '@/api/format';
+import { invalidPriceMessage, isValidPrice } from '@/components';
+import { CATEGORY_SLUGS, type Category } from '@/theme';
+
+import { compareDecimal } from './priceHistory';
+
+import type {
+  BillingCycle,
+  CustomCycleUnit,
+  SubscriptionDetail,
+  SubscriptionInput,
+} from './api';
+
+/** Everything the user can type or pick. */
+export interface FormValues {
+  name: string;
+  price: string;
+  currency: string;
+  category: Category | null;
+  cycle: BillingCycle;
+  // Only used when cycle is "custom": "Every [count] [unit]".
+  customCount: number;
+  customUnit: CustomCycleUnit;
+  startDate: string | null;
+  notes: string;
+  paymentLabel: string;
+}
+
+/** 07 §3: an empty form starts on Monthly; category and date are unset. */
+export const EMPTY_FORM: FormValues = {
+  name: '',
+  price: '',
+  currency: 'USD',
+  category: null,
+  cycle: 'monthly',
+  customCount: 1,
+  customUnit: 'months',
+  startDate: null,
+  notes: '',
+  paymentLabel: '',
+};
+
+/** Character limits (07 §2, §8). */
+export const LIMITS = { name: 60, notes: 280, paymentLabel: 30 } as const;
+
+/** Exact messages from 07 §3. The price one comes from CurrencyField. */
+export const FORM_COPY = {
+  nameRequired: 'Enter a subscription name.',
+  categoryRequired: 'Choose a category.',
+  startRequired: 'Choose a start date.',
+  startInFuture: "Start date can't be in the future.",
+} as const;
+
+/** The fields that can have an error. */
+export type FormField =
+  'name' | 'price' | 'category' | 'startDate' | 'notes' | 'paymentLabel';
+export type FormErrors = Partial<Record<FormField, string>>;
+
+/**
+ * Checks the form. Returns one message per broken field; empty means valid.
+ * `today` is "YYYY-MM-DD" (dates compare correctly as text in that format).
+ */
+export function validateForm(values: FormValues, today: string): FormErrors {
+  const errors: FormErrors = {};
+  if (!values.name.trim()) errors.name = FORM_COPY.nameRequired;
+  if (!isValidPrice(values.price) || !fitsCurrency(values.price, values.currency)) {
+    errors.price = invalidPriceMessage(values.currency);
+  }
+  if (!values.category) errors.category = FORM_COPY.categoryRequired;
+  if (!values.startDate) errors.startDate = FORM_COPY.startRequired;
+  else if (values.startDate > today) errors.startDate = FORM_COPY.startInFuture;
+  return errors;
+}
+
+const UNIT_SINGULAR = { days: 'day', weeks: 'week', months: 'month', years: 'year' };
+
+/** "Monthly", "Yearly", "Every 2 months", "Every week". Shared by Detail and Add. */
+export function describeCycle(
+  sub: Pick<
+    SubscriptionInput,
+    'billing_cycle' | 'custom_cycle_count' | 'custom_cycle_unit'
+  >,
+): string {
+  switch (sub.billing_cycle) {
+    case 'weekly':
+      return 'Weekly';
+    case 'monthly':
+      return 'Monthly';
+    case 'quarterly':
+      return 'Quarterly';
+    case 'yearly':
+      return 'Yearly';
+    case 'custom': {
+      const count = sub.custom_cycle_count ?? 1;
+      const unit = sub.custom_cycle_unit ?? 'months';
+      return count === 1 ? `Every ${UNIT_SINGULAR[unit]}` : `Every ${count} ${unit}`;
+    }
+  }
+}
+
+// No more decimals than the currency has: "12.99" is fine in USD, not in JPY.
+export function fitsCurrency(price: string, currency: string): boolean {
+  const fraction = price.split('.')[1] ?? '';
+  return fraction.length <= minorUnits(currency);
+}
+
+// Short names for the hint under a disabled Save, in form order.
+const HINT_NAMES: [FormField, string][] = [
+  ['name', 'name'],
+  ['price', 'price'],
+  ['category', 'category'],
+  ['startDate', 'start date'],
+];
+
+/**
+ * Why Save is disabled, e.g. "To save, check: category and start date."
+ * Null when nothing is wrong. (07 §3 keeps Save disabled until valid; this
+ * says why, so a grey button isn't a dead end.)
+ */
+export function saveHint(errors: FormErrors): string | null {
+  const names = HINT_NAMES.filter(([field]) => errors[field]).map(([, name]) => name);
+  if (names.length === 0) return null;
+  const list =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `To save, check: ${list}.`;
+}
+
+/** True when anything differs from where the form started. */
+export function isFormDirty(values: FormValues, initial: FormValues): boolean {
+  return (Object.keys(initial) as (keyof FormValues)[]).some(
+    (key) => values[key] !== initial[key],
+  );
+}
+
+/** Turns valid form values into the body the API expects. */
+export function toSubscriptionInput(values: FormValues): SubscriptionInput {
+  const custom = values.cycle === 'custom';
+  return {
+    name: values.name.trim(),
+    billing_price: values.price,
+    billing_currency: values.currency,
+    billing_cycle: values.cycle,
+    // Only a custom cycle carries a count and unit.
+    custom_cycle_count: custom ? values.customCount : null,
+    custom_cycle_unit: custom ? values.customUnit : null,
+    start_date: values.startDate ?? '',
+    category: values.category ?? '',
+    notes: values.notes.trim(),
+    payment_label: values.paymentLabel.trim(),
+  };
+}
+
+/**
+ * Only the fields that differ from where the form started, as the API would
+ * receive them (07 §5). Edit sends just these: PATCH is partial, so a field
+ * the user didn't touch is never written back, even if it changed on the
+ * server since the form opened. Compared as sent, not as typed, so a hidden
+ * custom count on a monthly plan, or "15.5" vs "15.50", isn't a change. The
+ * three cycle fields always travel together.
+ */
+export function changedInput(
+  values: FormValues,
+  initial: FormValues,
+): Partial<SubscriptionInput> {
+  const now = toSubscriptionInput(values);
+  const before = toSubscriptionInput(initial);
+  const changed: Partial<SubscriptionInput> = {};
+  const keys = Object.keys(now) as (keyof SubscriptionInput)[];
+  for (const key of keys) {
+    const differs =
+      key === 'billing_price'
+        ? compareDecimal(now.billing_price, before.billing_price) !== 0
+        : now[key] !== before[key];
+    if (differs) Object.assign(changed, { [key]: now[key] });
+  }
+  const cycleKeys = ['billing_cycle', 'custom_cycle_count', 'custom_cycle_unit'] as const;
+  if (cycleKeys.some((key) => key in changed)) {
+    for (const key of cycleKeys) Object.assign(changed, { [key]: now[key] });
+  }
+  return changed;
+}
+
+/** Which form field each API field's error belongs to. */
+const SERVER_FIELDS: Record<string, FormField> = {
+  name: 'name',
+  billing_price: 'price',
+  category: 'category',
+  start_date: 'startDate',
+  notes: 'notes',
+  payment_label: 'paymentLabel',
+};
+
+/** Maps a 400's `error.fields` onto the form's fields. Unknown keys are skipped. */
+export function formErrorsFromServer(
+  fields: Record<string, string[]> | undefined,
+): FormErrors {
+  const errors: FormErrors = {};
+  for (const [key, messages] of Object.entries(fields ?? {})) {
+    const field = SERVER_FIELDS[key];
+    if (field && messages[0]) errors[field] = messages[0];
+  }
+  return errors;
+}
+
+// Prefills the Edit form from a saved subscription.
+export function formFromDetail(detail: SubscriptionDetail): FormValues {
+  return {
+    name: detail.name,
+    price: detail.billing_price,
+    currency: detail.billing_currency,
+    category: CATEGORY_SLUGS.find((c) => c === detail.category?.slug) ?? null,
+    cycle: detail.billing_cycle,
+    customCount: detail.custom_cycle_count ?? 1,
+    customUnit: detail.custom_cycle_unit ?? 'months',
+    startDate: detail.start_date,
+    notes: detail.notes,
+    paymentLabel: detail.payment_label,
+  };
+}
+
+// Errors to show: the server's first, then ours for fields the user has left
+// (or all of them once a save has failed).
+export function visibleErrors(
+  errors: FormErrors,
+  serverErrors: FormErrors,
+  touched: Set<FormField>,
+  submitted: boolean,
+): FormErrors {
+  const shown: FormErrors = { ...serverErrors };
+  for (const [field, message] of Object.entries(errors) as [FormField, string][]) {
+    if (!shown[field] && (submitted || touched.has(field))) shown[field] = message;
+  }
+  return shown;
+}
+
+// "Netflix", " netflix " and "NETFLIX" are the same name.
+function sameName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+/**
+ * 07 §8: the same service twice is allowed, with a soft warning. Null when the
+ * name is new. `ownId` is the one being edited, which never counts.
+ */
+export function duplicateNameWarning(
+  name: string,
+  others: readonly { id: string; name: string }[],
+  ownId?: string,
+): string | null {
+  const wanted = sameName(name);
+  const match = others.find((s) => s.id !== ownId && sameName(s.name) === wanted);
+  if (!match) return null;
+  // "a Netflix", "an iCloud+".
+  const article = /^[aeiou]/i.test(match.name.trim()) ? 'an' : 'a';
+  return `You already track ${article} ${match.name.trim()}.`;
+}

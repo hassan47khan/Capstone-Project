@@ -7,13 +7,19 @@
  *   enforceable: amounts are typed as strings, so multiplying two of them is a
  *   compile error rather than a rounding bug.
  *
- * TODO: replace with generated types.
- *   The specification (section 5) says the backend publishes an OpenAPI schema via
- *   drf-spectacular, and the client should generate from `backend/schema.yml`.
- *   That file does not exist yet — the backend is still a scaffold — so every type
- *   here is hand-written from specification section 5 and must be regenerated once
- *   the schema lands. Until then these are an assumption, not a contract, and any
- *   mismatch surfaces the first time the app runs against the real API.
+ * Generated versus hand-written
+ *   `backend/schema.yml` is frozen (#110) and `generated/schema.ts` is generated
+ *   from it (`npm run api:generate`; named in `contract.ts`). Where the contract
+ *   has a type, it is derived from the generated one below, so the two cannot
+ *   drift: Epic A (auth) and `ApiErrorBody`.
+ *
+ *   Everything marked "NO CONTRACT" further down is still hand-written, because
+ *   the schema has no counterpart: an old guess at `/dashboard`, `/analytics`,
+ *   `/currencies`, `/me/settings` and `/me/notification-preferences`, and the
+ *   first-draft `Subscription`. Those endpoints are not in the contract (see
+ *   Repo State, "Endpoints the screens need are not in the contract yet"), so
+ *   they cannot be generated until the backend adds them. Do not build new
+ *   screens on them; use `@/api/contract`.
  *
  * Conventions, from specification section 5
  *   - Money is a decimal STRING ("15.49") plus an ISO 4217 currency code. Never a
@@ -25,6 +31,19 @@
  */
 
 import type { Category } from '@/theme/tokens';
+
+import type {
+  ContractError,
+  ContractTokenPair,
+  ContractUserProfile,
+  EmailRequestBody,
+  EmailTokenRequestBody,
+  LoginRequestBody,
+  PasswordResetConfirmRequestBody,
+  RefreshRequestBody,
+  RegisterRequestBody,
+  RegisterResult,
+} from './contract';
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -65,13 +84,7 @@ export interface Money {
  * messages, which is what lets a form show the error inline on the right input
  * rather than as one banner at the top.
  */
-export interface ApiErrorBody {
-  error: {
-    code: string;
-    message: string;
-    fields?: Record<string, string[]>;
-  };
-}
+export type ApiErrorBody = ContractError;
 
 /**
  * Error codes the client branches on. Anything not listed falls through to the
@@ -97,59 +110,34 @@ export type KnownErrorCode =
 // Epic A — Account Management (US-1 to US-3)
 // ---------------------------------------------------------------------------
 
-export interface RegisterRequest {
-  email: string;
-  password: string;
-}
+export type RegisterRequest = RegisterRequestBody;
 
 /** Registration creates an INACTIVE user and emails a link; it returns no tokens. */
-export interface RegisterResponse {
-  email: string;
-  verification_sent: boolean;
-}
+export type RegisterResponse = RegisterResult;
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
+export type LoginRequest = LoginRequestBody;
 
 /**
  * Access token lives 15 minutes, refresh token 7 days (specification section 6).
  * Both carry a `tv` claim so a password reset invalidates every session at once.
  */
-export interface TokenPair {
-  access: string;
-  refresh: string;
-}
+export type TokenPair = ContractTokenPair;
 
-export interface RefreshRequest {
-  refresh: string;
-}
+export type RefreshRequest = RefreshRequestBody;
 
-export interface VerifyEmailRequest {
-  token: string;
-}
+export type VerifyEmailRequest = EmailTokenRequestBody;
 
-export interface PasswordResetRequestBody {
-  email: string;
-}
+export type PasswordResetRequestBody = EmailRequestBody;
 
-export interface PasswordResetConfirmBody {
-  token: string;
-  password: string;
-}
+export type PasswordResetConfirmBody = PasswordResetConfirmRequestBody;
 
 // ---------------------------------------------------------------------------
 // Epic B — Settings and Preferences (US-4, US-5, plus profile/preference gaps)
 // ---------------------------------------------------------------------------
 
-export interface UserProfile {
-  id: string;
-  email: string;
-  name: string | null;
-  email_verified: boolean;
-}
+export type UserProfile = ContractUserProfile;
 
+// NO CONTRACT: /me/settings is not in schema.yml yet.
 export interface UserSettings {
   /** Display currency. Each subscription keeps the currency it is billed in. */
   currency: CurrencyCode;
@@ -167,6 +155,7 @@ export interface UserSettings {
  * generic text in push payloads, for anyone who does not want their lock screen
  * announcing what they subscribe to (specification section 11).
  */
+// NO CONTRACT: /me/notification-preferences is not in schema.yml yet.
 export interface NotificationPreferences {
   trial_reminders: boolean;
   renewal_reminders: boolean;
@@ -181,6 +170,7 @@ export interface NotificationPreferences {
  * offered as a display currency, and a subscription billed in one is shown
  * unconverted with a visible marker rather than silently summed (US-4).
  */
+// NO CONTRACT: /currencies is not in schema.yml yet.
 export interface CurrencyOption {
   code: CurrencyCode;
   name: string;
@@ -223,6 +213,8 @@ export interface Revision {
   new: string | null;
 }
 
+// NO CONTRACT: first-draft shape. The contract's subscription is
+// `ContractSubscription` in `@/api/contract`.
 export interface Subscription {
   id: string;
   name: string;
@@ -285,6 +277,7 @@ export interface CategoryBreakdown {
  *
  * Every total is pre-computed and pre-converted by the server.
  */
+// NO CONTRACT: /dashboard is not in schema.yml. Home uses /analytics/*.
 export interface Dashboard {
   /** The user's display currency. All totals below are in it. */
   currency: CurrencyCode;
@@ -323,6 +316,7 @@ export interface DashboardNotice {
 }
 
 /** Insights screen (US-17 plus the largest-subscriptions list from the prototype). */
+// NO CONTRACT: /analytics (bare) is not in schema.yml.
 export interface Analytics {
   currency: CurrencyCode;
   monthly_total: MoneyString;

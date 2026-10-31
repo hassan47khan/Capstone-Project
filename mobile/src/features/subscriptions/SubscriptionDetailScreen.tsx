@@ -7,19 +7,23 @@
  *
  * States (07 §9)
  *   loading     skeletons for the header, rows and chart
- *   loaded      header, detail rows, price history chart, Edit
+ *   loaded      header with the ⋯ menu (Delete), detail rows, price history
+ *               chart, Edit, Mark as cancelled
+ *   cancelled   "Cancelled" badge, a Saved per year row, no Mark as cancelled
  *   not found   "Not found" + Go back (404 means missing OR not yours)
  *   failed      full-screen error + Try again
- *   offline     the saved copy stays, with a note; Edit is disabled with a reason
+ *   offline     the saved copy stays, with a note; Edit, Mark as cancelled and
+ *               Delete are disabled with a reason
  *
- * Not in this PR (come in later 07 PRs): Mark as cancelled, the ⋯ menu with
- * Delete, and Reactivate (no endpoint in the contract yet).
+ * Not yet: Reactivate, which 07 §9 wants as the primary on a cancelled
+ * subscription but has no endpoint yet.
  */
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Ellipsis } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { ApiError } from '@/api/errors';
 import { formatDateLong, formatMoney, formatTimeOfDay } from '@/api/format';
@@ -38,10 +42,21 @@ import {
   SkeletonGroup,
 } from '@/components';
 import type { AppStackParamList } from '@/navigation/types';
-import { CATEGORY_SLUGS, makeStyles, sizes, spacing, type Category } from '@/theme';
+import {
+  CATEGORY_SLUGS,
+  makeStyles,
+  radius,
+  sizes,
+  spacing,
+  useTheme,
+  type Category,
+} from '@/theme';
 
 import { getSubscription, type SubscriptionDetail } from './api';
+import { describeCycle } from './formRules';
 import { PriceHistoryChart } from './PriceHistoryChart';
+import { CancelSubscriptionSheet } from './CancelSubscriptionSheet';
+import { DeleteSubscriptionSheet } from './DeleteSubscriptionSheet';
 import { buildPriceSeries, describePriceHistory } from './priceHistory';
 import { utcToday } from './today';
 
@@ -49,7 +64,9 @@ export const DETAIL_COPY = {
   title: 'Subscription detail',
   priceHistory: 'Price history (last 12 months)',
   edit: 'Edit subscription',
-  offlineEdit: 'Connect to the internet to edit.',
+  markCancelled: 'Mark as cancelled',
+  offline: 'Connect to the internet to make changes.',
+  more: 'More options',
   stalePrefix: 'Showing saved details from',
   loading: 'Loading subscription',
 } as const;
@@ -57,28 +74,7 @@ export const DETAIL_COPY = {
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
 type Route = RouteProp<AppStackParamList, 'SubscriptionDetail'>;
 
-// --- Small helpers (exported so they can be tested) -------------------------
-
-const UNIT_SINGULAR = { days: 'day', weeks: 'week', months: 'month', years: 'year' };
-
-/** "Monthly", "Yearly", "Every 2 months", "Every week". */
-export function describeCycle(sub: SubscriptionDetail): string {
-  switch (sub.billing_cycle) {
-    case 'weekly':
-      return 'Weekly';
-    case 'monthly':
-      return 'Monthly';
-    case 'quarterly':
-      return 'Quarterly';
-    case 'yearly':
-      return 'Yearly';
-    case 'custom': {
-      const count = sub.custom_cycle_count ?? 1;
-      const unit = sub.custom_cycle_unit ?? 'months';
-      return count === 1 ? `Every ${UNIT_SINGULAR[unit]}` : `Every ${count} ${unit}`;
-    }
-  }
-}
+// --- Small helpers ------------------------------------------------------------
 
 /** The category slug as a known theme category, or null ("Uncategorized"). */
 function knownCategory(slug: string | undefined): Category | null {
@@ -98,6 +94,9 @@ export function SubscriptionDetailScreen() {
   const styles = useStyles();
   const navigation = useNavigation<Navigation>();
   const { id } = useRoute<Route>().params;
+  const { colors } = useTheme();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const detail = useQuery({
     queryKey: queryKeys.subscriptions.detail(id),
@@ -107,9 +106,10 @@ export function SubscriptionDetailScreen() {
   const close = () => navigation.goBack();
   const header = <Header title={DETAIL_COPY.title} onClose={close} />;
 
-  // Nothing loaded and it failed: one full-screen error.
-  if (detail.isError && !detail.data) {
-    const notFound = detail.error instanceof ApiError && detail.error.status === 404;
+  // Nothing loaded and it failed, or it's gone (a 404 even with a saved copy:
+  // deleted elsewhere, so the old copy would mislead): one full-screen error.
+  const notFound = detail.error instanceof ApiError && detail.error.status === 404;
+  if (detail.isError && (!detail.data || notFound)) {
     return (
       <Screen edges={['top', 'bottom']} testID="detail-screen">
         {header}
@@ -161,7 +161,23 @@ export function SubscriptionDetailScreen() {
       refreshing={detail.isRefetching}
       contentStyle={styles.content}
     >
-      {header}
+      <Header
+        title={DETAIL_COPY.title}
+        onClose={close}
+        action={
+          // 07 §4: Delete lives here, away from Edit.
+          <Pressable
+            onPress={() => setMenuOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={DETAIL_COPY.more}
+            hitSlop={(sizes.minTouch - sizes.headerButton) / 2}
+            style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
+            testID="detail-more"
+          >
+            <Ellipsis size={sizes.iconSmall} color={colors.text} strokeWidth={2} />
+          </Pressable>
+        }
+      />
 
       {stale ? (
         <Text style={styles.note} accessibilityLiveRegion="polite" testID="detail-stale">
@@ -199,18 +215,47 @@ export function SubscriptionDetailScreen() {
         />
       </View>
 
-      {/* Actions. Cancel and Delete arrive with their sheets in a later PR. */}
-      <View style={styles.section}>
+      {/* Actions (07 §4): Edit, then Mark as cancelled. Delete goes in the ⋯ menu. */}
+      <View style={styles.actions}>
         <Button
           label={DETAIL_COPY.edit}
           onPress={() => navigation.navigate('EditSubscription', { id: sub.id })}
           disabled={offline}
-          accessibilityHint={offline ? DETAIL_COPY.offlineEdit : undefined}
+          accessibilityHint={offline ? DETAIL_COPY.offline : undefined}
           fullWidth
           testID="detail-edit"
         />
-        {offline ? <Text style={styles.note}>{DETAIL_COPY.offlineEdit}</Text> : null}
+        {sub.status !== 'cancelled' ? (
+          <Button
+            label={DETAIL_COPY.markCancelled}
+            variant="secondary"
+            onPress={() => setCancelOpen(true)}
+            disabled={offline}
+            accessibilityHint={offline ? DETAIL_COPY.offline : undefined}
+            fullWidth
+            testID="detail-cancel"
+          />
+        ) : null}
+        {offline ? <Text style={styles.note}>{DETAIL_COPY.offline}</Text> : null}
       </View>
+
+      <CancelSubscriptionSheet
+        visible={cancelOpen}
+        id={sub.id}
+        name={sub.name}
+        onClose={() => setCancelOpen(false)}
+      />
+      <DeleteSubscriptionSheet
+        visible={menuOpen}
+        subscription={sub}
+        offline={offline}
+        onClose={() => setMenuOpen(false)}
+        onDeleted={() => {
+          setMenuOpen(false);
+          // Back to wherever Detail was opened from (07 §7).
+          close();
+        }}
+      />
     </Screen>
   );
 }
@@ -270,6 +315,12 @@ function DetailRows({ sub }: { sub: SubscriptionDetail }) {
   const added = formatDateLong(sub.start_date);
   add('Date added', <Text style={styles.value}>{added}</Text>, added, 'row-added');
 
+  // Only once cancelled (07 §7): what it would have cost per year.
+  if (sub.saved_per_year) {
+    const saved = money(sub.saved_per_year.amount, sub.saved_per_year.currency);
+    add('Saved per year', <Text style={styles.value}>{saved}</Text>, saved, 'row-saved');
+  }
+
   // Never red: red is only for errors and destructive actions (07 §4, 01 §2).
   if (sub.total_spent_to_date) {
     const spent = money(sub.total_spent_to_date.amount, sub.total_spent_to_date.currency);
@@ -311,6 +362,21 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   },
   section: {
     gap: spacing.sm,
+  },
+  // Edit and Mark as cancelled, 12 apart like the sheet's buttons.
+  actions: {
+    gap: spacing.md,
+  },
+  // The ⋯ button: the same size and press state as Header's own buttons.
+  more: {
+    width: sizes.headerButton,
+    height: sizes.headerButton,
+    borderRadius: radius.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  morePressed: {
+    backgroundColor: colors.surface2,
   },
   // 07 §4: no card padding; each row pads itself by 14.
   rows: {

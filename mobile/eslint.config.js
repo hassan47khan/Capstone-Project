@@ -28,7 +28,15 @@ module.exports = [
   ...expoConfig,
 
   {
-    ignores: ['node_modules/**', 'dist/**', 'coverage/**', '.expo/**', 'expo-env.d.ts'],
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'coverage/**',
+      '.expo/**',
+      'expo-env.d.ts',
+      // Machine output of `npm run api:generate`; fix the schema, not this file.
+      'src/api/generated/**',
+    ],
   },
 
   {

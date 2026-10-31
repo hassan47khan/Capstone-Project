@@ -11,14 +11,10 @@
  *   "you do not have permission", because that would confirm the record exists.
  */
 
+import type { ContractSubscription, SubscriptionList } from '../contract';
 import { newIdempotencyKey, request } from '../client';
 import type { Category } from '@/theme/tokens';
-import type {
-  Paginated,
-  Subscription,
-  SubscriptionInput,
-  SubscriptionStatus,
-} from '../types';
+import type { Subscription, SubscriptionInput, SubscriptionStatus } from '../types';
 
 export interface SubscriptionFilters {
   status?: SubscriptionStatus;
@@ -34,8 +30,8 @@ export interface SubscriptionFilters {
  */
 export function listSubscriptions(
   filters: SubscriptionFilters = {},
-): Promise<Subscription[]> {
-  return request<Paginated<Subscription>>('/subscriptions', {
+): Promise<ContractSubscription[]> {
+  return request<SubscriptionList>('/subscriptions', {
     query: { status: filters.status, category: filters.category ?? undefined },
   }).then((page) => page.results);
 }

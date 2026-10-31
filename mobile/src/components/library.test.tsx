@@ -999,6 +999,9 @@ describe('SearchField (02 §18)', () => {
 });
 
 describe('Toast (02 §13)', () => {
+  // Some tests replace Animated.timing; put it back even if one fails.
+  afterEach(() => jest.restoreAllMocks());
+
   function ShowOnMount({ message }: { message: string }) {
     const toast = useToast();
     return <Text onPress={() => toast.show(message)}>show</Text>;
@@ -1029,6 +1032,110 @@ describe('Toast (02 §13)', () => {
     });
 
     expect(screen.queryByText('Saved')).toBeNull();
+  });
+
+  // Added for the Undo toast after a delete (07 §7).
+  describe('with an action', () => {
+    function ShowWithUndo({ onUndo }: { onUndo: () => void }) {
+      const toast = useToast();
+      return (
+        <Text
+          onPress={() =>
+            toast.show('Subscription deleted', 'neutral', {
+              action: {
+                label: 'Undo',
+                onPress: onUndo,
+                accessibilityLabel: 'Undo delete',
+              },
+              holdMs: 6000,
+            })
+          }
+        >
+          show
+        </Text>
+      );
+    }
+
+    it('shows the button, says it is there, and takes touches', async () => {
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+      await render(<ShowWithUndo onUndo={jest.fn()} />);
+      await fireEvent.press(screen.getByText('show'));
+
+      expect(screen.getByLabelText('Undo delete')).toBeOnTheScreen();
+      expect(announce).toHaveBeenCalledWith('Subscription deleted. Undo available.');
+      expect(screen.getByTestId('toast').props.pointerEvents).toBe('box-none');
+    });
+
+    it('pressing it runs the action once and hides the toast', async () => {
+      const onUndo = jest.fn();
+      await render(<ShowWithUndo onUndo={onUndo} />);
+      await fireEvent.press(screen.getByText('show'));
+
+      await fireEvent.press(screen.getByLabelText('Undo delete'));
+
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText('Subscription deleted')).toBeNull();
+    });
+
+    it('stays up for the hold it was given (6s), not the default 3s', async () => {
+      jest.useFakeTimers();
+      await render(<ShowWithUndo onUndo={jest.fn()} />);
+      await fireEvent.press(screen.getByText('show'));
+
+      await act(async () => {
+        jest.advanceTimersByTime(motion.toastHold + motion.toast + 50);
+      });
+      expect(screen.getByText('Subscription deleted')).toBeOnTheScreen();
+
+      await act(async () => {
+        jest.advanceTimersByTime(6000 - motion.toastHold + motion.toast);
+      });
+      expect(screen.queryByText('Subscription deleted')).toBeNull();
+    });
+  });
+
+  it('a toast without an action lets touches through', async () => {
+    await render(<ShowOnMount message="Saved" />);
+    await fireEvent.press(screen.getByText('show'));
+
+    expect(screen.getByTestId('toast').props.pointerEvents).toBe('none');
+  });
+
+  it("an older toast finishing its exit doesn't remove the newer one", async () => {
+    // On a phone the fade-out takes 200ms; Jest's animations finish at once,
+    // so hold every animation and finish the old toast's exit by hand.
+    const finishers: ((result: { finished: boolean }) => void)[] = [];
+    jest.spyOn(Animated, 'timing').mockImplementation(
+      () =>
+        ({
+          start: (done?: (result: { finished: boolean }) => void) => {
+            if (done) finishers.push(done);
+          },
+          stop: () => {},
+        }) as unknown as Animated.CompositeAnimation,
+    );
+    jest.useFakeTimers();
+    function TwoToasts() {
+      const toast = useToast();
+      return (
+        <>
+          <Text onPress={() => toast.show('First')}>first</Text>
+          <Text onPress={() => toast.show('Second')}>second</Text>
+        </>
+      );
+    }
+    await render(<TwoToasts />);
+    await fireEvent.press(screen.getByText('first'));
+    // First's hold ends and its fade-out starts (and is held).
+    await act(async () => {
+      jest.advanceTimersByTime(motion.toastHold);
+    });
+    const firstExit = finishers.pop()!;
+
+    await fireEvent.press(screen.getByText('second'));
+    await act(async () => firstExit({ finished: true }));
+
+    expect(screen.getByText('Second')).toBeOnTheScreen();
   });
 });
 
