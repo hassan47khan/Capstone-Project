@@ -23,6 +23,7 @@
  * Phase 1 will add the screens that call `signIn`. The shape is settled now so
  * the navigation shell can be built and tested against it.
  */
+import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   useCallback,
@@ -100,6 +101,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    * read one version of the hooks and its retry another.
    */
   const endDeadSessionRef = useRef<() => Promise<void>>(async () => {});
+  const queryClient = useQueryClient();
 
   // Both start by abandoning any in-flight refresh, synchronously and before
   // touching storage, so a refresh from the previous session cannot resolve
@@ -117,13 +119,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // an abandoned one (`park: false`), or biometric would resurrect the very
   // session the user backed out of (an unverified account leaving Verify Email
   // Sent), looping them straight back to it.
-  const signOut = useCallback(async (options?: { park?: boolean }) => {
-    invalidateRefresh();
-    const refresh = await tokenStore.getRefreshToken();
-    if (refresh && options?.park !== false) await biometricStore.park(refresh);
-    await tokenStore.clear();
-    setStatus('unauthenticated');
-  }, []);
+  //
+  // The server cache goes with the session, or the next person to log in on
+  // this phone would see the last one's profile and figures.
+  const signOut = useCallback(
+    async (options?: { park?: boolean }) => {
+      invalidateRefresh();
+      const refresh = await tokenStore.getRefreshToken();
+      if (refresh && options?.park !== false) await biometricStore.park(refresh);
+      await tokenStore.clear();
+      setStatus('unauthenticated');
+      queryClient.clear();
+    },
+    [queryClient],
+  );
 
   /** The refresh token was rejected: nothing is worth keeping for biometrics. */
   const restoreParked = useCallback(async () => {
@@ -155,7 +164,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await tokenStore.clear();
     await biometricStore.forget();
     setStatus('unauthenticated');
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
 
   /**
    * Keeps the ref pointing at the current `endDeadSession`.
