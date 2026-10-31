@@ -221,10 +221,18 @@ GMAIL_TOKEN_ENCRYPTION_KEY = os.environ.get("GMAIL_TOKEN_ENCRYPTION_KEY")
 # worker instead of once per process; otherwise per-process, which is enough
 # for a single local server. The suite forces locmem (conftest.py), so tests
 # never share state through a developer's Redis.
+#
+# Redis down must not take login with it (spec section 6), so the backend
+# fails open (core/cache.py), and the short timeouts stop a Redis that is
+# unreachable rather than refusing from holding each request open.
 
 CACHES = {
     "default": (
-        {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}
+        {
+            "BACKEND": "core.cache.FailOpenRedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {"socket_connect_timeout": 2, "socket_timeout": 2},
+        }
         if REDIS_URL
         else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
     )
@@ -236,6 +244,11 @@ CACHES = {
 # A worker is only ever started on purpose, so unlike the cache this falls
 # back to the compose default rather than refusing to run.
 CELERY_BROKER_URL = REDIS_URL or "redis://localhost:6379/0"
+# With no REDIS_URL nobody runs a worker, so tasks run inline. Otherwise
+# .delay() would put them on compose's Redis, if it happens to be up, where
+# nothing reads them: a verification email queued and never sent. Failures
+# are logged, not raised, the same as they would be on a worker.
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL
 # Nothing waits on a task result, so there is no backend to keep clean.
 CELERY_RESULT_BACKEND = None
 CELERY_TASK_SERIALIZER = "json"

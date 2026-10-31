@@ -73,7 +73,7 @@ def test_the_cache_moves_to_redis_once_one_is_configured():
     # Shared, so a rate limit counts across the web process and the worker.
     assert (
         read_setting("CACHES['default']['BACKEND']", REDIS_URL="redis://localhost:6379/0")
-        == "'django.core.cache.backends.redis.RedisCache'"
+        == "'core.cache.FailOpenRedisCache'"
     )
     assert (
         read_setting("CACHES['default']['LOCATION']", REDIS_URL="redis://localhost:6379/1")
@@ -92,6 +92,16 @@ def test_the_broker_falls_back_to_compose_when_redis_url_is_unset():
     # Unlike the cache: a worker is only ever started deliberately, so a
     # default there is a convenience rather than a wrong guess.
     assert read_setting("CELERY_BROKER_URL", REDIS_URL="") == "'redis://localhost:6379/0'"
+
+
+def test_tasks_run_inline_when_no_redis_is_configured():
+    # Nobody runs a worker without REDIS_URL, so a task queued on compose's
+    # Redis would never run: the verify link would simply never arrive.
+    assert read_setting("CELERY_TASK_ALWAYS_EAGER", REDIS_URL="") == "True"
+
+
+def test_tasks_go_to_the_worker_once_redis_is_configured():
+    assert read_setting("CELERY_TASK_ALWAYS_EAGER", REDIS_URL="redis://localhost:6379/0") == "False"
 
 
 def test_the_suite_never_uses_a_developers_redis():
