@@ -1,15 +1,18 @@
 /**
  * Analytics tab (handoff 08, board card #99; US-16 comes with spend over time).
  *
- * Insight first, list last (08 §1). This first part is "Spending by category"
- * with the monthly total (08 §2.2, §2.3). Still to come, in their own PRs: the
- * spend-over-time chart above it (§2.1), the subscription list below it (§2.4),
- * and the AI insight card at the top (§2.0, once GET /analytics/insight exists).
+ * Insight first, list last (08 §1): the spend-over-time headline with the
+ * projected yearly spend (§2.1, US-16), then "Spending by category" with the
+ * monthly total (§2.2, §2.3). Still to come, in their own PRs: the subscription
+ * list below (§2.4), and the AI insight card at the top (§2.0, once
+ * GET /analytics/insight exists).
+ *
+ * Each section loads, fails and retries on its own (08 §4).
  *
  * The header has no Add button: the FAB is the only way to add (03 §2).
  *
  * States (08 §4)
- *   loading     a skeleton for the section
+ *   loading     a skeleton per section
  *   empty       no subscriptions: "Nothing to analyze yet" + Add
  *   error       the section's own error with Try again (nothing saved to show)
  *   stale       a refresh failed: the saved figures stay, with when they're from
@@ -20,6 +23,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart3 } from 'lucide-react-native';
 import { Text } from 'react-native';
 
+import type { AnalyticsSummary } from '@/api/analyticsTypes';
 import { analyticsApi } from '@/api/endpoints';
 import { formatTimeOfDay } from '@/api/format';
 import { queryKeys } from '@/api/queryKeys';
@@ -35,10 +39,12 @@ import type { AppStackParamList } from '@/navigation/types';
 import { makeStyles, sizes } from '@/theme';
 
 import { CategoryCard } from './CategoryCard';
+import { SpendTrend } from './SpendTrend';
 
 export const ANALYTICS_COPY = {
   title: 'Analytics',
   loading: 'Loading spending by category',
+  loadingSpend: 'Loading spending over time',
   emptyTitle: 'Nothing to analyze yet',
   emptyMessage: 'Add a subscription and your spending shows up here.',
   emptyAction: 'Add a subscription',
@@ -46,6 +52,9 @@ export const ANALYTICS_COPY = {
 } as const;
 
 type Navigation = NativeStackNavigationProp<AppStackParamList>;
+
+// 08 §2.1: a 12-month trend.
+const SPEND_MONTHS = 12;
 
 export function AnalyticsScreen() {
   const styles = useStyles();
@@ -55,6 +64,11 @@ export function AnalyticsScreen() {
     queryKey: queryKeys.analytics.summary(),
     queryFn: analyticsApi.getSummary,
   });
+  const spend = useQuery({
+    queryKey: queryKeys.analytics.spendOverTime(SPEND_MONTHS),
+    queryFn: () => analyticsApi.getSpendOverTime(SPEND_MONTHS),
+  });
+  const sections = [spend, summary];
 
   const data = summary.data;
   // Nothing to show at all. active_count only counts subscriptions the server
@@ -65,22 +79,24 @@ export function AnalyticsScreen() {
     data.active_count === 0 &&
     data.trial_count === 0 &&
     data.unconverted_count === 0;
+  // A refresh failed but saved figures are still showing: say how old they are.
+  const stale = sections.find((q) => q.isError && q.data);
 
   return (
     <Screen
       testID="analytics-screen"
-      onRefresh={() => summary.refetch()}
-      refreshing={summary.isRefetching}
+      onRefresh={() => sections.forEach((q) => q.refetch())}
+      refreshing={sections.some((q) => q.isRefetching)}
     >
       <Header title={ANALYTICS_COPY.title} />
 
-      {summary.isError && data ? (
+      {stale ? (
         <Text
           style={styles.note}
           accessibilityLiveRegion="polite"
           testID="analytics-stale"
         >
-          {ANALYTICS_COPY.stalePrefix} {formatTimeOfDay(summary.dataUpdatedAt)}
+          {ANALYTICS_COPY.stalePrefix} {formatTimeOfDay(stale.dataUpdatedAt)}
         </Text>
       ) : null}
 
@@ -93,21 +109,52 @@ export function AnalyticsScreen() {
           onAction={() => navigation.navigate('AddSubscription')}
           testID="analytics-empty"
         />
-      ) : data ? (
-        <CategoryCard summary={data} />
-      ) : summary.isError ? (
-        <ErrorState
-          error={summary.error}
-          onRetry={() => summary.refetch()}
-          testID="analytics-error"
-        />
       ) : (
-        <SkeletonGroup label={ANALYTICS_COPY.loading} testID="analytics-loading">
-          <Skeleton height={sizes.field} />
-          <Skeleton height={sizes.field * 4} />
-        </SkeletonGroup>
+        <>
+          {/* 08 §2.1: the headline, first on the screen. */}
+          {spend.data ? (
+            <SpendTrend spend={spend.data} annual={data?.annual_total} />
+          ) : spend.isError ? (
+            <ErrorState
+              error={spend.error}
+              onRetry={() => spend.refetch()}
+              testID="analytics-spend-error"
+            />
+          ) : (
+            <SkeletonGroup
+              label={ANALYTICS_COPY.loadingSpend}
+              testID="analytics-spend-loading"
+            >
+              <Skeleton height={sizes.field * 3} />
+            </SkeletonGroup>
+          )}
+
+          <CategorySection summary={summary} />
+        </>
       )}
     </Screen>
+  );
+}
+
+// "Spending by category" with its own loading and error (08 §4).
+function CategorySection({
+  summary,
+}: {
+  summary: ReturnType<typeof useQuery<AnalyticsSummary>>;
+}) {
+  return summary.data ? (
+    <CategoryCard summary={summary.data} />
+  ) : summary.isError ? (
+    <ErrorState
+      error={summary.error}
+      onRetry={() => summary.refetch()}
+      testID="analytics-error"
+    />
+  ) : (
+    <SkeletonGroup label={ANALYTICS_COPY.loading} testID="analytics-loading">
+      <Skeleton height={sizes.field} />
+      <Skeleton height={sizes.field * 4} />
+    </SkeletonGroup>
   );
 }
 

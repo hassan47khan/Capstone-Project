@@ -9,20 +9,26 @@ import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
-import { StyleSheet, Text } from 'react-native';
+import { processColor, StyleSheet, Text } from 'react-native';
 
-import type { AnalyticsSummary } from '@/api/analyticsTypes';
+import type { AnalyticsSummary, SpendOverTime } from '@/api/analyticsTypes';
 import { queryKeys } from '@/api/queryKeys';
 import { SessionProvider } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
-import { emptySummary } from '@/test/contractFixtures';
+import {
+  alexSpend,
+  alexSpendYear,
+  emptySummary,
+  spendFor,
+} from '@/test/contractFixtures';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
-import { lightCategoryColors, type CategoryKey } from '@/theme';
+import { lightCategoryColors, lightColors, type CategoryKey } from '@/theme';
 
 import { ANALYTICS_COPY, AnalyticsScreen } from './AnalyticsScreen';
 import { barFractions, CATEGORY_COPY } from './CategoryCard';
+import { SPEND_COPY } from './SpendTrend';
 
 const category = (slug: string, name: string, key: string) => ({
   slug,
@@ -112,7 +118,10 @@ function serve(summary: AnalyticsSummary) {
   server.use(http.get('*/analytics/summary', () => HttpResponse.json(summary)));
 }
 
-async function renderAnalytics(queryClient = createTestQueryClient()) {
+async function renderAnalytics(
+  queryClient = createTestQueryClient(),
+  { reduceMotion = false } = {},
+) {
   await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
   await renderWithProviders(
     <SessionProvider>
@@ -123,7 +132,7 @@ async function renderAnalytics(queryClient = createTestQueryClient()) {
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
-    { queryClient },
+    { queryClient, reduceMotion },
   );
   await screen.findByTestId('analytics-screen');
   return queryClient;
@@ -374,5 +383,209 @@ describe('screen states (08 §4)', () => {
 
     expect(screen.queryByRole('button', { name: /add/i })).toBeNull();
     expect(screen.getByRole('header', { name: ANALYTICS_COPY.title })).toBeOnTheScreen();
+  });
+});
+
+// 08 §2.1 and US-16 (#57). The mock serves Alex's real 12 months; the cases
+// below are the real backend's responses (scratch database, 2026-10-30).
+describe('Spend over time (08 §2.1)', () => {
+  const usd = (amount: string) => ({ amount, currency: 'USD' });
+  const serveSpend = (spend: SpendOverTime) =>
+    server.use(http.get('*/analytics/spend-over-time', () => HttpResponse.json(spend)));
+  const layOut = async (width: number) =>
+    fireEvent(
+      screen.getByTestId('analytics-spend-plot', { includeHiddenElements: true }),
+      'layout',
+      {
+        nativeEvent: { layout: { width, height: 120, x: 0, y: 0 } },
+      },
+    );
+  const hidden = (testID: string) =>
+    screen.getByTestId(testID, { includeHiddenElements: true });
+
+  it('is the first section, with this month and the change from last month', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-spend');
+    await screen.findByTestId('analytics-category-card');
+
+    const order = screen
+      .getAllByTestId(/^analytics-(spend|category-card)$/)
+      .map((node) => node.props.testID);
+    expect(order).toEqual(['analytics-spend', 'analytics-category-card']);
+    expect(screen.getByTestId('analytics-spend-current')).toHaveTextContent('$129.20');
+    expect(screen.getByTestId('analytics-spend-delta')).toHaveTextContent(
+      'up 1.2% from last month',
+    );
+  });
+
+  it('says the chart in words, with the real year (08 §7)', async () => {
+    await renderAnalytics();
+
+    expect(await screen.findByTestId('analytics-spend-summary')).toHaveTextContent(
+      'Spending over 12 months. Current month $129.20, up 1.2% from last month. Highest was $129.20 in October.',
+    );
+  });
+
+  it('draws 12 months: the accent line, an 8% fill, the current month marked, and a round top', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-spend');
+    await layOut(300);
+
+    // react-native-svg hands colors to native code as processed numbers.
+    expect(hidden('analytics-spend-line').props.stroke).toEqual({
+      type: 0,
+      payload: processColor(lightColors.accent),
+    });
+    expect(hidden('analytics-spend-area').props.fillOpacity).toBe(0.08);
+    expect(hidden('analytics-spend-current-dot')).toBeTruthy();
+    // SVG text sits in a nested span's `content`.
+    const top = hidden('analytics-spend-top').children[0] as {
+      props: { content?: string };
+    };
+    expect(top.props.content).toBe('$150.00');
+    // The picture is hidden from screen readers; the sentence carries it.
+    expect(screen.queryByTestId('analytics-spend-plot')).toBeNull();
+  });
+
+  it('labels every month by its initial, the current one in bold', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-spend');
+    await layOut(300);
+
+    const labels = alexSpendYear.months.map(
+      (m) => hidden(`analytics-spend-axis-${m.month}`).props.children,
+    );
+    expect(labels).toEqual(['N', 'D', 'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O']);
+    const current = StyleSheet.flatten(
+      hidden('analytics-spend-axis-2026-10').props.style,
+    );
+    expect(current.color).toBe(lightColors.text);
+  });
+
+  it('on a narrow screen, every 2nd month label, ending on the current month', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-spend');
+    await layOut(200);
+
+    expect(hidden('analytics-spend-axis-2026-10').props.children).toBe('O');
+    expect(hidden('analytics-spend-axis-2026-09').props.children).toBe(' ');
+    expect(hidden('analytics-spend-axis-2026-08').props.children).toBe('A');
+  });
+
+  it('a fall is in green; a rise is plain text, never red', async () => {
+    serveSpend({
+      ...alexSpendYear,
+      current: usd('127.70'),
+      previous: usd('128.73'),
+      delta_percent: '-0.8',
+      direction: 'down',
+    });
+    await renderAnalytics();
+
+    const delta = await screen.findByText('down 0.8% from last month');
+    expect(StyleSheet.flatten(delta.props.style).color).toBe(lightColors.success);
+  });
+
+  it('a flat month reads "No change from last month" (08 §5; Sam, real data)', async () => {
+    serveSpend({
+      ...alexSpendYear,
+      months: alexSpendYear.months.map((m) => ({ ...m, amount: usd('22.98') })),
+      current: usd('22.98'),
+      previous: usd('22.98'),
+      delta_percent: '0.0',
+      direction: 'flat',
+    });
+    await renderAnalytics();
+
+    expect(await screen.findByTestId('analytics-spend-delta')).toHaveTextContent(
+      'No change from last month',
+    );
+  });
+
+  it('under two months of tracking: the placeholder, not a one-point chart (real new user)', async () => {
+    // A user whose only subscription started this month, from the real backend.
+    serveSpend({
+      display_currency: 'USD',
+      months: [
+        ...alexSpendYear.months.slice(0, 11).map((m) => ({ ...m, amount: usd('0.00') })),
+        { month: '2026-10', amount: usd('15.00') },
+      ],
+      current: usd('15.00'),
+      previous: usd('0.00'),
+      delta_percent: null,
+      direction: 'up',
+      enough_history: false,
+    });
+    await renderAnalytics();
+
+    expect(await screen.findByTestId('analytics-spend-placeholder')).toHaveTextContent(
+      SPEND_COPY.placeholder,
+    );
+    expect(screen.getByTestId('analytics-spend-current')).toHaveTextContent('$15.00');
+    expect(
+      screen.queryByTestId('analytics-spend-plot', { includeHiddenElements: true }),
+    ).toBeNull();
+    expect(screen.queryByTestId('analytics-spend-delta')).toBeNull();
+  });
+
+  it("US-16: shows the projected yearly spend, at today's prices without trials", async () => {
+    await renderAnalytics();
+
+    expect(
+      (await screen.findByTestId('analytics-projected')).props.accessibilityLabel,
+    ).toBe(
+      "Projected for the year, $1,550.34. At today's prices. Trials aren't counted.",
+    );
+  });
+
+  it("a failed spend load doesn't take the category card with it, and Try again recovers", async () => {
+    let fail = true;
+    server.use(
+      http.get('*/analytics/spend-over-time', () =>
+        fail
+          ? HttpResponse.json(
+              { error: { code: 'server_error', message: 'Down.' } },
+              { status: 503 },
+            )
+          : undefined,
+      ),
+    );
+    await renderAnalytics();
+
+    await screen.findByTestId('analytics-spend-error');
+    expect(await screen.findByTestId('analytics-category-card')).toBeOnTheScreen();
+
+    fail = false;
+    await fireEvent.press(screen.getByTestId('analytics-spend-error-retry'));
+    expect(await screen.findByTestId('analytics-spend')).toBeOnTheScreen();
+  });
+
+  it('draws the line in from the left, or at once under reduced motion (08 §6)', async () => {
+    // How much of the line is still hidden: none means fully drawn
+    // (react-native-svg passes an offset of 0 on as null).
+    const undrawn = () => hidden('analytics-spend-line').props.strokeDashoffset ?? 0;
+
+    await renderAnalytics(createTestQueryClient(), { reduceMotion: true });
+    await screen.findByTestId('analytics-spend');
+    await layOut(300);
+    expect(undrawn()).toBe(0);
+  });
+
+  it('with motion on, the line starts hidden and draws in', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-spend');
+    await layOut(300);
+
+    expect(Number(hidden('analytics-spend-line').props.strokeDashoffset)).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("the mock's year ends in Home's two months, so the screens agree", () => {
+    expect(spendFor(MOCK_EMAILS.full, 2)).toEqual({
+      ...alexSpendYear,
+      months: alexSpend.months,
+    });
+    expect(spendFor(MOCK_EMAILS.full, 12).months).toHaveLength(12);
   });
 });
