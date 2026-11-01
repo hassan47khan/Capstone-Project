@@ -57,8 +57,14 @@ export function AnalyticsScreen() {
   });
 
   const data = summary.data;
-  // The same rule as Home's empty state (06 §6): nothing active, no trials.
-  const empty = data && data.active_count === 0 && data.trial_count === 0;
+  // Nothing to show at all. active_count only counts subscriptions the server
+  // can convert, so one in a currency with no rate (e.g. only ARS) counts in
+  // unconverted_count instead: that's not empty, it gets the "left out" note.
+  const empty =
+    data &&
+    data.active_count === 0 &&
+    data.trial_count === 0 &&
+    data.unconverted_count === 0;
 
   return (
     <Screen

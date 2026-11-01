@@ -271,6 +271,32 @@ describe('edge cases (08 §5)', () => {
     expect(screen.queryByText(ANALYTICS_COPY.emptyTitle)).toBeNull();
   });
 
+  it('a subscription that can\'t be converted isn\'t "empty": it shows the left-out note (real ARS-only user)', async () => {
+    // What the real backend returned for a user whose only subscription is
+    // ARS 4500.00 (2026-11-01, scratch database): nothing counted, one left out.
+    serve({
+      ...alexReal,
+      monthly_total: usd('0.00'),
+      annual_total: usd('0.00'),
+      active_count: 0,
+      trial_count: 0,
+      pending_trials_monthly: usd('0.00'),
+      unconverted_count: 1,
+      converted: false,
+      rates_as_of: '2026-11-01',
+      categories: [],
+    } as AnalyticsSummary);
+    await renderAnalytics();
+
+    expect(await screen.findByTestId('analytics-left-out')).toHaveTextContent(
+      '1 subscription left out: there is no exchange rate for its currency.',
+    );
+    expect(screen.queryByText(ANALYTICS_COPY.emptyTitle)).toBeNull();
+    expect(screen.getByTestId('analytics-monthly-total').props.accessibilityLabel).toBe(
+      'Monthly total, $0.00',
+    );
+  });
+
   it('barFractions: largest is 1, and nothing divides by zero', () => {
     expect(barFractions(alexReal.categories)[0]).toBe(1);
     expect(barFractions([])).toEqual([]);
