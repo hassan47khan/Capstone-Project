@@ -14,12 +14,16 @@
  *   - long names truncate on one line; the price column is fixed and never
  *     truncates;
  *   - a cancelled subscription dims its title and price to 60% and gains a
- *     "Cancelled" badge (history is kept — 07).
+ *     "Cancelled" badge (history is kept — 07);
+ *   - a cancelled one has no next bill (the contract sends null), so the
+ *     subtitle says when it was cancelled instead, in the same two tones:
+ *     "Cancelled: Oct 1, 2026" (#167).
  *
  * Accessibility
  *   The whole row is one touchable with one composed label —
  *   "Netflix, $15.49 per month, next bill October 12, 2026" — so a screen reader
- *   does not stop on three loose text nodes.
+ *   does not stop on three loose text nodes. A cancelled one ends "cancelled
+ *   October 1, 2026" instead.
  *
  * Money
  *   Price is a decimal string formatted by `Amount`; nothing here calculates.
@@ -77,8 +81,10 @@ export interface ListRowProps {
   price: MoneyString;
   currency: CurrencyCode;
   cycle: BillingCycle;
-  /** "YYYY-MM-DD". */
-  nextBillOn: string;
+  /** "YYYY-MM-DD", or null once cancelled (there is no next bill). */
+  nextBillOn: string | null;
+  /** "YYYY-MM-DD", the contract's `cancelled_on`. Shown when there's no next bill. */
+  cancelledOn?: string | null;
   /** Catalog brand colours for the logo. */
   brand?: ServiceColors;
   /** The catalog's 1–2 character mark ("iC", "GP"). Falls back to the initial. */
@@ -104,6 +110,7 @@ export function ListRow({
   currency,
   cycle,
   nextBillOn,
+  cancelledOn = null,
   brand,
   mark,
   cancelled = false,
@@ -115,16 +122,25 @@ export function ListRow({
   const styles = useStyles();
   const { display } = formatMoney(price, currency);
 
-  // Only when a reference day was supplied; otherwise the absolute date stands.
-  const relative = compact && today ? formatRelativeDays(nextBillOn, today) : null;
+  // Only when a reference day was supplied, and only for a next bill;
+  // otherwise the absolute date stands.
+  const relative =
+    compact && today && nextBillOn ? formatRelativeDays(nextBillOn, today) : null;
+  // No next bill: say when it was cancelled, if we know.
+  const cancelledLine = !nextBillOn && cancelledOn ? cancelledOn : null;
 
   const label = [
     name,
     `${display} ${formatCycle(cycle.unit, cycle.count)}`,
     // The spoken form stays absolute even on a compact row: "in 2 days" read
     // aloud with no date is not something a user can act on.
-    `next bill ${formatDateSpoken(nextBillOn)}`,
-    cancelled ? 'cancelled' : null,
+    nextBillOn
+      ? `next bill ${formatDateSpoken(nextBillOn)}`
+      : cancelledLine
+        ? `cancelled ${formatDateSpoken(cancelledLine)}`
+        : null,
+    // "cancelled" once: not again when the date above already said it.
+    cancelled && !cancelledLine ? 'cancelled' : null,
   ]
     .filter(Boolean)
     .join(', ');
@@ -170,12 +186,17 @@ export function ListRow({
           <Text style={styles.subtitle} numberOfLines={1}>
             {relative}
           </Text>
-        ) : (
+        ) : nextBillOn ? (
           <Text style={styles.subtitle} numberOfLines={1}>
             Next bill:{' '}
             <Text style={styles.subtitleValue}>{formatDateLong(nextBillOn)}</Text>
           </Text>
-        )}
+        ) : cancelledLine ? (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            Cancelled:{' '}
+            <Text style={styles.subtitleValue}>{formatDateLong(cancelledLine)}</Text>
+          </Text>
+        ) : null}
       </View>
 
       <View style={[styles.price, cancelled && styles.dimmed]}>

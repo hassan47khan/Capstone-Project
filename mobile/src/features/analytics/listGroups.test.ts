@@ -4,7 +4,6 @@
  */
 import { MOCK_EMAILS } from '@/test/fixtures';
 import {
-  cancelMockSubscription,
   resetCreatedSubscriptions,
   subscriptionListFor,
 } from '@/test/subscriptionFixtures';
@@ -13,7 +12,6 @@ import {
   categoryOptions,
   filterRows,
   groupRows,
-  listedRows,
   rowCycle,
   UNCATEGORIZED,
 } from './listGroups';
@@ -23,22 +21,9 @@ const alex = () => subscriptionListFor(ALEX, {}).results;
 
 beforeEach(() => resetCreatedSubscriptions());
 
-describe('which rows show', () => {
-  it('lists all 11 active subscriptions and trials', () => {
-    expect(listedRows(alex())).toHaveLength(11);
-  });
-
-  it('leaves out a cancelled one for now (it has no next bill; see #167)', () => {
-    cancelMockSubscription(ALEX, 'sub-netflix');
-
-    expect(listedRows(alex()).map((row) => row.name)).not.toContain('Netflix');
-    expect(listedRows(alex())).toHaveLength(10);
-  });
-});
-
 describe('chips (08 §2.4)', () => {
   it('one per category, A to Z, with how many each has', () => {
-    expect(categoryOptions(listedRows(alex())).map((c) => [c.name, c.count])).toEqual([
+    expect(categoryOptions(alex()).map((c) => [c.name, c.count])).toEqual([
       ['AI Tools', 1],
       ['Cloud Storage', 1],
       ['Entertainment', 4],
@@ -50,7 +35,7 @@ describe('chips (08 §2.4)', () => {
   });
 
   it('puts Uncategorized last', () => {
-    const rows = listedRows(alex());
+    const rows = alex();
     const withNone = [{ ...rows[0]!, id: 'x', category: null }, ...rows];
 
     const options = categoryOptions(withNone);
@@ -63,7 +48,7 @@ describe('chips (08 §2.4)', () => {
 
 describe('search and filter', () => {
   it('matches names ignoring case and spaces, within the chip', () => {
-    const rows = listedRows(alex());
+    const rows = alex();
 
     expect(filterRows(rows, null, '  NET ').map((r) => r.name)).toEqual(['Netflix']);
     expect(filterRows(rows, 'entertainment', '').map((r) => r.name)).toEqual([
@@ -78,7 +63,7 @@ describe('search and filter', () => {
 
 describe('groups', () => {
   it('only categories with subscriptions get a group (chips keep all 7)', () => {
-    const entertainmentOnly = filterRows(listedRows(alex()), 'entertainment', '');
+    const entertainmentOnly = filterRows(alex(), 'entertainment', '');
 
     expect(groupRows(entertainmentOnly).map((g) => g.category.key)).toEqual([
       'entertainment',
@@ -87,7 +72,7 @@ describe('groups', () => {
   });
 
   it("keep the server's order (soonest bill first) inside each group", () => {
-    const entertainment = groupRows(listedRows(alex())).find(
+    const entertainment = groupRows(alex()).find(
       (g) => g.category.key === 'entertainment',
     )!;
 

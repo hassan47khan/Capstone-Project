@@ -13,8 +13,11 @@
  * "No results for '{query}'". The count of matches is announced as the search
  * or chip changes (08 §7).
  *
- * Not yet: cancelled subscriptions (ListRow needs a next bill date, and theirs
- * is null; they join once ListRow can show them), and virtualizing 50+ rows.
+ * Cancelled subscriptions are listed too (08 §5), dimmed, with when they were
+ * cancelled in place of a next bill, last in their group as the server sorts
+ * them.
+ *
+ * Not yet: virtualizing 50+ rows.
  */
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -30,7 +33,6 @@ import {
   categoryOptions,
   filterRows,
   groupRows,
-  listedRows,
   rowCycle,
   UNCATEGORIZED,
 } from './listGroups';
@@ -56,9 +58,8 @@ export function SubscriptionList({ rows }: { rows: readonly SubscriptionRow[] })
   // The selected chip's category key, or null for "All".
   const [category, setCategory] = useState<string | null>(null);
 
-  const listed = listedRows(rows);
-  const chips = categoryOptions(listed);
-  const matches = filterRows(listed, category, query);
+  const chips = categoryOptions(rows);
+  const matches = filterRows(rows, category, query);
   const groups = groupRows(matches);
   // "Uncategorized" has no chip once it's empty, so name it anyway.
   const chipName =
@@ -88,7 +89,7 @@ export function SubscriptionList({ rows }: { rows: readonly SubscriptionRow[] })
           label={LIST_COPY.all}
           selected={category === null}
           onPress={() => setCategory(null)}
-          accessibilityLabel={`${LIST_COPY.all}, ${LIST_COPY.count(listed.length)}`}
+          accessibilityLabel={`${LIST_COPY.all}, ${LIST_COPY.count(rows.length)}`}
           testID="analytics-chip-all"
         />
         {chips.map((chip) => (
@@ -145,7 +146,9 @@ export function SubscriptionList({ rows }: { rows: readonly SubscriptionRow[] })
                 price={row.billing_price}
                 currency={row.billing_currency}
                 cycle={rowCycle(row)}
-                nextBillOn={row.next_bill_date!}
+                nextBillOn={row.next_bill_date}
+                cancelledOn={row.cancelled_on}
+                cancelled={row.status === 'cancelled'}
                 mark={row.service_mark?.mark}
                 brand={
                   row.service_mark

@@ -325,6 +325,54 @@ describe('ListRow (02 §9)', () => {
     );
   });
 
+  // A cancelled subscription has no next bill: the contract sends null (#167).
+  describe('cancelled, with no next bill', () => {
+    const cancelledNetflix = {
+      ...netflix,
+      nextBillOn: null,
+      cancelledOn: '2026-10-01',
+      cancelled: true,
+    };
+
+    it('says when it was cancelled, in the same two tones as "Next bill"', async () => {
+      await render(<ListRow {...cancelledNetflix} />);
+
+      expect(screen.getByText(/^Cancelled:/, HIDDEN)).toBeTruthy();
+      expect(screen.queryByText(/Next bill/, HIDDEN)).toBeNull();
+      const value = flattenStyle(screen.getByText('Oct 1, 2026', HIDDEN).props.style);
+      expect(value.fontFamily).toBe('DMSans_500Medium');
+      expect(value.color).toBe(lightColors.text);
+    });
+
+    it('is read as one label ending with the date, saying "cancelled" once', async () => {
+      await render(<ListRow {...cancelledNetflix} onPress={jest.fn()} />);
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Netflix, $15.49 per month, cancelled October 1, 2026',
+        }),
+      ).toBeOnTheScreen();
+    });
+
+    it('compact: shows the cancelled date, not "in N days"', async () => {
+      await render(<ListRow {...cancelledNetflix} compact today="2026-10-10" />);
+
+      expect(screen.getByText('Oct 1, 2026', HIDDEN)).toBeOnTheScreen();
+      expect(screen.queryByText(/^in /, HIDDEN)).toBeNull();
+    });
+
+    it('with no date at all: no subtitle, and still says "cancelled"', async () => {
+      await render(
+        <ListRow {...cancelledNetflix} cancelledOn={null} onPress={jest.fn()} />,
+      );
+
+      expect(screen.queryByText(/^Cancelled:/, HIDDEN)).toBeNull();
+      expect(
+        screen.getByRole('button', { name: 'Netflix, $15.49 per month, cancelled' }),
+      ).toBeOnTheScreen();
+    });
+  });
+
   it('meets the 72pt row height', async () => {
     await render(<ListRow {...netflix} onPress={jest.fn()} testID="row" />);
 

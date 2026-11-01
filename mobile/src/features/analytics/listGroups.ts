@@ -12,12 +12,6 @@ import {
   type CategoryKey,
 } from '@/theme';
 
-// Cancelled subscriptions have no next bill (the contract sends null), and
-// ListRow needs one. They join the list once ListRow can show them.
-export function listedRows(rows: readonly SubscriptionRow[]): SubscriptionRow[] {
-  return rows.filter((row) => row.status !== 'cancelled' && row.next_bill_date !== null);
-}
-
 /** ListRow's cycle: "monthly" → every 1 month, Headspace's custom → every 2 months. */
 export function rowCycle(row: SubscriptionRow): RowCycle {
   switch (row.billing_cycle) {

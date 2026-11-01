@@ -337,7 +337,9 @@ export function GalleryScreen() {
           price="12.99"
           currency="USD"
           cycle={{ unit: 'month', count: 2 }}
-          nextBillOn="2026-12-15"
+          // As the contract sends it: no next bill once cancelled (#167).
+          nextBillOn={null}
+          cancelledOn="2026-10-01"
           cancelled
           onPress={() => {}}
         />
