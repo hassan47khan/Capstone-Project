@@ -3,9 +3,9 @@
  *
  * Insight first, list last (08 §1): the spend-over-time headline with the
  * projected yearly spend (§2.1, US-16), then "Spending by category" with the
- * monthly total (§2.2, §2.3). Still to come, in their own PRs: the subscription
- * list below (§2.4), and the AI insight card at the top (§2.0, once
- * GET /analytics/insight exists).
+ * monthly total (§2.2, §2.3), then the subscription list, last (§2.4). Still
+ * to come: the AI insight card at the top (§2.0, once GET /analytics/insight
+ * exists).
  *
  * Each section loads, fails and retries on its own (08 §4).
  *
@@ -38,13 +38,17 @@ import {
 import type { AppStackParamList } from '@/navigation/types';
 import { makeStyles, sizes } from '@/theme';
 
+import { listSubscriptions } from '@/features/subscriptions/api';
+
 import { CategoryCard } from './CategoryCard';
 import { SpendTrend } from './SpendTrend';
+import { SubscriptionList } from './SubscriptionList';
 
 export const ANALYTICS_COPY = {
   title: 'Analytics',
   loading: 'Loading spending by category',
   loadingSpend: 'Loading spending over time',
+  loadingList: 'Loading your subscriptions',
   emptyTitle: 'Nothing to analyze yet',
   emptyMessage: 'Add a subscription and your spending shows up here.',
   emptyAction: 'Add a subscription',
@@ -68,7 +72,12 @@ export function AnalyticsScreen() {
     queryKey: queryKeys.analytics.spendOverTime(SPEND_MONTHS),
     queryFn: () => analyticsApi.getSpendOverTime(SPEND_MONTHS),
   });
-  const sections = [spend, summary];
+  // The same list query as the Add screen's duplicate-name check.
+  const list = useQuery({
+    queryKey: queryKeys.subscriptions.list(),
+    queryFn: listSubscriptions,
+  });
+  const sections = [spend, summary, list];
 
   const data = summary.data;
   // Nothing to show at all. active_count only counts subscriptions the server
@@ -130,6 +139,25 @@ export function AnalyticsScreen() {
           )}
 
           <CategorySection summary={summary} />
+
+          {/* 08 §2.4: the list, demoted to last. */}
+          {list.data ? (
+            <SubscriptionList rows={list.data} />
+          ) : list.isError ? (
+            <ErrorState
+              error={list.error}
+              onRetry={() => list.refetch()}
+              testID="analytics-list-error"
+            />
+          ) : (
+            <SkeletonGroup
+              label={ANALYTICS_COPY.loadingList}
+              testID="analytics-list-loading"
+            >
+              <Skeleton height={sizes.rowSubscription} />
+              <Skeleton height={sizes.rowSubscription} />
+            </SkeletonGroup>
+          )}
         </>
       )}
     </Screen>
