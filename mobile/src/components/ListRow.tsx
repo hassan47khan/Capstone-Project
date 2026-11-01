@@ -75,6 +75,12 @@ import { Amount } from './Amount';
 import { Badge } from './Badge';
 import { ServiceMark } from './ServiceMark';
 
+/** The subtitle's date: the next bill, or once cancelled, when. */
+interface DateLine {
+  label: 'Next bill' | 'Cancelled';
+  date: string;
+}
+
 export interface ListRowProps {
   name: string;
   /** Decimal string from the API. */
@@ -89,6 +95,7 @@ export interface ListRowProps {
   brand?: ServiceColors;
   /** The catalog's 1–2 character mark ("iC", "GP"). Falls back to the initial. */
   mark?: string;
+  /** Dims the row and adds the badge. Also implied by no next bill + `cancelledOn`. */
   cancelled?: boolean;
   /**
    * The smaller, quieter row of Home's Upcoming Renewals (02 §9). Pair it with
@@ -113,7 +120,7 @@ export function ListRow({
   cancelledOn = null,
   brand,
   mark,
-  cancelled = false,
+  cancelled: cancelledProp = false,
   compact = false,
   today,
   onPress,
@@ -122,25 +129,29 @@ export function ListRow({
   const styles = useStyles();
   const { display } = formatMoney(price, currency);
 
+  // A cancelled date with no next bill is a cancelled row, even if the caller
+  // forgot `cancelled`: the data decides, so the dimming and badge can't
+  // disagree with the subtitle (#169).
+  const cancelled = cancelledProp || (!nextBillOn && cancelledOn != null);
+  // The one date line, used by both the subtitle and the spoken label.
+  const when: DateLine | null = nextBillOn
+    ? { label: 'Next bill', date: nextBillOn }
+    : cancelledOn
+      ? { label: 'Cancelled', date: cancelledOn }
+      : null;
   // Only when a reference day was supplied, and only for a next bill;
   // otherwise the absolute date stands.
   const relative =
     compact && today && nextBillOn ? formatRelativeDays(nextBillOn, today) : null;
-  // No next bill: say when it was cancelled, if we know.
-  const cancelledLine = !nextBillOn && cancelledOn ? cancelledOn : null;
 
   const label = [
     name,
     `${display} ${formatCycle(cycle.unit, cycle.count)}`,
     // The spoken form stays absolute even on a compact row: "in 2 days" read
     // aloud with no date is not something a user can act on.
-    nextBillOn
-      ? `next bill ${formatDateSpoken(nextBillOn)}`
-      : cancelledLine
-        ? `cancelled ${formatDateSpoken(cancelledLine)}`
-        : null,
-    // "cancelled" once: not again when the date above already said it.
-    cancelled && !cancelledLine ? 'cancelled' : null,
+    when ? `${when.label.toLowerCase()} ${formatDateSpoken(when.date)}` : null,
+    // "cancelled" once: not again when the date line already said it.
+    cancelled && when?.label !== 'Cancelled' ? 'cancelled' : null,
   ]
     .filter(Boolean)
     .join(', ');
@@ -186,15 +197,10 @@ export function ListRow({
           <Text style={styles.subtitle} numberOfLines={1}>
             {relative}
           </Text>
-        ) : nextBillOn ? (
+        ) : when ? (
           <Text style={styles.subtitle} numberOfLines={1}>
-            Next bill:{' '}
-            <Text style={styles.subtitleValue}>{formatDateLong(nextBillOn)}</Text>
-          </Text>
-        ) : cancelledLine ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
-            Cancelled:{' '}
-            <Text style={styles.subtitleValue}>{formatDateLong(cancelledLine)}</Text>
+            {when.label}:{' '}
+            <Text style={styles.subtitleValue}>{formatDateLong(when.date)}</Text>
           </Text>
         ) : null}
       </View>

@@ -361,6 +361,18 @@ describe('ListRow (02 §9)', () => {
       expect(screen.queryByText(/^in /, HIDDEN)).toBeNull();
     });
 
+    it('is dimmed with the badge from the data alone, even without `cancelled` (#169)', async () => {
+      await render(<ListRow {...netflix} nextBillOn={null} cancelledOn="2026-10-01" />);
+
+      expect(flattenStyle(screen.getByText('Netflix', HIDDEN).props.style).opacity).toBe(
+        opacity.cancelled,
+      );
+      expect(screen.getByText('Cancelled', HIDDEN)).toBeTruthy();
+      expect(
+        screen.getByLabelText('Netflix, $15.49 per month, cancelled October 1, 2026'),
+      ).toBeOnTheScreen();
+    });
+
     it('with no date at all: no subtitle, and still says "cancelled"', async () => {
       await render(
         <ListRow {...cancelledNetflix} cancelledOn={null} onPress={jest.fn()} />,

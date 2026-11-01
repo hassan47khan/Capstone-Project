@@ -1,6 +1,7 @@
 /**
- * The Analytics subscription list's data (handoff 08 §2.4): which rows show,
- * the category chips, the search, and the groups. Plain functions, no React.
+ * The Analytics subscription list's data (handoff 08 §2.4): the category
+ * chips, the search, and the groups. Every subscription is listed, cancelled
+ * ones included. Plain functions, no React.
  */
 import type { BillingCycle as RowCycle } from '@/api/types';
 import type { SubscriptionRow } from '@/features/subscriptions/api';
@@ -101,7 +102,7 @@ export interface RowGroup {
 
 /**
  * The rows grouped by category: groups in chip order, empty ones left out,
- * rows in the server's order (soonest bill first).
+ * rows in the server's order (soonest bill first, cancelled ones last).
  */
 export function groupRows(rows: readonly SubscriptionRow[]): RowGroup[] {
   return categoryOptions(rows)

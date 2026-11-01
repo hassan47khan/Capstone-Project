@@ -4,7 +4,8 @@
  * Search by name, a row of category chips ("All" + one per category that has a
  * subscription), then the list grouped by category: a SectionHeader with the
  * category's color square, and a ListRow per subscription, in the server's
- * order (soonest bill first). Tapping a row opens its Detail.
+ * order (soonest bill first, cancelled ones last). Tapping a row opens its
+ * Detail.
  *
  * Filtering is local and instant: the list is small, and the server sends all
  * of it in one page (02 §18).

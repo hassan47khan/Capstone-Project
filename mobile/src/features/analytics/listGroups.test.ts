@@ -4,6 +4,7 @@
  */
 import { MOCK_EMAILS } from '@/test/fixtures';
 import {
+  cancelMockSubscription,
   resetCreatedSubscriptions,
   subscriptionListFor,
 } from '@/test/subscriptionFixtures';
@@ -46,6 +47,22 @@ describe('chips (08 §2.4)', () => {
   });
 });
 
+describe('cancelled subscriptions', () => {
+  it('still count in their chip, and are listed last in their group', () => {
+    cancelMockSubscription(ALEX, 'sub-netflix');
+
+    const entertainment = categoryOptions(alex()).find((c) => c.key === 'entertainment')!;
+    expect(entertainment.count).toBe(4);
+    const group = groupRows(alex()).find((g) => g.category.key === 'entertainment')!;
+    expect(group.rows.map((r) => r.name)).toEqual([
+      'Hulu',
+      'Spotify',
+      'YouTube Premium',
+      'Netflix',
+    ]);
+  });
+});
+
 describe('search and filter', () => {
   it('matches names ignoring case and spaces, within the chip', () => {
     const rows = alex();
@@ -71,7 +88,7 @@ describe('groups', () => {
     expect(categoryOptions(entertainmentOnly)).toHaveLength(7);
   });
 
-  it("keep the server's order (soonest bill first) inside each group", () => {
+  it("keep the server's order inside each group: soonest bill first, cancelled last", () => {
     const entertainment = groupRows(alex()).find(
       (g) => g.category.key === 'entertainment',
     )!;
