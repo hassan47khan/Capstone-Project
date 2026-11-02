@@ -87,10 +87,15 @@ def parse_rates(payload: str) -> list[Quote]:
         # The base needs no stored rate: operations._rates() supplies 1.
         if currency not in SUPPORTED_CURRENCIES or currency == money.BASE_CURRENCY:
             continue
+        rate = Decimal(row["rate"])
+        # The money engine divides by this, so a zero would be a 500 for anyone
+        # converting from that currency. Failing here keeps the stored rates.
+        if not rate.is_finite() or rate <= 0:
+            raise ValueError(f"Frankfurter sent an unusable rate for {currency}: {rate}")
         quotes.append(
             Quote(
                 currency=currency,
-                rate=Decimal(row["rate"]),
+                rate=rate,
                 as_of=date.fromisoformat(row["date"]),
             )
         )
@@ -139,6 +144,10 @@ def store_rates(quotes: list[Quote]) -> int:
 def refresh() -> int:
     """Fetch and store. The task and the management command both call this."""
     quotes = fetch_rates()
+    if not quotes:
+        # A 200 with nothing we can use would otherwise look like a success,
+        # and the rates would go stale with nothing retrying.
+        raise ValueError("Frankfurter returned no supported currencies.")
     written = store_rates(quotes)
     logger.info("Stored %s exchange rates.", written)
     return written
