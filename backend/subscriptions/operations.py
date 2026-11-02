@@ -164,10 +164,21 @@ def restore(sub: Subscription, *, today: date) -> Subscription:
 
 
 def convert_due_trials(*, today: date) -> int:
-    """Flip trials that end on or before `today` into paying subscriptions (§6a)."""
-    return Subscription.objects.filter(
-        is_trial=True, status=Status.ACTIVE, trial_ends_on__lte=today
-    ).update(is_trial=False)
+    """Flip trials that end on or before `today` into paying subscriptions (§6a).
+
+    One at a time rather than a bulk update, because each now has a next bill
+    to compute and its trial alert swaps for a renewal one.
+    """
+    due = list(
+        Subscription.objects.filter(is_trial=True, status=Status.ACTIVE, trial_ends_on__lte=today)
+    )
+    for sub in due:
+        with transaction.atomic():
+            sub.is_trial = False
+            refresh_next_bill_date(sub, today=today)
+            sub.save(update_fields=["is_trial", "next_bill_date"])
+            reschedule_for_subscription(sub, today=today)
+    return len(due)
 
 
 # Reading -------------------------------------------------------------------
