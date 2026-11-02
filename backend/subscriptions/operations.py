@@ -6,12 +6,14 @@ here, so a price, category or cycle change always writes exactly one
 PriceHistoryEvent (handoff 04 §5, §6).
 """
 
+import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 
 from django.utils import timezone
 from django_mongodb_backend import transaction
 
+from core.clock import today_for
 from notifications.scheduling import reschedule_for_subscription
 
 from .models import FxRate, PriceHistoryEvent, Subscription
@@ -19,6 +21,8 @@ from .services import money
 from .services.cycles import Cycle, CycleChange, next_bill_date
 
 Event = PriceHistoryEvent.EventType
+logger = logging.getLogger(__name__)
+
 Status = Subscription.Status
 
 CYCLE_FIELDS = ("billing_cycle", "custom_cycle_count", "custom_cycle_unit")
@@ -179,6 +183,42 @@ def convert_due_trials(*, today: date) -> int:
             sub.save(update_fields=["is_trial", "next_bill_date"])
             reschedule_for_subscription(sub, today=today)
     return len(due)
+
+
+def roll_forward_bills(*, today: date | None = None) -> int:
+    """Move next_bill_date past any bill that has gone by, and reschedule.
+
+    next_bill_date otherwise only changes on an edit, so a subscription would
+    get one renewal reminder and then none. The date is recomputed from the
+    cycle history rather than added to, so several missed bills land on the
+    next future one and a past cycle change is respected. A bill due today is
+    still upcoming, so running this twice changes nothing.
+
+    `today` applies to everyone when given; otherwise each owner's local date.
+    Each subscription stands alone, so one bad row is logged rather than
+    stopping every other renewal behind it. Returns how many moved.
+    """
+    subs = Subscription.objects.filter(
+        status=Status.ACTIVE, is_trial=False, next_bill_date__isnull=False
+    ).select_related("owner")
+    days: dict = {}
+    rolled = 0
+    for sub in subs:
+        if today is None and sub.owner_id not in days:
+            days[sub.owner_id] = today_for(sub.owner)
+        day = today or days[sub.owner_id]
+        if sub.next_bill_date >= day:
+            continue
+        try:
+            with transaction.atomic():
+                refresh_next_bill_date(sub, today=day)
+                sub.save(update_fields=["next_bill_date"])
+                reschedule_for_subscription(sub, today=day)
+        except Exception:
+            logger.exception("Could not roll subscription %s forward.", sub.pk)
+            continue
+        rolled += 1
+    return rolled
 
 
 # Reading -------------------------------------------------------------------
