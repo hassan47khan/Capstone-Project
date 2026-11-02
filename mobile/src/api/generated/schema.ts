@@ -259,6 +259,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Register this device for push, or refresh one already registered.
+         *
+         *     Idempotent, and it moves the token to the caller: a handset handed
+         *     to someone else must stop delivering to the previous account.
+         */
+        post: operations["devices_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Stop sending push to this device. Used on log out. */
+        delete: operations["devices_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/extractions/{extraction_id}": {
         parameters: {
             query?: never;
@@ -412,6 +451,66 @@ export interface paths {
         head?: never;
         /** @description Change the name, or record that first-run onboarding is done. */
         patch: operations["me_update"];
+        trace?: never;
+    };
+    "/api/v1/me/notification-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The caller's notification settings (handoff 09 §5). */
+        get: operations["notification_rules_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Change one or more settings, and reschedule what they affect. */
+        patch: operations["notification_rules_update"];
+        trace?: never;
+    };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The inbox, newest first.
+         *
+         *     Anything of the caller's that is already due but still unsent is
+         *     materialised into an inbox row first. That is the graded fallback
+         *     from spec section 12: with Redis or the workers down, a user who
+         *     opens the app still sees the alert, because the reminder rows were
+         *     written by the API and never depended on the broker.
+         */
+        get: operations["notifications_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Mark one alert read. Idempotent. */
+        post: operations["notifications_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/shared-plans": {
@@ -650,6 +749,18 @@ export interface components {
          * @enum {string}
          */
         CustomCycleUnitEnum: "days" | "weeks" | "months" | "years";
+        Device: {
+            id: string;
+            platform: components["schemas"]["PlatformEnum"];
+            active: boolean;
+            /** Format: date-time */
+            last_seen_at: string;
+        };
+        DeviceRegisterRequest: {
+            /** @description The Expo push token, e.g. ExponentPushToken[xxxxxxxx]. */
+            token: string;
+            platform: components["schemas"]["PlatformEnum"];
+        };
         EmailRequest: {
             /** Format: email */
             email: string;
@@ -795,6 +906,51 @@ export interface components {
             /** Format: email */
             email?: string | null;
         };
+        Notification: {
+            id: string;
+            kind: components["schemas"]["NotificationKindEnum"];
+            title: string;
+            body: string;
+            subscription_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            read: boolean;
+            /** @description Every push attempt failed, so the app shows it as a banner (US-13). */
+            missed: boolean;
+            push_status: components["schemas"]["PushStatusEnum"];
+        };
+        /**
+         * @description * `trial_ending` - Trial Ending
+         *     * `renewal` - Renewal
+         *     * `price_increase` - Price Increase
+         * @enum {string}
+         */
+        NotificationKindEnum: "trial_ending" | "renewal" | "price_increase";
+        NotificationList: {
+            unread_count: number;
+            /** @description Unread alerts whose push never arrived, so the app can say so once. */
+            missed_count: number;
+            /** @description Newest first. */
+            results: components["schemas"]["Notification"][];
+        };
+        /** @description Handoff 09 §5's Notifications screen, field for field. */
+        NotificationRule: {
+            days_before_reminder: number;
+            /** Format: time */
+            reminder_time: string;
+            send_push: boolean;
+            send_email: boolean;
+            alert_on_any_price_change: boolean;
+            /**
+             * Format: decimal
+             * @description Null means any rise.
+             */
+            price_alert_threshold: string | null;
+            weekly_summary_enabled: boolean;
+            monthly_report_enabled: boolean;
+            report_delivery_day: number;
+            trial_alert_days_before: number;
+        };
         NullEnum: null;
         Participant: {
             id: string;
@@ -818,6 +974,24 @@ export interface components {
             /** @description The token from the emailed link. */
             token: string;
             password: string;
+        };
+        /** @description Every field optional: the screen saves one row at a time. */
+        PatchedNotificationRuleUpdateRequest: {
+            days_before_reminder?: number;
+            /** Format: time */
+            reminder_time?: string;
+            send_push?: boolean;
+            send_email?: boolean;
+            alert_on_any_price_change?: boolean;
+            /**
+             * Format: decimal
+             * @description Null means any rise.
+             */
+            price_alert_threshold?: string | null;
+            weekly_summary_enabled?: boolean;
+            monthly_report_enabled?: boolean;
+            report_delivery_day?: number;
+            trial_alert_days_before?: number;
         };
         /** @description PATCH /me. Every field is optional; send only what changes. */
         PatchedProfileUpdateRequest: {
@@ -890,6 +1064,12 @@ export interface components {
          * @enum {string}
          */
         PeriodEnum: "current_month";
+        /**
+         * @description * `android` - Android
+         *     * `ios` - Ios
+         * @enum {string}
+         */
+        PlatformEnum: "android" | "ios";
         PriceChange: {
             kind: components["schemas"]["KindEnum"];
             subscription_id: string;
@@ -938,6 +1118,14 @@ export interface components {
          * @enum {string}
          */
         ProviderEnum: "gmail";
+        /**
+         * @description * `not_sent` - Not Sent
+         *     * `sent` - Sent
+         *     * `failed` - Failed
+         *     * `no_device` - No Device
+         * @enum {string}
+         */
+        PushStatusEnum: "not_sent" | "sent" | "failed" | "no_device";
         RefreshRequest: {
             refresh: string;
         };
@@ -1881,6 +2069,87 @@ export interface operations {
             };
         };
     };
+    devices_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceRegisterRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["DeviceRegisterRequest"];
+                "multipart/form-data": components["schemas"]["DeviceRegisterRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    devices_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; no body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     extractions_discard: {
         parameters: {
             query?: never;
@@ -2198,6 +2467,143 @@ export interface operations {
             };
             /** @description Missing, expired or invalid token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    notification_rules_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRule"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    notification_rules_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedNotificationRuleUpdateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedNotificationRuleUpdateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedNotificationRuleUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRule"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    notifications_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    notifications_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; no body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
