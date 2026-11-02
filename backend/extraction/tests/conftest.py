@@ -42,7 +42,7 @@ class FakeGoogle:
         if url.startswith(gmail.TOKEN_URL):
             return self._token(request)
         if url.startswith(gmail.REVOKE_URL):
-            self.revoked.append(request.url.params["token"])
+            self.revoked.append(parse_qs(request.content.decode())["token"][0])
             return httpx.Response(200)
         if url == f"{gmail.API_URL}/profile":
             if self.profile_status != 200:

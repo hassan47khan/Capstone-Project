@@ -11,11 +11,13 @@ import httpx
 import pytest
 from django.core import mail
 from django.utils import timezone
+from kombu.exceptions import OperationalError
 
 from accounts.models import rules_for
 from notifications import push, tasks
 from notifications.models import DeviceToken, Notification, PushReceipt, Reminder
 from notifications.scheduling import reschedule_for_subscription
+from subscriptions import operations
 from subscriptions.models import Subscription
 from subscriptions.seed import SEED_TODAY
 
@@ -452,3 +454,72 @@ def test_the_receipt_row_describes_itself_for_the_admin(alex, device):
     )
 
     assert "receipt-x" in str(parked)
+
+
+# Cancelled, redelivered and stranded -----------------------------------------------
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", [State.RETRYING, State.SENDING, State.PENDING])
+def test_cancelling_a_subscription_stops_an_alert_mid_flight(reminder, device, state):
+    Reminder.objects.filter(pk=reminder.pk).update(state=state, attempts=1)
+
+    operations.cancel_subscription(reminder.subscription, today=SEED_TODAY)
+
+    reminder.refresh_from_db()
+    assert reminder.state == State.CANCELLED
+    with sending(return_value=[accepted(device.token)]) as send:
+        assert tasks.deliver_reminder(str(reminder.pk)) == State.CANCELLED
+    send.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_deleting_a_subscription_stops_a_retry(reminder, device):
+    Reminder.objects.filter(pk=reminder.pk).update(state=State.RETRYING, attempts=1)
+
+    operations.soft_delete(reminder.subscription)
+
+    with sending(return_value=[accepted(device.token)]) as send:
+        tasks.deliver_reminder(str(reminder.pk))
+    send.assert_not_called()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "state", [State.SENT, State.FAILED, State.SKIPPED, State.CANCELLED, State.EXPIRED]
+)
+def test_a_redelivered_task_does_not_send_a_settled_reminder_again(reminder, device, state):
+    Reminder.objects.filter(pk=reminder.pk).update(state=state)
+
+    with sending(return_value=[accepted(device.token)]) as send:
+        assert tasks.deliver_reminder(str(reminder.pk)) == state
+
+    send.assert_not_called()
+    assert not mail.outbox
+
+
+@pytest.mark.django_db
+def test_the_email_still_goes_when_push_gives_up(reminder, device, alex):
+    rules = rules_for(alex)
+    rules.send_email = True
+    rules.save(update_fields=["send_email"])
+    Reminder.objects.filter(pk=reminder.pk).update(
+        state=State.RETRYING, attempts=tasks.MAX_PUSH_RETRIES
+    )
+
+    with sending(side_effect=httpx.ConnectError("down")):
+        assert tasks.deliver_reminder(str(reminder.pk)) == State.FAILED
+
+    assert [message.to for message in mail.outbox] == [[alex.email]]
+    reminder.refresh_from_db()
+    assert reminder.state == State.FAILED
+    assert reminder.notification.missed is True
+
+
+@pytest.mark.django_db
+def test_a_broker_failure_hands_the_claim_back(reminder):
+    with mock.patch.object(tasks.deliver_reminder, "delay", side_effect=OperationalError("down")):
+        assert tasks.dispatch_due_reminders()["claimed"] == 0
+
+    reminder.refresh_from_db()
+    assert reminder.state == State.PENDING

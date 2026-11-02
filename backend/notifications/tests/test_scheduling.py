@@ -17,6 +17,7 @@ from notifications.scheduling import (
     reschedule_for_user,
     wanted_for,
 )
+from subscriptions import operations
 from subscriptions.models import Subscription
 from subscriptions.seed import SEED_TODAY
 
@@ -251,17 +252,80 @@ def test_a_sent_reminder_is_never_cancelled_by_a_later_edit(alex, renewing):
 
 
 @pytest.mark.django_db
-def test_a_failed_reminder_gets_another_go_when_the_schedule_moves(alex, renewing):
+@pytest.mark.parametrize("state", [State.SENT, State.SENDING, State.RETRYING, State.SKIPPED])
+def test_a_row_past_pending_keeps_its_due_time_when_its_time_changes(alex, renewing, state):
     reschedule_for_subscription(renewing, today=date(2026, 10, 1), now=EARLY)
     row = reminders(renewing, State.PENDING)[0]
-    row.state, row.attempts = State.FAILED, 3
+    due_at = row.due_at
+    row.state = state
+    row.save(update_fields=["state"])
+
+    set_rules(alex, reminder_time=time(18, 0))
+    reschedule_for_subscription(renewing, today=date(2026, 10, 1), now=EARLY)
+
+    row.refresh_from_db()
+    assert (row.state, row.due_at) == (state, due_at)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", [State.FAILED, State.EXPIRED])
+def test_a_dead_reminder_gets_another_go_when_the_schedule_moves(alex, renewing, state):
+    reschedule_for_subscription(renewing, today=date(2026, 10, 1), now=EARLY)
+    row = reminders(renewing, State.PENDING)[0]
+    row.state, row.attempts = state, 3
     row.save(update_fields=["state", "attempts"])
 
+    set_rules(alex, reminder_time=time(18, 0))
     reschedule_for_subscription(renewing, today=date(2026, 10, 1), now=EARLY)
 
     row.refresh_from_db()
     assert row.state == State.PENDING
     assert row.attempts == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", [State.FAILED, State.EXPIRED])
+def test_an_unrelated_edit_does_not_resend_a_dead_reminder(alex, renewing, state):
+    reschedule_for_subscription(renewing, today=date(2026, 10, 1), now=EARLY)
+    row = reminders(renewing, State.PENDING)[0]
+    row.state, row.attempts = state, 3
+    row.save(update_fields=["state", "attempts"])
+
+    # Nothing about the schedule changed, as when only the notes were edited.
+    reschedule_for_subscription(renewing, today=date(2026, 10, 1), now=EARLY)
+
+    row.refresh_from_db()
+    assert (row.state, row.attempts) == (state, 3)
+
+
+@pytest.mark.django_db
+def test_a_dead_reminder_whose_time_has_passed_stays_dead(alex, renewing):
+    reschedule_for_subscription(renewing, today=date(2026, 10, 1), now=EARLY)
+    row = reminders(renewing, State.PENDING)[0]
+    row.state = State.EXPIRED
+    row.save(update_fields=["state"])
+
+    # Past the reminder's moment, so wanted_for clamps it to "due now" and the
+    # time looks different, but the schedule did not move.
+    later = datetime(2026, 11, 4, tzinfo=UTC)
+    reschedule_for_subscription(renewing, today=date(2026, 11, 4), now=later)
+
+    row.refresh_from_db()
+    assert row.state == State.EXPIRED
+
+
+@pytest.mark.django_db
+def test_a_converted_trial_swaps_its_trial_alert_for_a_renewal(alex, trialling):
+    reschedule_for_subscription(trialling, today=date(2026, 10, 1), now=EARLY)
+    assert [r.kind for r in reminders(trialling, State.PENDING)] == [Kind.TRIAL_ENDING]
+
+    operations.convert_due_trials(today=date(2026, 11, 5))
+
+    trialling.refresh_from_db()
+    assert trialling.is_trial is False
+    assert trialling.next_bill_date >= date(2026, 11, 5)
+    assert [r.kind for r in reminders(trialling, State.PENDING)] == [Kind.RENEWAL]
+    assert {r.kind for r in reminders(trialling, State.CANCELLED)} == {Kind.TRIAL_ENDING}
 
 
 @pytest.mark.django_db
