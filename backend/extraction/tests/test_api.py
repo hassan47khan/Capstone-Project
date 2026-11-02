@@ -103,7 +103,7 @@ def test_a_grant_that_cannot_read_the_profile_is_handed_back(api, alex, google):
 
 
 @pytest.mark.django_db
-def test_reconnecting_keeps_one_row_and_revokes_the_old_token(api, alex, google):
+def test_reconnecting_the_same_account_keeps_the_new_grant_alive(api, alex, google):
     connect(api)
     google.refresh_token = "refresh-2"
 
@@ -113,6 +113,21 @@ def test_reconnecting_keeps_one_row_and_revokes_the_old_token(api, alex, google)
     assert crypto.decrypt(GmailConnection.objects.get(user=alex).refresh_token_encrypted) == (
         "refresh-2"
     )
+    # Google's revoke removes the grant, which would take refresh-2 with it.
+    assert google.revoked == []
+
+
+@pytest.mark.django_db
+def test_reconnecting_another_account_revokes_the_old_one(api, alex, google):
+    connect(api)
+    google.refresh_token = "refresh-2"
+    google.address = "someone.else@gmail.example.com"
+
+    connect(api)
+
+    connection = GmailConnection.objects.get(user=alex)
+    assert connection.email == google.address
+    assert crypto.decrypt(connection.refresh_token_encrypted) == "refresh-2"
     assert google.revoked == ["refresh-1"]
 
 

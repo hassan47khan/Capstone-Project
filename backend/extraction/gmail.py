@@ -3,8 +3,9 @@
 Checked against Google's current references rather than memory:
 
 * the code exchange and refresh are `POST https://oauth2.googleapis.com/token`
-  (form-encoded, `code_verifier` for PKCE), and revoking is
-  `POST https://oauth2.googleapis.com/revoke?token=...`;
+  (form-encoded, `code_verifier` for PKCE), and revoking is a form-encoded
+  `POST https://oauth2.googleapis.com/revoke`. The token goes in the body, not
+  the query string, because httpx logs every request URL at INFO;
 * `users.messages.list` takes Gmail's own search syntax in `q`, which is
   unavailable under the narrower metadata scope -- so `gmail.readonly` is the
   smallest scope that can run a search at all;
@@ -173,7 +174,7 @@ def revoke(token: str, *, transport: httpx.BaseTransport | None = None) -> bool:
     """
     try:
         with _client(transport) as client:
-            response = client.post(REVOKE_URL, params={"token": token})
+            response = client.post(REVOKE_URL, data={"token": token})
     except httpx.TransportError:
         return False
     return response.status_code == 200
