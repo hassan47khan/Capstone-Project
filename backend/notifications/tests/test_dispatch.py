@@ -523,3 +523,118 @@ def test_a_broker_failure_hands_the_claim_back(reminder):
 
     reminder.refresh_from_db()
     assert reminder.state == State.PENDING
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", [State.SENDING, State.RETRYING])
+def test_a_claim_whose_task_was_lost_goes_out_again(reminder, state):
+    # Free Key Value keeps nothing across a restart, so the queued task is gone.
+    Reminder.objects.filter(pk=reminder.pk).update(
+        state=state, updated_at=timezone.now() - tasks.STALE_CLAIM - timedelta(minutes=1)
+    )
+
+    with mock.patch.object(tasks.deliver_reminder, "delay") as delay:
+        assert tasks.dispatch_due_reminders()["claimed"] == 1
+
+    reminder.refresh_from_db()
+    delay.assert_called_once_with(str(reminder.pk), reminder.claim_token)
+
+
+@pytest.mark.django_db
+def test_a_task_that_was_only_late_sends_nothing_once_its_claim_is_retaken(reminder, alex, device):
+    # The worker was down past STALE_CLAIM with Redis up, so the old task is
+    # still queued. Both tasks then run; only the new claim's may deliver.
+    assert tasks.claim(reminder.pk, "old-claim")
+    Reminder.objects.filter(pk=reminder.pk).update(
+        updated_at=timezone.now() - tasks.STALE_CLAIM - timedelta(minutes=1)
+    )
+    with mock.patch.object(tasks.deliver_reminder, "delay") as delay:
+        tasks.dispatch_due_reminders()
+    (_, new_token), _ = delay.call_args
+    rules = rules_for(alex)
+    rules.send_email = True
+    rules.save()
+
+    with sending(return_value=[accepted(device.token)]) as send:
+        assert tasks.deliver_reminder(str(reminder.pk), "old-claim") == "superseded"
+        send.assert_not_called()
+        assert mail.outbox == []
+
+        assert tasks.deliver_reminder(str(reminder.pk), new_token) == State.SENT
+
+    assert send.call_count == 1
+    assert len(mail.outbox) == 1
+
+
+@pytest.mark.django_db
+def test_a_retry_restarts_the_stale_claim_clock(reminder, alex, device):
+    # Otherwise a task queued for a while, then retrying, looks stale while
+    # its next attempt is still scheduled, and gets a second task beside it.
+    tasks.claim(reminder.pk, "claim")
+    claimed_long_ago = timezone.now() - tasks.STALE_CLAIM + timedelta(minutes=1)
+    Reminder.objects.filter(pk=reminder.pk).update(updated_at=claimed_long_ago)
+
+    with (
+        sending(side_effect=httpx.ConnectTimeout("down")),
+        mock.patch.object(tasks.deliver_reminder, "retry", lambda **_: Retried()),
+        pytest.raises(Retried),
+    ):
+        tasks.deliver_reminder(str(reminder.pk), "claim")
+
+    reminder.refresh_from_db()
+    assert reminder.updated_at > claimed_long_ago + timedelta(minutes=5)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", [State.SENDING, State.RETRYING])
+def test_a_recent_claim_is_left_with_its_task(reminder, state):
+    Reminder.objects.filter(pk=reminder.pk).update(state=state, updated_at=timezone.now())
+
+    with mock.patch.object(tasks.deliver_reminder, "delay") as delay:
+        assert tasks.dispatch_due_reminders()["claimed"] == 0
+
+    delay.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_a_late_task_cannot_deliver_between_the_requeue_and_the_new_claim(reminder, device):
+    # Handed back as pending but not claimed again yet, so no new token exists.
+    assert tasks.claim(reminder.pk, "old-claim")
+    Reminder.objects.filter(pk=reminder.pk).update(
+        updated_at=timezone.now() - tasks.STALE_CLAIM - timedelta(minutes=1)
+    )
+    with mock.patch.object(tasks, "claim", return_value=False):
+        tasks.dispatch_due_reminders()
+    reminder.refresh_from_db()
+    assert reminder.state == State.PENDING
+
+    with sending(return_value=[accepted(device.token)]) as send:
+        assert tasks.deliver_reminder(str(reminder.pk), "old-claim") == "superseded"
+
+    send.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_a_task_that_starts_late_is_not_requeued_while_it_delivers(reminder, device):
+    # Queued for 29 minutes, then running as the dispatcher looks at the clock.
+    assert tasks.claim(reminder.pk, "claim")
+    Reminder.objects.filter(pk=reminder.pk).update(
+        updated_at=timezone.now() - tasks.STALE_CLAIM + timedelta(seconds=1)
+    )
+    seen = []
+
+    def send(messages):
+        with (
+            mock.patch.object(
+                tasks, "timezone", mock.Mock(now=lambda: timezone.now() + timedelta(minutes=1))
+            ),
+            mock.patch.object(tasks.deliver_reminder, "delay") as delay,
+        ):
+            tasks.dispatch_due_reminders()
+        seen.append(delay.called)
+        return [accepted(device.token)]
+
+    with sending(side_effect=send):
+        assert tasks.deliver_reminder(str(reminder.pk), "claim") == State.SENT
+
+    assert seen == [False]
