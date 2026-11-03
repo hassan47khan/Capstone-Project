@@ -13,6 +13,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from django.conf import settings as django_settings
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
@@ -211,6 +212,46 @@ def test_a_failed_refresh_keeps_the_rates_already_stored(categories, monkeypatch
 def test_the_refresh_gets_three_retries_across_the_day():
     assert refresh_exchange_rates.max_retries == 3
     assert refresh_exchange_rates.retry_backoff >= 3600
+    # Full jitter could put all three inside the first hour of an outage.
+    assert refresh_exchange_rates.retry_jitter is False
+
+
+def test_redis_does_not_redeliver_a_retry_that_is_still_waiting():
+    timeout = django_settings.CELERY_BROKER_TRANSPORT_OPTIONS["visibility_timeout"]
+
+    assert timeout > refresh_exchange_rates.retry_backoff_max
+
+
+@pytest.mark.parametrize("rate", ["0", "-1.5", "NaN", "Infinity"])
+@pytest.mark.django_db
+def test_an_unusable_rate_fails_the_refresh_and_keeps_the_stored_rates(
+    categories, monkeypatch, rate
+):
+    fx.store_rates(fx.parse_rates(BODY))
+    bad = f'[{{"date": "2026-11-02", "base": "USD", "quote": "EUR", "rate": {rate}}}]'
+    monkeypatch.setattr(fx, "fetch_rates", lambda **kw: fx.parse_rates(bad))
+
+    with pytest.raises(ValueError, match="unusable rate for EUR"):
+        refresh_exchange_rates()
+
+    assert FxRate.objects.get(currency="EUR").rate == Decimal("0.89619")
+
+
+def test_an_unusable_rate_for_a_currency_we_do_not_store_is_ignored():
+    bad = '[{"date": "2026-11-02", "base": "USD", "quote": "BTC", "rate": 0}]'
+
+    assert fx.parse_rates(bad) == []
+
+
+@pytest.mark.django_db
+def test_a_response_with_nothing_usable_fails_so_the_retries_run(categories, monkeypatch):
+    fx.store_rates(fx.parse_rates(BODY))
+    monkeypatch.setattr(fx, "fetch_rates", lambda **kw: [])
+
+    with pytest.raises(ValueError, match="no supported currencies"):
+        refresh_exchange_rates()
+
+    assert FxRate.objects.get(currency="EUR").rate == Decimal("0.89619")
 
 
 # Keeping the seeded figures safe -------------------------------------------------

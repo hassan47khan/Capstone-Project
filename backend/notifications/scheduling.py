@@ -99,9 +99,14 @@ def wanted_for(sub: Subscription, *, today: date, now: datetime | None = None) -
 def reschedule_for_subscription(sub: Subscription, *, today: date, now: datetime | None = None):
     """Bring this subscription's reminders in line with the rules.
 
-    Upserts what is wanted and cancels any pending row that is not. Only
-    `pending` rows are cancelled: one already sent is history, and one being
-    sent belongs to the dispatcher.
+    Upserts what is wanted and cancels any unsent row that is not, including
+    one between push retries, or the next retry would still alert about a
+    subscription that is gone. Only pending and revivable rows are rewritten:
+    one already sent is history, and one being sent belongs to the dispatcher.
+
+    A cancelled row comes back whenever it is wanted again (a restore). A
+    failed or expired one comes back only if its time actually moved to the
+    future; otherwise any edit, even to the notes, would re-send a dead alert.
     """
     now = now or timezone.now()
     wanted = wanted_for(sub, today=today, now=now)
@@ -111,7 +116,7 @@ def reschedule_for_subscription(sub: Subscription, *, today: date, now: datetime
         for item in wanted:
             key = dedupe_key(sub.pk, item.kind, item.target_date)
             keep.add(key)
-            Reminder.objects.update_or_create(
+            row, created = Reminder.objects.get_or_create(
                 dedupe_key=key,
                 defaults={
                     "user": sub.owner,
@@ -121,15 +126,22 @@ def reschedule_for_subscription(sub: Subscription, *, today: date, now: datetime
                     "timezone_flagged": item.timezone_flagged,
                 },
             )
-            # A row that had already failed or expired gets another go now
-            # that the schedule moved; one already sent is left alone.
-            Reminder.objects.filter(
-                dedupe_key=key, state__in=[State.CANCELLED, State.EXPIRED, State.FAILED]
-            ).update(state=State.PENDING, attempts=0)
+            if created:
+                continue
+            moved = row.due_at != item.due_at and item.due_at > now
+            revive = row.state == State.CANCELLED or (
+                row.state in (State.EXPIRED, State.FAILED) and moved
+            )
+            if not revive and row.state != State.PENDING:
+                continue
+            changes = {"due_at": item.due_at, "timezone_flagged": item.timezone_flagged}
+            if revive:
+                changes |= {"state": State.PENDING, "attempts": 0}
+            Reminder.objects.filter(pk=row.pk).update(updated_at=now, **changes)
 
-        Reminder.objects.filter(subscription=sub, state=State.PENDING).exclude(
-            dedupe_key__in=keep
-        ).update(state=State.CANCELLED)
+        Reminder.objects.filter(
+            subscription=sub, state__in=[State.PENDING, State.SENDING, State.RETRYING]
+        ).exclude(dedupe_key__in=keep).update(state=State.CANCELLED)
 
     return wanted
 

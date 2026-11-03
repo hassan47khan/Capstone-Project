@@ -182,7 +182,12 @@ def call(
 
 
 def _parse(raw: str, schema: dict) -> Reply:
-    payload = json.loads(raw, parse_float=Decimal)
+    try:
+        payload = json.loads(raw, parse_float=Decimal)
+    except json.JSONDecodeError as error:
+        raise LLMUnusable("response is not JSON") from error
+    if not isinstance(payload, dict):
+        raise LLMUnusable("response is not an object")
     stop = payload.get("stop_reason")
     # Only a finished answer is schema-valid; a refusal or a cut-off one may not be.
     if stop != "end_turn":

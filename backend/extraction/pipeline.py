@@ -217,13 +217,22 @@ def amounts(text: str) -> list[Money]:
     """
     found = []
     for match in _MONEY.finditer(text):
-        marker = match["pre"] or match["post"]
+        # A code has to stand alone: "2 audiobooks" is not AUD 2, and "fraud
+        # 50.00" is not AUD 50. Symbols need no such check ("cost$5").
+        pre, post = match["pre"], match["post"]
+        if pre and pre[0].isalpha() and match.start() and text[match.start() - 1].isalpha():
+            pre = None
+        if post and post[-1].isalpha() and text[match.end() : match.end() + 1].isalpha():
+            post = None
+        marker = pre or post
         num = match["num"]
         if not marker and not re.search(r"[.,]\d{2}$", num):
             continue
         value = _amount(num)
         if value is not None:
-            found.append(Money(value, marker, match.start(), match.end()))
+            start = match.start() if pre else match.start("num")
+            end = match.end() if post else match.end("num")
+            found.append(Money(value, marker, start, end))
     return found
 
 
@@ -494,9 +503,16 @@ class _Reader:
             return self.drop("price", INVALID)
         if value is None:
             return self.drop("price", MISSING)
-        if not (0 < value <= MAX_PRICE):
-            return self.keep("price", f"{value:.2f}", IMPLAUSIBLE, INVALID)
+        # Decimal accepts "NaN" and "Infinity", and comparing a NaN raises.
+        if not value.is_finite():
+            return self.drop("price", INVALID)
         matches = [m for m in self.money if m.amount == value]
+        if not (0 < value <= MAX_PRICE):
+            # Implausible is for what the email really says. Anything else is
+            # the grounding rule's case: blanked, never shown as a guess.
+            if matches:
+                return self.keep("price", f"{value:.2f}", IMPLAUSIBLE, INVALID)
+            return self.drop("price", MISSING)
         if matches:
             match = next((m for m in matches if _near(self.text, m, _ANY_CYCLE)), matches[0])
             self.price_match = match

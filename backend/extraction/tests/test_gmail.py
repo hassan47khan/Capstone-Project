@@ -117,6 +117,13 @@ def test_revoking_reports_whether_google_confirmed(fake):
     assert fake.revoked == ["refresh-1"]
 
 
+def test_revoking_keeps_the_token_out_of_the_url(fake):
+    # httpx logs every request URL at INFO, and the root logger is at INFO.
+    gmail.revoke("refresh-1", transport=fake.transport)
+
+    assert "refresh-1" not in str(fake.requests[-1].url)
+
+
 def test_revoking_while_google_is_unreachable_is_not_an_error(gmail_settings):
     def handle(request):
         raise httpx.ConnectError("down")
