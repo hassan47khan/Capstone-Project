@@ -1,7 +1,7 @@
 """Rolling next_bill_date forward once a bill has passed, so renewal reminders
 keep coming without anyone editing the subscription (spec section 8)."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
@@ -9,7 +9,8 @@ from django.conf import settings
 from django.core.management import call_command
 from django.utils import timezone
 
-from accounts.models import User, settings_for
+from accounts.models import User, rules_for, settings_for
+from notifications import tasks as notification_tasks
 from notifications.models import Reminder
 from notifications.scheduling import dedupe_key
 from subscriptions import operations
@@ -89,12 +90,13 @@ def test_a_cycle_change_in_the_history_is_respected(make):
         at=operations.at_start_of(date(2026, 3, 1)),
         billing_cycle="yearly",
     )
-    expected = sub.next_bill_date
+    # Monthly to 12 February, then yearly from there.
+    assert sub.next_bill_date == date(2027, 2, 12)
 
-    operations.roll_forward_bills(today=expected.replace(day=expected.day + 1))
+    operations.roll_forward_bills(today=date(2027, 2, 12) + timedelta(days=1))
 
     sub.refresh_from_db()
-    assert sub.next_bill_date.year == expected.year + 1
+    assert sub.next_bill_date == date(2028, 2, 12)
 
 
 def test_running_it_twice_changes_nothing_the_second_time(make):
@@ -222,6 +224,32 @@ def test_one_bad_subscription_does_not_stop_the_others(make, monkeypatch, caplog
     assert str(bad.pk) in caplog.text
 
 
+def test_a_subscription_cancelled_after_the_list_is_taken_is_skipped(make, monkeypatch):
+    sub = make()
+    real = operations._roll_one
+
+    def cancelled_first(pk, **kwargs):
+        operations.cancel_subscription(Subscription.objects.get(pk=pk), today=LATER)
+        return real(pk, **kwargs)
+
+    monkeypatch.setattr(operations, "_roll_one", cancelled_first)
+
+    assert operations.roll_forward_bills(today=LATER) == 0
+
+    sub.refresh_from_db()
+    assert sub.next_bill_date is None
+
+
+def test_a_pinned_demo_date_applies_to_everyone(make, settings):
+    settings.SUBTRAK_TODAY = LATER
+    sub = make()
+
+    assert roll_forward_renewals() == 1
+
+    sub.refresh_from_db()
+    assert sub.next_bill_date == date(2026, 10, 12)
+
+
 def test_the_task_takes_an_iso_date_because_the_only_serializer_is_json(make):
     sub = make()
 
@@ -231,11 +259,19 @@ def test_the_task_takes_an_iso_date_because_the_only_serializer_is_json(make):
     assert sub.next_bill_date == date(2026, 10, 12)
 
 
-def test_unset_the_task_uses_each_users_date(make, settings):
-    settings.SUBTRAK_TODAY = LATER
-    make()
+def test_unset_the_task_uses_each_users_date(make, owner, settings, monkeypatch):
+    settings.SUBTRAK_TODAY = None
+    # 03:00 UTC on the 13th is still the 12th in Los Angeles.
+    monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 10, 13, 3, tzinfo=UTC))
+    in_zone(owner, "America/Los_Angeles")
+    sub = make(today=LATER)
 
+    assert roll_forward_renewals() == 0
+    monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 10, 13, 8, tzinfo=UTC))
     assert roll_forward_renewals() == 1
+
+    sub.refresh_from_db()
+    assert sub.next_bill_date == date(2026, 11, 12)
 
 
 def test_the_command_runs_the_same_code_as_the_task(make, capsys):
@@ -248,8 +284,121 @@ def test_the_command_runs_the_same_code_as_the_task(make, capsys):
     assert "Rolled 1 subscription(s) forward." in capsys.readouterr().out
 
 
-def test_it_runs_daily_in_the_quiet_hours():
+def test_it_runs_hourly_so_each_zone_rolls_soon_after_its_midnight():
     schedule = settings.CELERY_BEAT_SCHEDULE["roll-forward-renewals"]["schedule"]
 
-    assert schedule.hour == {3}
+    assert schedule.hour == set(range(24))
     assert schedule.minute == {0}
+
+
+def in_zone(user, zone):
+    prefs = settings_for(user)
+    prefs.timezone = zone
+    prefs.save(update_fields=["timezone"])
+
+
+def test_a_subscription_cancelled_while_it_rolls_does_not_get_its_bill_back(make, monkeypatch):
+    sub = make(today=date(2026, 9, 1), start_date=date(2026, 9, 12))
+    real = operations.refresh_next_bill_date
+
+    def cancelled_meanwhile(row, **kwargs):
+        # The user cancels between the roll's read and its write.
+        operations.cancel_subscription(Subscription.objects.get(pk=row.pk), today=LATER)
+        return real(row, **kwargs)
+
+    monkeypatch.setattr(operations, "refresh_next_bill_date", cancelled_meanwhile)
+
+    assert operations.roll_forward_bills(today=LATER) == 0
+
+    sub.refresh_from_db()
+    assert sub.status == Subscription.Status.CANCELLED
+    assert sub.next_bill_date is None
+    assert not Reminder.objects.filter(subscription=sub, state=State.PENDING).exists()
+
+
+def test_one_bad_owner_does_not_stop_the_others(make, owner, settings, monkeypatch, caplog):
+    settings.SUBTRAK_TODAY = None
+    monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 10, 13, 12, tzinfo=UTC))
+    other = User.objects.create_user(email="other@example.com", password="x")
+    bad = make(name="Bad")
+    good = make(name="Good", owner=other)
+    real = operations.today_for
+
+    def broken_for_owner(user):
+        if user.pk == owner.pk:
+            raise RuntimeError("corrupt settings")
+        return real(user)
+
+    monkeypatch.setattr(operations, "today_for", broken_for_owner)
+
+    assert operations.roll_forward_bills() == 1
+
+    bad.refresh_from_db()
+    good.refresh_from_db()
+    assert bad.next_bill_date == START
+    assert good.next_bill_date == date(2026, 11, 12)
+    assert str(bad.pk) in caplog.text
+
+
+def test_bills_that_cannot_have_passed_anywhere_are_not_even_read(make, settings, monkeypatch):
+    settings.SUBTRAK_TODAY = None
+    monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 10, 13, 12, tzinfo=UTC))
+    # The 14th is still ahead everywhere at noon UTC on the 13th.
+    make(today=LATER, start_date=date(2026, 10, 14))
+    asked = []
+    monkeypatch.setattr(operations, "today_for", lambda user: asked.append(user) or LATER)
+
+    assert operations.roll_forward_bills() == 0
+    assert asked == []
+
+
+def test_a_reminder_the_roll_makes_late_waits_for_the_users_reminder_time(
+    make, owner, settings, monkeypatch
+):
+    settings.SUBTRAK_TODAY = None
+    in_zone(owner, "America/New_York")
+    rules = rules_for(owner)
+    rules.days_before_reminder = 7
+    rules.reminder_time = time(9, 0)
+    rules.save(update_fields=["days_before_reminder", "reminder_time"])
+    sub = make(billing_cycle="weekly")  # Mondays, from 12 January
+    # 04:00 in New York on Tuesday the 13th; the next bill is Monday the 19th,
+    # so its 7-day reminder was due on the 12th, already gone.
+    monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 10, 13, 8, tzinfo=UTC))
+
+    assert operations.roll_forward_bills() == 1
+
+    sub.refresh_from_db()
+    assert sub.next_bill_date == date(2026, 10, 19)
+    row = Reminder.objects.get(dedupe_key=dedupe_key(sub.pk, Kind.RENEWAL, date(2026, 10, 12)))
+    # 09:00 that morning in New York (EDT), not the 04:00 the job ran at.
+    assert row.due_at == datetime(2026, 10, 13, 13, tzinfo=UTC)
+
+
+def test_past_the_reminder_time_the_late_reminder_waits_for_the_next_day(
+    make, owner, settings, monkeypatch
+):
+    settings.SUBTRAK_TODAY = None
+    rules = rules_for(owner)
+    rules.days_before_reminder = 7
+    rules.save(update_fields=["days_before_reminder"])
+    sub = make(billing_cycle="weekly")
+    monkeypatch.setattr(timezone, "now", lambda: datetime(2026, 10, 13, 10, tzinfo=UTC))
+
+    operations.roll_forward_bills()
+
+    row = Reminder.objects.get(dedupe_key=dedupe_key(sub.pk, Kind.RENEWAL, date(2026, 10, 12)))
+    hour = rules.reminder_time
+    assert row.due_at == datetime.combine(date(2026, 10, 14), hour, tzinfo=UTC)
+
+
+def test_an_alert_sent_after_the_roll_still_names_its_own_bill(make):
+    sub = make(today=date(2026, 9, 1), start_date=date(2026, 9, 12))
+    for_september = Reminder.objects.get(subscription=sub, kind=Kind.RENEWAL)
+
+    operations.roll_forward_bills(today=LATER)
+
+    sub.refresh_from_db()
+    assert sub.next_bill_date == date(2026, 10, 12)
+    _, body = notification_tasks.copy_for(for_september)
+    assert "2026-09-12" in body

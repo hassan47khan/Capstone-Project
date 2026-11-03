@@ -379,12 +379,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "notifications.tasks.check_push_receipts",
         "schedule": crontab(minute="*/15"),
     },
-    # Daily. A bill only counts as gone once the owner's local date has passed
-    # it, so this can be up to a day late for a given zone, which a reminder
-    # that is days ahead of the next bill can absorb.
+    # Hourly, like convert-expired-trials and for the same reason: a bill only
+    # counts as gone once the owner's local date has passed it, so each zone
+    # rolls within an hour of its own midnight.
     "roll-forward-renewals": {
         "task": "subscriptions.tasks.roll_forward_renewals",
-        "schedule": crontab(hour=3, minute=0),
+        "schedule": crontab(minute=0),
     },
 }
 

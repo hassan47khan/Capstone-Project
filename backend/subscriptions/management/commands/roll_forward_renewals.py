@@ -2,7 +2,7 @@ from datetime import date
 
 from django.core.management.base import BaseCommand
 
-from subscriptions.tasks import roll_forward_renewals
+from subscriptions.operations import roll_forward_bills
 
 
 class Command(BaseCommand):
@@ -17,6 +17,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, today, **options):
-        # The same function the daily task runs, so the two cannot drift.
-        rolled = roll_forward_renewals(today.isoformat() if today else None)
+        # The same function the hourly task runs, so the two cannot drift.
+        rolled = roll_forward_bills(today=today)
         self.stdout.write(f"Rolled {rolled} subscription(s) forward.")
