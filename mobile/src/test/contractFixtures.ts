@@ -110,6 +110,27 @@ export const alexSpend: SpendOverTime = {
   enough_history: true,
 };
 
+// Alex's real 12 months (GET /analytics/spend-over-time?months=12 on the real
+// backend, scratch database, 2026-10-30). Home's two months above are the last
+// two of these; spendFor() slices it to the months asked for.
+export const alexSpendYear: SpendOverTime = {
+  ...alexSpend,
+  months: [
+    { month: '2025-11', amount: usd('109.46') },
+    { month: '2025-12', amount: usd('123.45') },
+    { month: '2026-01', amount: usd('123.45') },
+    { month: '2026-02', amount: usd('127.70') },
+    { month: '2026-03', amount: usd('127.70') },
+    { month: '2026-04', amount: usd('127.70') },
+    { month: '2026-05', amount: usd('127.70') },
+    { month: '2026-06', amount: usd('127.70') },
+    { month: '2026-07', amount: usd('127.70') },
+    { month: '2026-08', amount: usd('127.70') },
+    { month: '2026-09', amount: usd('127.70') },
+    { month: '2026-10', amount: usd('129.20') },
+  ],
+};
+
 export const alexUrgent: PriceChanges = {
   display_currency: 'USD',
   items: [
@@ -227,6 +248,16 @@ export const contractHome: Record<string, ContractHome> = {
     upcoming: { ...alexUpcoming, items: [] },
   },
 };
+
+/**
+ * GET /analytics/spend-over-time?months=n: the last n months. Alex has a real
+ * year of history; the other accounts keep their short series.
+ */
+export function spendFor(email: string, months: number): SpendOverTime {
+  const spend = contractHomeFor(email).spend;
+  if (spend !== alexSpend) return spend;
+  return { ...alexSpendYear, months: alexSpendYear.months.slice(-months) };
+}
 
 export function contractHomeFor(email: string): ContractHome {
   return contractHome[email] ?? contractHome[MOCK_EMAILS.full]!;

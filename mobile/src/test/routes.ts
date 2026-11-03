@@ -25,7 +25,7 @@
 
 import type { ApiErrorBody, Subscription } from '@/api/types';
 
-import { contractHomeFor } from './contractFixtures';
+import { contractHomeFor, spendFor } from './contractFixtures';
 import {
   cancelMockSubscription,
   createMockSubscriptionWithKey,
@@ -424,8 +424,9 @@ export const routes: Route[] = [
   {
     method: 'GET',
     pattern: '/analytics/spend-over-time',
-    handler: protectedRoute((_request, account) =>
-      ok(contractHomeFor(account.profile.email).spend),
+    // The last `months` months (default 12), like the real endpoint.
+    handler: protectedRoute((request, account) =>
+      ok(spendFor(account.profile.email, Number(request.query.months ?? 12))),
     ),
   },
 
