@@ -151,18 +151,20 @@ def _acceptable(raw: str, facts: Facts) -> bool:
 def _ask(facts: Facts) -> str | None:
     key = f"extraction:insight:{hashlib.sha256(facts.as_json().encode()).hexdigest()}"
     cached = cache.get(key)
-    if cached:
-        return cached
+    if cached is not None:
+        return cached or None  # "" remembers that the template is the answer
     try:
         reply = circuit.guarded(lambda: llm.call(SYSTEM, facts.as_json(), SCHEMA, max_tokens=2048))
-    except (llm.LLMUnavailable, llm.LLMUnusable):
+    except llm.LLMUnavailable:
+        return None  # not its answer: worth asking again once it is back
+    except llm.LLMUnusable:
+        cache.set(key, "", CACHE_SECONDS)
         return None
     raw = str(reply.data["sentence"]).strip()
-    if not _acceptable(raw, facts):
-        return None
-    sentence = " ".join(raw.split())
+    # A rejected answer is remembered too, or every screen open pays for another.
+    sentence = " ".join(raw.split()) if _acceptable(raw, facts) else ""
     cache.set(key, sentence, CACHE_SECONDS)
-    return sentence
+    return sentence or None
 
 
 def insight_for(user, ctx) -> dict:

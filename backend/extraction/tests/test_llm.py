@@ -262,3 +262,9 @@ def test_no_test_can_reach_anthropic_by_accident():
 
 def test_the_budget_is_the_eight_seconds_section_12_allows():
     assert llm.TIMEOUT_SECONDS == 8
+
+
+@pytest.mark.parametrize("raw", ["<html>bad gateway</html>", "[]", "null"])
+def test_a_200_that_is_not_a_message_is_unusable_not_a_crash(raw):
+    with pytest.raises(llm.LLMUnusable):
+        llm._parse(raw, llm.EXTRACTION_SCHEMA)

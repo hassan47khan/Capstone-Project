@@ -341,7 +341,15 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 # sends inline instead (spec section 6).
 CELERY_TASK_PUBLISH_RETRY = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
-CELERY_BROKER_TRANSPORT_OPTIONS = {"socket_connect_timeout": 2, "socket_timeout": 2}
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "socket_connect_timeout": 2,
+    "socket_timeout": 2,
+    # Must outlast the longest retry countdown (4 hours, the rate refresh):
+    # Redis redelivers a task delayed past this, so it would run twice. The
+    # default is 1 hour. The cost is that a task lost with a crashed worker
+    # also waits this long to come back.
+    "visibility_timeout": 6 * 60 * 60,
+}
 
 # The schedule lives here, in code, so it is reviewed like any other change
 # and cannot drift per environment. Phases 3 to 5 add their own rows.

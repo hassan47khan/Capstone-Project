@@ -35,7 +35,9 @@ def convert_expired_trials(today: str | None = None) -> int:
     max_retries=3,
     retry_backoff=3600,
     retry_backoff_max=14400,
-    retry_jitter=True,
+    # No jitter: one worker makes this call, so there is nothing to spread out,
+    # and full jitter could spend all three retries inside the same outage.
+    retry_jitter=False,
 )
 def refresh_exchange_rates() -> int:
     """Store today's rates. Never called by the suite or by `seed_demo`.

@@ -80,7 +80,10 @@ def start_scan(user) -> dict:
         )
     from .tasks import scan_inbox  # tasks imports this module
 
-    cache.set(_scanning_key(user), True, SCAN_SECONDS)
+    # A second tap while one is running joins it. Two would each pay the model
+    # for the same emails, and collide on the attempt rows.
+    if not cache.add(_scanning_key(user), True, SCAN_SECONDS):
+        return {"status": "scanning"}
     try:
         scan_inbox.delay(str(user.pk))
     except (OperationalError, OSError) as error:

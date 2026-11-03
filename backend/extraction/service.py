@@ -85,9 +85,10 @@ def connect(
             "revoked_at": None,
         },
     )
-    if previous is not None:
-        # Reconnecting issues a new refresh token; the old one would
-        # otherwise stay valid at Google with nothing holding it.
+    if previous is not None and previous.email.lower() != address.lower():
+        # Moving to another Google account leaves the old grant with nothing
+        # holding it. Never revoke when it is the same account: Google's revoke
+        # removes the grant, so it would kill the token we just stored.
         _revoke_stored(previous, transport=transport)
     return _payload(connection)
 

@@ -17,6 +17,7 @@ from rest_framework.test import APIClient
 
 from extraction import circuit, crypto, llm, reviews
 from extraction.models import ExtractionAttempt, GmailConnection, PendingExtraction
+from extraction.tasks import scan_inbox
 from subscriptions.models import Subscription
 
 from .conftest import fixture_email
@@ -130,6 +131,25 @@ def test_a_scan_answers_202_and_its_results_arrive_in_pending(api, connected, mo
     body = contract(api.get(PENDING), "/extractions/pending")
     assert body["scanning"] is False
     assert [r["fields"]["service_name"] for r in body["results"]] == ["Figma"]
+
+
+@pytest.mark.django_db
+def test_a_second_tap_joins_the_running_scan(api, alex, connected, model):
+    cache.set(f"extraction:scanning:{alex.pk}", True, 60)
+
+    with mock.patch("extraction.tasks.scan_inbox.delay") as delay:
+        response = scan(api)
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "scanning"}
+    delay.assert_not_called()
+
+
+def test_a_scan_has_longer_than_the_default_task_limit(settings):
+    # 25 emails at the model's 8-second budget would be killed at the default.
+    assert scan_inbox.soft_time_limit > 25 * llm.TIMEOUT_SECONDS
+    assert scan_inbox.soft_time_limit > settings.CELERY_TASK_SOFT_TIME_LIMIT
+    assert scan_inbox.time_limit <= reviews.SCAN_SECONDS
 
 
 @pytest.mark.django_db

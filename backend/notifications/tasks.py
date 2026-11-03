@@ -17,6 +17,7 @@ from datetime import timedelta
 import httpx
 from celery import shared_task
 from django.utils import timezone
+from kombu.exceptions import OperationalError
 
 from accounts.models import rules_for
 from core.tasks import queue_email
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 State = Reminder.State
 Kind = Reminder.Kind
+
+# Nothing left to do for these. A task can still arrive for one: the broker
+# redelivers after a crash, and a subscription can be cancelled between retries.
+SETTLED = (State.SENT, State.FAILED, State.SKIPPED, State.CANCELLED, State.EXPIRED)
 
 # Anything due longer ago than this is a stale warning, not an alert: a
 # renewal notice three days after the charge helps nobody (section 8).
@@ -122,9 +127,17 @@ def dispatch_due_reminders() -> dict:
 
     claimed = 0
     for reminder_id in list(due):
-        if claim(reminder_id):
+        if not claim(reminder_id):
+            continue
+        try:
             deliver_reminder.delay(str(reminder_id))
-            claimed += 1
+        except (OperationalError, OSError):
+            # Nothing will ever deliver a row left in `sending`, so hand it
+            # back, and stop: the rest would only fail the same way.
+            Reminder.objects.filter(pk=reminder_id, state=State.SENDING).update(state=State.PENDING)
+            logger.warning("Celery broker unreachable; reminders wait for the next run.")
+            break
+        claimed += 1
     return {"claimed": claimed, "expired": expired}
 
 
@@ -134,6 +147,8 @@ def deliver_reminder(self, reminder_id: str) -> str:
     reminder = Reminder.objects.filter(pk=reminder_id).first()
     if reminder is None:
         return "gone"
+    if reminder.state in SETTLED:
+        return reminder.state
 
     rules = rules_for(reminder.user)
     if not rules.send_push and not rules.send_email:
@@ -144,13 +159,16 @@ def deliver_reminder(self, reminder_id: str) -> str:
     # The inbox row first, always, before anything can go wrong.
     notification = ensure_notification(reminder)
 
-    if rules.send_push and _push(self, reminder, notification) == GAVE_UP:
-        # Already marked failed, and the alert flagged missed. Carrying on
-        # to mark it sent would say the opposite.
-        return State.FAILED
+    gave_up = rules.send_push and _push(self, reminder, notification) == GAVE_UP
 
+    # A push that failed is exactly when the email matters most.
     if rules.send_email:
         queue_email(notification.title, notification.body, [reminder.user.email])
+
+    if gave_up:
+        # Already marked failed, and the alert flagged missed. Marking it sent
+        # would say the opposite.
+        return State.FAILED
 
     Reminder.objects.filter(pk=reminder.pk).update(state=State.SENT)
     return State.SENT

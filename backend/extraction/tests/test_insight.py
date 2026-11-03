@@ -233,6 +233,42 @@ def test_the_same_facts_cost_one_model_call(alex, ctx, worded):
 
 
 @pytest.mark.django_db
+def test_a_rejected_sentence_costs_one_model_call_too(alex, ctx, worded):
+    worded["sentence"] = "Cancel Netflix to save $99.00."
+
+    first = insight.insight_for(alex, ctx)
+    second = insight.insight_for(alex, ctx)
+
+    assert worded["calls"] == 1
+    assert first == second
+    assert second["insight"]["generated"] is False
+
+
+@pytest.mark.django_db
+def test_an_unusable_answer_costs_one_model_call_too(alex, ctx, worded):
+    worded["error"] = llm.LLMUnusable("not JSON")
+
+    insight.insight_for(alex, ctx)
+    card = insight.insight_for(alex, ctx)
+
+    assert worded["calls"] == 1
+    assert card["insight"]["generated"] is False
+
+
+@pytest.mark.django_db
+def test_a_model_that_is_down_is_asked_again(alex, ctx, worded):
+    worded["error"] = llm.LLMUnavailable("timeout")
+    insight.insight_for(alex, ctx)
+    worded["error"] = None
+    worded["sentence"] = "Netflix went up $1.50 on Oct 1, or $18.00 a year."
+
+    card = insight.insight_for(alex, ctx)
+
+    assert worded["calls"] == 2
+    assert card["insight"]["generated"] is True
+
+
+@pytest.mark.django_db
 def test_an_open_circuit_skips_the_model(alex, ctx, worded):
     cache.set("extraction:llm:open_until", timezone.now().timestamp() + 60)
 
