@@ -55,6 +55,10 @@ class Reminder(models.Model):
     due_at = models.DateTimeField()
     state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
     attempts = models.PositiveSmallIntegerField(default=0)
+    # Which claim the delivery task belongs to. A claim taken again after
+    # going stale gets a new token, so the old task, if it was only late,
+    # finds it changed and sends nothing (notifications/tasks.py).
+    claim_token = models.CharField(max_length=32, blank=True, default="")
     dedupe_key = models.CharField(max_length=120, unique=True)
     # The user had no time zone, so this was scheduled as UTC and the body
     # says so (spec section 8).
@@ -149,3 +153,32 @@ class DeviceToken(models.Model):
 
     def __str__(self):
         return f"{self.platform} device for {self.user_id}"
+
+
+class PushReceipt(models.Model):
+    """One Expo ticket id, waiting for its delivery receipt.
+
+    Expo accepting a message is not delivery, and the receipt takes a few
+    minutes to appear, so the ids are parked here and read on their own
+    schedule. One row per device rather than per notification, because a
+    reminder sent to three handsets gets three tickets and only one of them
+    may come back `DeviceNotRegistered`.
+
+    Rows are deleted once answered; `expires_at` is a TTL safety net, since
+    Expo drops receipts after 24 hours and an id it never answers would
+    otherwise be asked about forever.
+    """
+
+    receipt_id = models.CharField(max_length=120, unique=True)
+    device_token = models.ForeignKey(DeviceToken, on_delete=models.CASCADE, related_name="receipts")
+    notification = models.ForeignKey(
+        Notification, on_delete=models.CASCADE, related_name="receipts", null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "push_receipts"
+
+    def __str__(self):
+        return f"receipt {self.receipt_id}"

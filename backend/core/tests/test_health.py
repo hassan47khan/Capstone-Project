@@ -31,7 +31,9 @@ def redis_down(settings):
 
 
 @pytest.mark.django_db
-def test_health_returns_200(redis_up):
+def test_health_returns_200(redis_up, settings):
+    settings.LLM_API_KEY = "sk-test"
+    settings.EXTRACTION_ENABLED = True
     response = APIClient().get("/api/v1/health/")
 
     assert response.status_code == 200
@@ -39,10 +41,21 @@ def test_health_returns_200(redis_up):
         "status": "ok",
         "database": "ok",
         "redis": "ok",
-        # Phase 4 and phase 5 fill these in.
         "oldest_overdue_reminder_minutes": None,
-        "llm": None,
+        "llm": "ok",
     }
+
+
+@pytest.mark.django_db
+def test_the_model_being_away_is_reported_but_is_not_an_outage(redis_up, settings):
+    # Extraction has a manual fallback, so an unconfigured or switched-off
+    # model is worth showing but never makes the service "degraded".
+    settings.EXTRACTION_ENABLED = False
+
+    body = APIClient().get("/api/v1/health/").json()
+
+    assert body["llm"] == "disabled"
+    assert body["status"] == "ok"
 
 
 @pytest.mark.django_db
@@ -94,3 +107,41 @@ def test_the_redis_check_cannot_hang_the_probe(redis_up):
 @pytest.mark.django_db
 def test_health_matches_the_contract(redis_up, contract):
     contract(APIClient().get("/api/v1/health/"), "/health/")
+
+
+@pytest.mark.django_db
+def test_reminders_piling_up_unsent_is_an_incident(redis_up, alex):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from notifications.models import Reminder
+
+    Reminder.objects.all().update(
+        state=Reminder.State.PENDING, due_at=timezone.now() - timedelta(minutes=45)
+    )
+
+    body = APIClient().get("/api/v1/health/").json()
+
+    # Section 12: past 30 minutes the dispatcher is not running, which is
+    # worth seeing even while everything else answers.
+    assert body["oldest_overdue_reminder_minutes"] == 45
+    assert body["status"] == "degraded"
+
+
+@pytest.mark.django_db
+def test_a_reminder_only_just_due_is_not_an_incident(redis_up, alex):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from notifications.models import Reminder
+
+    Reminder.objects.all().update(
+        state=Reminder.State.PENDING, due_at=timezone.now() - timedelta(minutes=2)
+    )
+
+    body = APIClient().get("/api/v1/health/").json()
+
+    assert body["oldest_overdue_reminder_minutes"] == 2
+    assert body["status"] == "ok"

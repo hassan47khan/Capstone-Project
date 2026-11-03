@@ -36,7 +36,9 @@ def test_trials_with_server_computed_progress(api, contract):
     assert hulu["billing_cycle"] == "monthly"
 
 
-def test_keep_takes_a_trial_out_of_at_risk_without_saving(api, alex, contract):
+def test_keep_takes_a_trial_out_of_at_risk_and_is_remembered(api, alex, contract):
+    # The mock used to answer without saving. Now the decision persists,
+    # which is the point of it: "Keep it" has to stop the nagging (11 §2.5).
     hulu = Subscription.objects.get(owner=alex, name="Hulu")
 
     response = api.post(f"/api/v1/trials/{hulu.pk}/decision", {"decision": "keep"}, format="json")
@@ -44,7 +46,7 @@ def test_keep_takes_a_trial_out_of_at_risk_without_saving(api, alex, contract):
 
     assert body["decision"] == "keep"
     assert body["at_risk"] is False
-    assert Subscription.objects.get(pk=hulu.pk).trial_decision == "none"
+    assert Subscription.objects.get(pk=hulu.pk).trial_decision == "keep"
 
 
 def test_remind_turns_the_reminder_on(api, alex):
@@ -195,48 +197,10 @@ def test_remind_errors(api, contract, plan, payment, status):
 # Extractions ------------------------------------------------------------------------
 
 
-def test_pending_extractions(api, alex, contract):
-    body = contract(api.get("/api/v1/extractions/pending"), "/extractions/pending")
-
-    assert body["scanning"] is False
-    figma, disney, hulu = body["results"]
-    assert figma["fields"]["price"] == "15.00"
-    assert figma["flagged"] == []
-    # 18 days after SEED_TODAY: the Figma frame's "Oct 19", derived, not typed.
-    assert disney["fields"]["trial_ends_on"] == "2026-10-19"
-    assert disney["confidence"]["trial_ends_on"] == 0.54
-    assert disney["flagged"] == ["trial_ends_on", "start_date"]
-    assert disney["fields"]["plan_name"] is None
-    assert "Oct 3, 2026" in hulu["source"]["snippet"]
-    assert hulu["duplicate_of"] == str(Subscription.objects.get(owner=alex, name="Hulu").pk)
-    assert all(len(r["source"]["snippet"]) <= 300 for r in body["results"])
-
-
-def test_scan_starts_and_answers_202(api, contract):
-    response = api.post("/api/v1/extractions/scan")
-
-    assert response.status_code == 202
-    assert contract(response, "/extractions/scan") == {"status": "scanning"}
-
-
-def test_confirm_creates_the_subscription_from_reviewed_fields(api, contract):
-    figma = api.get("/api/v1/extractions/pending").json()["results"][0]
-    fields = figma["fields"]
-    payload = {
-        "name": fields["service_name"],
-        "billing_price": fields["price"],
-        "billing_currency": fields["currency"],
-        "billing_cycle": fields["billing_cycle"],
-        "start_date": fields["start_date"],
-        "category": fields["category"],
-    }
-
-    response = api.post(f"/api/v1/extractions/{figma['id']}/confirm", payload, format="json")
-    body = contract(response, "/extractions/{extraction_id}/confirm")
-
-    assert response.status_code == 201
-    assert (body["name"], body["next_bill_date"]) == ("Figma", "2026-10-01")
-    assert not Subscription.objects.filter(name="Figma").exists()
+# The scan, the review queue, confirm and discard run for real against a fake
+# Google and a fake model in extraction/tests/test_reviews.py. These two
+# check what holds before any of that: the body is validated like create,
+# and an id that is not the caller's is a 404.
 
 
 def test_confirm_validates_like_create(api, contract):
@@ -264,29 +228,12 @@ def test_confirm_or_discard_an_unknown_extraction_is_404(api, contract):
     contract(discard, "/extractions/{extraction_id}")
 
 
-def test_discard(api, contract):
-    response = api.delete("/api/v1/extractions/6a0c00000000000000000002")
-
-    assert response.status_code == 204
-    contract(response, "/extractions/{extraction_id}")
-
-
 # Gmail --------------------------------------------------------------------------------
 
 
-def test_connect_and_disconnect_gmail(api, contract):
-    connected = api.post(
-        "/api/v1/integrations/gmail/connect",
-        {"code": "4/abc", "redirect_uri": "subtrak://oauth"},
-        format="json",
-    )
-    body = contract(connected, "/integrations/gmail/connect")
-    disconnected = api.delete("/api/v1/integrations/gmail")
-
-    assert body["provider"] == "gmail"
-    assert body["email"] == "alex.kim@example.com"
-    assert disconnected.status_code == 204
-    contract(disconnected, "/integrations/gmail")
+# Connecting for real, against a fake Google, is covered in
+# extraction/tests/test_api.py. This one checks only the request validation,
+# which runs before anything is sent to Google.
 
 
 def test_connect_needs_a_code(api, contract):
@@ -296,3 +243,11 @@ def test_connect_needs_a_code(api, contract):
         "code",
         "redirect_uri",
     }
+
+
+def test_a_trial_decision_on_a_nonsense_id_is_not_found(api, alex):
+    response = api.post("/api/v1/trials/not-an-objectid/decision", {"decision": "keep"})
+
+    # 404 rather than 400, so a malformed id tells an attacker nothing more
+    # than a well-formed one that is not theirs.
+    assert response.status_code == 404

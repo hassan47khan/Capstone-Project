@@ -8,8 +8,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 import mocks
+from accounts.models import rules_for
+from core.clock import today_for
 from core.contract import errors
+from extraction import reviews
+from extraction import service as gmail_service
 
+from . import trials
 from .serializers import (
     GmailConnectInputSerializer,
     GmailConnectionSerializer,
@@ -25,7 +30,16 @@ from .serializers import (
     TrialListSerializer,
     TrialSerializer,
 )
-from .views import body
+from .views import body, detail
+
+
+def _trials(request) -> dict:
+    return trials.trials_for(
+        request.user,
+        today=today_for(request.user),
+        alert_days=rules_for(request.user).trial_alert_days_before,
+    )
+
 
 NO_CONTENT = OpenApiResponse(description="Done; no body.")
 
@@ -44,7 +58,8 @@ class ScanView(APIView):
 
         409 `gmail_not_connected`. 503 `extraction_unavailable`: route to manual entry.
         """
-        return Response(ScanSerializer(mocks.scan()).data, status=status.HTTP_202_ACCEPTED)
+        started = reviews.start_scan(request.user)
+        return Response(ScanSerializer(started).data, status=status.HTTP_202_ACCEPTED)
 
 
 class PendingExtractionsView(APIView):
@@ -55,7 +70,7 @@ class PendingExtractionsView(APIView):
     )
     def get(self, request):
         """Extractions waiting for review. Nothing is a subscription until confirmed."""
-        return Response(PendingExtractionListSerializer(mocks.pending_extractions()).data)
+        return Response(PendingExtractionListSerializer(reviews.pending(request.user)).data)
 
 
 class ConfirmExtractionView(APIView):
@@ -69,8 +84,9 @@ class ConfirmExtractionView(APIView):
         """Create the subscription from the reviewed fields ("Confirm and track") and
         delete the pending record. The body is the same as POST /subscriptions."""
         fields = body(SubscriptionInputSerializer, request)
-        detail = mocks.confirm_extraction(extraction_id, fields)
-        return Response(SubscriptionDetailSerializer(detail).data, status=status.HTTP_201_CREATED)
+        sub = reviews.confirm(request.user, extraction_id, fields)
+        sub.refresh_from_db()  # as stored, like POST /subscriptions
+        return Response(detail(sub, request), status=status.HTTP_201_CREATED)
 
 
 class ExtractionView(APIView):
@@ -81,7 +97,7 @@ class ExtractionView(APIView):
     )
     def delete(self, request, extraction_id):
         """Discard a pending extraction and its snippet."""
-        mocks.discard_extraction(extraction_id)
+        reviews.discard(request.user, extraction_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -97,7 +113,7 @@ class TrialsView(APIView):
     def get(self, request):
         """Trials that have not converted, fewest days left first, with progress
         computed server-side (TrialShield, 11 §2.5)."""
-        return Response(TrialListSerializer(mocks.trials()).data)
+        return Response(TrialListSerializer(_trials(request)).data)
 
 
 class TrialDecisionView(APIView):
@@ -110,9 +126,14 @@ class TrialDecisionView(APIView):
     def post(self, request, subscription_id):
         """Keep it (stop nagging; it converts on its end date) or Remind me."""
         data = body(TrialDecisionInputSerializer, request)
-        return Response(
-            TrialSerializer(mocks.trial_decision(subscription_id, data["decision"])).data
+        decided = trials.decide(
+            request.user,
+            subscription_id,
+            data["decision"],
+            today=today_for(request.user),
+            alert_days=rules_for(request.user).trial_alert_days_before,
         )
+        return Response(TrialSerializer(decided).data)
 
 
 # Shared plans -------------------------------------------------------------------
@@ -126,7 +147,7 @@ class SharedPlansView(APIView):
     )
     def get(self, request):
         """The caller's shared plans and what others still owe them. Never changes totals."""
-        return Response(SharedPlanListSerializer(mocks.shared_plans()).data)
+        return Response(SharedPlanListSerializer(mocks.shared_plans(request.user)).data)
 
     @extend_schema(
         operation_id="shared_plans_create",
@@ -138,7 +159,7 @@ class SharedPlansView(APIView):
         """Split one of the caller's subscriptions equally. The caller is added first
         and absorbs any extra cent. 409 `already_shared`."""
         data = body(SharedPlanInputSerializer, request)
-        plan = mocks.create_shared_plan(data["subscription_id"], data["participants"])
+        plan = mocks.create_shared_plan(request.user, data["subscription_id"], data["participants"])
         return Response(SharedPlanSerializer(plan).data, status=status.HTTP_201_CREATED)
 
 
@@ -155,7 +176,7 @@ class RemindView(APIView):
 
         409 `already_paid`. 429 `throttled`: one reminder per 24 hours.
         """
-        return Response(ReminderSerializer(mocks.remind(plan_id, payment_id)).data)
+        return Response(ReminderSerializer(mocks.remind(request.user, plan_id, payment_id)).data)
 
 
 # Gmail ------------------------------------------------------------------------------
@@ -174,8 +195,8 @@ class GmailConnectView(APIView):
         400 `gmail_denied`: "Access was denied or timed out."
         """
         data = body(GmailConnectInputSerializer, request)
-        connection = mocks.connect_gmail(
-            data["code"], data["redirect_uri"], data.get("code_verifier")
+        connection = gmail_service.connect(
+            request.user, data["code"], data["redirect_uri"], data.get("code_verifier")
         )
         return Response(GmailConnectionSerializer(connection).data)
 
@@ -188,5 +209,5 @@ class GmailView(APIView):
     )
     def delete(self, request):
         """Revoke Gmail access and delete every pending extraction."""
-        mocks.disconnect_gmail()
+        gmail_service.disconnect(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)

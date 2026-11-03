@@ -1,0 +1,129 @@
+# Render Blueprint for the SubTrak backend (phase 6).
+#
+# The runbook is docs/ops/backend-deploy.md: read it before the first deploy.
+# MongoDB is not here; it is the team's Atlas cluster, passed in as MONGODB_URI.
+#
+# Three services:
+#   subtrak-api     the Django API (gunicorn), and the only public one
+#   subtrak-worker  Celery worker with beat embedded. EXACTLY ONE: two would
+#                   fire every scheduled job twice (config/celery.py)
+#   subtrak-redis   Celery's broker and the shared cache, internal only
+#
+# Values marked `sync: false` are secrets. Render asks for them once, when
+# the Blueprint is first created, and they never live in this file.
+
+services:
+  - type: web
+    name: subtrak-api
+    runtime: python
+    rootDir: backend
+    region: oregon
+    # Free spins down after 15 idle minutes and the next request waits about
+    # a minute for it. Fine for a demo; 0.5c-512mb keeps it awake.
+    plan: free
+    # Migrations run here rather than as a pre-deploy command, which Render
+    # only offers on paid plans. They are additive, so running ahead of the
+    # code by one build is safe.
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput &&
+      python manage.py migrate --noinput
+    # No --access-logfile: query strings carry single-use verify tokens and
+    # OAuth codes. core/request_id.py logs each request's path instead.
+    # gunicorn reads WEB_CONCURRENCY, which Render sets per plan.
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --timeout 30
+    healthCheckPath: /api/v1/health/
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.12
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: subtrak-redis
+          property: connectionString
+      - key: RESEND_API_KEY
+        sync: false
+      - key: DJANGO_DEFAULT_FROM_EMAIL
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: EXTRACTION_ENABLED
+        value: "true"
+      - key: EXTRACTION_DAILY_CAP
+        value: "30"
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URIS
+        sync: false
+      # MUST be the same value on the worker: the worker decrypts what the
+      # API encrypted.
+      - key: GMAIL_TOKEN_ENCRYPTION_KEY
+        sync: false
+
+  - type: worker
+    name: subtrak-worker
+    runtime: python
+    rootDir: backend
+    region: oregon
+    # Render has no free plan for workers. Without one, emails, reminders,
+    # the exchange-rate refresh and Gmail scans queue and never run.
+    plan: 0.5c-512mb
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config worker --beat --loglevel INFO --concurrency 2
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.12
+      # Its own key is fine: nothing the worker does is signed.
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: subtrak-redis
+          property: connectionString
+      - key: RESEND_API_KEY
+        sync: false
+      - key: DJANGO_DEFAULT_FROM_EMAIL
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: EXTRACTION_ENABLED
+        value: "true"
+      - key: EXTRACTION_DAILY_CAP
+        value: "30"
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      # The same value as the API's (see above).
+      - key: GMAIL_TOKEN_ENCRYPTION_KEY
+        sync: false
+
+  - type: keyvalue
+    name: subtrak-redis
+    region: oregon
+    plan: free
+    # Internal only: no address on the internet may connect.
+    ipAllowList: []
+    # A broker must never drop a queued task to make room. Free Key Value
+    # keeps nothing across a restart, which is acceptable here: MongoDB is
+    # the system of record and a lost task is re-dispatched (spec section 8).
+    maxmemoryPolicy: noeviction

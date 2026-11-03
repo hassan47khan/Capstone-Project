@@ -23,8 +23,8 @@ SEED_TODAY = date(2026, 10, 1)
 # Every demo user logs in with this once `seed_demo` has run. Local and demo
 # databases only: the seed deletes and recreates its users, so never run it
 # against shared data. Only that command sets it; anything else that loads the
-# dataset (the 04 §6a mocks, on a request) leaves the demo users with no usable
-# password, so a fixture can never become a login.
+# dataset leaves the demo users with no usable password, so a fixture can never
+# become a login.
 DEMO_PASSWORD = "subtrak-demo"
 
 # slug, display name, key into the mobile theme's category colours. Labels and
