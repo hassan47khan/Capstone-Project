@@ -492,3 +492,48 @@ def test_the_fallback_is_an_empty_add_form_with_the_required_fields_flagged():
 
     assert all(value is None for value in candidate.fields.values())
     assert set(candidate.flagged) == set(p.REQUIRED)
+
+
+# What the model says cannot be trusted, least of all from an email with an
+# injection in it -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize("price", ["NaN", "sNaN", "Infinity", "-Infinity"])
+def test_a_price_that_is_not_a_number_is_blanked_not_a_crash(price):
+    candidate = read("Your plan is $15.49 per month.", output(price=price))
+
+    assert candidate.fields["price"] is None
+    assert "price" in candidate.flagged
+
+
+@pytest.mark.parametrize("price", ["-5", "0", "99999"])
+def test_an_implausible_price_the_email_does_not_say_is_blanked(price):
+    candidate = read("Your plan is $15.49 per month.", output(price=price))
+
+    assert candidate.fields["price"] is None
+    assert "price" in candidate.flagged
+
+
+def test_an_implausible_price_the_email_does_say_is_shown_and_flagged():
+    candidate = read("Your plan is $0.00 per month.", output(price="0"))
+
+    assert candidate.fields["price"] == "0.00"
+    assert candidate.confidence["price"] == p.IMPLAUSIBLE
+    assert "price" in candidate.flagged
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("includes 2 audiobooks", []),
+        ("5 audio credits", []),
+        ("report fraud 50.00 now", [("50.00", None)]),
+        ("9.99 audio plan", [("9.99", None)]),
+        ("aud 9.99 a month", [("9.99", "aud")]),
+        ("9.99 aud a month", [("9.99", "aud")]),
+        ("a$9.99", [("9.99", "a$")]),
+        ("cost$5", [("5", "$")]),
+    ],
+)
+def test_a_currency_code_has_to_stand_alone(text, expected):
+    assert [(str(m.amount), m.marker) for m in p.amounts(text)] == expected
