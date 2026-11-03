@@ -192,9 +192,16 @@ def dashboard(user, *, today: date) -> dict:
                 "over_limit": over if visible else None,
             }
         )
+    # Imported here: invitations builds on this module.
+    from . import invitations
+
+    seats_taken = invitations.seats_taken(family, invitations.timezone.now())
     return {
         **_family_fields(family),
         "seats_used": len(figures),
+        "seats_taken": seats_taken,
+        "can_invite": viewer.is_admin and seats_taken < family.seat_limit,
+        "invitations": invitations.for_admin(family) if viewer.is_admin else [],
         "you": {
             "membership_id": str(viewer.pk),
             "role": viewer.role,

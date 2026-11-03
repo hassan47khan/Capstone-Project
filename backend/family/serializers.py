@@ -9,7 +9,7 @@ from subscriptions.fx import SUPPORTED_CURRENCIES
 from subscriptions.models import PRICE_DIGITS
 from subscriptions.serializers import CategoryRefSerializer, ServiceMarkSerializer
 
-from .models import Family, Membership
+from .models import Family, Invitation, Membership
 
 ROLES = Membership.Role.values
 
@@ -48,12 +48,33 @@ class FamilyMemberSerializer(PersonFields):
     over_limit = serializers.BooleanField(allow_null=True)
 
 
+INVITATION_STATUSES = Invitation.Status.values
+
+
+class InvitationSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=ROLES)
+    status = serializers.ChoiceField(choices=INVITATION_STATUSES)
+    expires_at = serializers.DateTimeField()
+    sent_at = serializers.DateTimeField()
+
+
 class FamilySerializer(serializers.Serializer):
     id = serializers.CharField()
     name = serializers.CharField()
     plan = serializers.ChoiceField(choices=Family.Plan.values)
     seat_limit = serializers.IntegerField()
     seats_used = serializers.IntegerField()
+    seats_taken = serializers.IntegerField(
+        help_text="Members plus invitations still pending: what the seat limit counts."
+    )
+    can_invite = serializers.BooleanField(
+        help_text="False for non-admins and when every seat is taken (show the upgrade prompt)."
+    )
+    invitations = InvitationSerializer(
+        many=True, help_text="Pending and expired invitations. Admins only; empty otherwise."
+    )
     display_currency = serializers.CharField()
     shared_timezone = serializers.CharField(allow_blank=True)
     fiscal_year_start = serializers.IntegerField(min_value=1, max_value=12)
@@ -146,4 +167,39 @@ class MemberUpdateSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text="Monthly, in the family's currency. Null removes it.",
+    )
+
+
+class InviteInputSerializer(serializers.Serializer):
+    email = serializers.EmailField(
+        error_messages={"invalid": "Enter a valid email.", "required": "Enter an email."}
+    )
+    role = serializers.ChoiceField(choices=ROLES, default=Membership.Role.MEMBER)
+
+
+class InvitationTokenSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=200, help_text="From the invitation link.")
+
+
+PROBLEMS = [
+    "expired",
+    "accepted",
+    "revoked",
+    "wrong_account",
+    "already_member",
+    "in_another_family",
+]
+
+
+class InvitationPreviewSerializer(serializers.Serializer):
+    family_name = serializers.CharField()
+    invited_by = serializers.CharField()
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=ROLES)
+    status = serializers.ChoiceField(choices=INVITATION_STATUSES)
+    expires_at = serializers.DateTimeField()
+    problem = serializers.ChoiceField(
+        choices=PROBLEMS,
+        allow_null=True,
+        help_text="Why it can't be accepted by the signed-in user; null when it can.",
     )

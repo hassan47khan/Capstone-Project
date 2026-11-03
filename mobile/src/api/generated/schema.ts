@@ -424,6 +424,67 @@ export interface paths {
         patch: operations["family_update"];
         trace?: never;
     };
+    "/api/v1/family/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Email an invitation that lasts 7 days. Admins only.
+         *
+         *     409 `already_member`, `already_invited` (resend it instead) or
+         *     `seat_limit_reached` (offer the upgrade).
+         */
+        post: operations["family_invitations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/family/invitations/{invitation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Revoke: the link stops working and the seat is free again. Admins only. */
+        delete: operations["family_invitations_revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/family/invitations/{invitation_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Send a new link with 7 more days; the old link stops working. Admins only.
+         *
+         *     409 `invitation_accepted` / `invitation_revoked`, or `seat_limit_reached`
+         *     for an expired one when no seat is free.
+         */
+        post: operations["family_invitations_resend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/family/members/{membership_id}": {
         parameters: {
             query?: never;
@@ -512,6 +573,49 @@ export interface paths {
          *     400 `gmail_denied`: "Access was denied or timed out."
          */
         post: operations["gmail_connect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Join the family. Needs a verified email matching the invitation.
+         *
+         *     403 `wrong_account` / `email_unverified`; 404 `invitation_not_found`;
+         *     409 `invitation_accepted` / `already_in_family`; 410 `invitation_expired` /
+         *     `invitation_revoked`.
+         */
+        post: operations["invitations_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description What the accept screen shows. `problem` says why the signed-in user
+         *     can't accept it, if they can't. 404 `invitation_not_found`.
+         */
+        post: operations["invitations_preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -957,6 +1061,12 @@ export interface components {
             plan: components["schemas"]["PlanEnum"];
             seat_limit: number;
             seats_used: number;
+            /** @description Members plus invitations still pending: what the seat limit counts. */
+            seats_taken: number;
+            /** @description False for non-admins and when every seat is taken (show the upgrade prompt). */
+            can_invite: boolean;
+            /** @description Pending and expired invitations. Admins only; empty otherwise. */
+            invitations: components["schemas"]["Invitation"][];
             display_currency: string;
             shared_timezone: string;
             fiscal_year_start: number;
@@ -979,7 +1089,7 @@ export interface components {
             name: string;
             /** Format: email */
             email: string;
-            role: components["schemas"]["RoleEnum"];
+            role: components["schemas"]["FamilyRoleEnum"];
             is_you: boolean;
             /** @description What counts toward their total: active, not a running trial. */
             subscription_count: number;
@@ -996,7 +1106,7 @@ export interface components {
             name: string;
             /** Format: email */
             email: string;
-            role: components["schemas"]["RoleEnum"];
+            role: components["schemas"]["FamilyRoleEnum"];
             is_you: boolean;
             can_add_subscriptions: boolean;
             can_edit_own_subs: boolean;
@@ -1009,6 +1119,13 @@ export interface components {
             unconverted_count: number;
             subscriptions: components["schemas"]["FamilySubscription"][];
         };
+        /**
+         * @description * `admin` - admin
+         *     * `member` - member
+         *     * `viewer` - viewer
+         * @enum {string}
+         */
+        FamilyRoleEnum: "admin" | "member" | "viewer";
         /**
          * @description One of a member's subscriptions. A private one, seen by someone else,
          *     keeps only its amount (10 §2 option A): show it as "Private subscription".
@@ -1087,6 +1204,56 @@ export interface components {
         InsightResponse: {
             /** @description Null: there is nothing to say; hide the card. */
             insight: components["schemas"]["Insight"] | null;
+        };
+        Invitation: {
+            id: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["FamilyRoleEnum"];
+            status: components["schemas"]["InvitationStatusEnum"];
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            sent_at: string;
+        };
+        InvitationPreview: {
+            family_name: string;
+            invited_by: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["FamilyRoleEnum"];
+            status: components["schemas"]["InvitationStatusEnum"];
+            /** Format: date-time */
+            expires_at: string;
+            /**
+             * @description Why it can't be accepted by the signed-in user; null when it can.
+             *
+             *     * `expired` - expired
+             *     * `accepted` - accepted
+             *     * `revoked` - revoked
+             *     * `wrong_account` - wrong_account
+             *     * `already_member` - already_member
+             *     * `in_another_family` - in_another_family
+             */
+            problem: components["schemas"]["ProblemEnum"] | components["schemas"]["NullEnum"];
+        };
+        /**
+         * @description * `pending` - pending
+         *     * `accepted` - accepted
+         *     * `expired` - expired
+         *     * `revoked` - revoked
+         * @enum {string}
+         */
+        InvitationStatusEnum: "pending" | "accepted" | "expired" | "revoked";
+        InvitationTokenRequest: {
+            /** @description From the invitation link. */
+            token: string;
+        };
+        InviteInputRequest: {
+            /** Format: email */
+            email: string;
+            /** @default member */
+            role: components["schemas"]["FamilyRoleEnum"];
         };
         /**
          * @description * `price_change` - price_change
@@ -1202,7 +1369,7 @@ export interface components {
             fiscal_year_start?: number;
         };
         PatchedMemberUpdateRequest: {
-            role?: components["schemas"]["RoleEnum"];
+            role?: components["schemas"]["FamilyRoleEnum"];
             can_add_subscriptions?: boolean;
             can_edit_own_subs?: boolean;
             can_view_family_total?: boolean;
@@ -1362,6 +1529,16 @@ export interface components {
             items: components["schemas"]["PriceChange"][];
         };
         /**
+         * @description * `expired` - expired
+         *     * `accepted` - accepted
+         *     * `revoked` - revoked
+         *     * `wrong_account` - wrong_account
+         *     * `already_member` - already_member
+         *     * `in_another_family` - in_another_family
+         * @enum {string}
+         */
+        ProblemEnum: "expired" | "accepted" | "revoked" | "wrong_account" | "already_member" | "in_another_family";
+        /**
          * @description * `gmail` - gmail
          * @enum {string}
          */
@@ -1405,13 +1582,6 @@ export interface components {
              */
             next_reminder_available_at: string;
         };
-        /**
-         * @description * `admin` - admin
-         *     * `member` - member
-         *     * `viewer` - viewer
-         * @enum {string}
-         */
-        RoleEnum: "admin" | "member" | "viewer";
         Scan: {
             status: components["schemas"]["ScanStatusEnum"];
         };
@@ -1770,7 +1940,7 @@ export interface components {
         /** @description What the caller may do, with their role applied (a viewer may do nothing). */
         You: {
             membership_id: string;
-            role: components["schemas"]["RoleEnum"];
+            role: components["schemas"]["FamilyRoleEnum"];
             may_add_subscriptions: boolean;
             may_edit_subscriptions: boolean;
             may_view_family_total: boolean;
@@ -2829,6 +2999,180 @@ export interface operations {
             };
         };
     };
+    family_invitations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteInputRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InviteInputRequest"];
+                "multipart/form-data": components["schemas"]["InviteInputRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not allowed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflicts with the current state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    family_invitations_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; no body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not allowed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    family_invitations_resend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not allowed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflicts with the current state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     family_members_retrieve: {
         parameters: {
             query?: never;
@@ -3076,6 +3420,137 @@ export interface operations {
             };
             /** @description Missing, expired or invalid token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    invitations_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationTokenRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvitationTokenRequest"];
+                "multipart/form-data": components["schemas"]["InvitationTokenRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Family"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not allowed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflicts with the current state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gone: it existed, but has expired or was cancelled. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    invitations_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationTokenRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvitationTokenRequest"];
+                "multipart/form-data": components["schemas"]["InvitationTokenRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPreview"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

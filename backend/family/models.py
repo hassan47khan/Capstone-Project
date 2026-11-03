@@ -84,3 +84,44 @@ class Membership(models.Model):
     @property
     def may_see_total(self) -> bool:
         return self.is_admin or self.can_view_family_total
+
+
+class Invitation(models.Model):
+    """An emailed invite to join a family (10 §3.5). Only the SHA-256 of the
+    token is stored, like an email link (accounts.EmailLinkToken).
+
+    `status` is what was decided; a pending invite past `expires_at` is
+    reported as expired without a job having to flip it.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending"
+        ACCEPTED = "accepted"
+        EXPIRED = "expired"
+        REVOKED = "revoked"
+
+    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name="invitations")
+    email = models.EmailField()
+    role = models.CharField(
+        max_length=10, choices=Membership.Role.choices, default=Membership.Role.MEMBER
+    )
+    digest = models.CharField(max_length=64, unique=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    expires_at = models.DateTimeField()
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "family_invitations"
+        indexes = [models.Index(fields=["family", "status"], name="invitation_family_status")]
+
+    def __str__(self):
+        return f"invite {self.email} to {self.family_id} ({self.status})"
+
+    def status_at(self, now) -> str:
+        if self.status == self.Status.PENDING and self.expires_at <= now:
+            return self.Status.EXPIRED
+        return self.status
