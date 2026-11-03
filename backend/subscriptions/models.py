@@ -146,6 +146,9 @@ class Subscription(models.Model):
     trial_decision = models.CharField(
         max_length=10, choices=TrialDecision.choices, default=TrialDecision.NONE
     )
+    # Family privacy (10 §2, option A): still counted in the family total, but
+    # shown to everyone else in the family as "Private subscription", no name.
+    is_private = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     # Embedded: participants are always read with their plan and are bounded.

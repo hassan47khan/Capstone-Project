@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     # migrations have an app to land in.
     "notifications",
     "extraction",
+    "family",
 ]
 
 MIDDLEWARE = [
