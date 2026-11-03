@@ -12,6 +12,7 @@ inbox the fallback rather than a nice-to-have.
 """
 
 import logging
+import uuid
 from datetime import timedelta
 
 import httpx
@@ -63,16 +64,16 @@ _COPY = {
 NO_TIMEZONE_NOTE = " Times are UTC because you have not set a time zone."
 
 
-def claim(reminder_id) -> bool:
+def claim(reminder_id, token: str = "") -> bool:
     """Move one reminder from pending to sending, atomically.
 
     A conditional update, so when two dispatchers overlap exactly one of
     them gets the row and the other sends nothing (section 12's "atomic
-    state changes").
+    state changes"). `token` names this claim; the delivery task carries it.
     """
     return bool(
         Reminder.objects.filter(pk=reminder_id, state=State.PENDING).update(
-            state=State.SENDING, updated_at=timezone.now()
+            state=State.SENDING, claim_token=token, updated_at=timezone.now()
         )
     )
 
@@ -119,8 +120,9 @@ def dispatch_due_reminders() -> dict:
     """Claim everything due and hand each one to a delivery task."""
     now = timezone.now()
 
-    # Nothing else would ever deliver these. `attempts` carries over, and a
-    # task that was only late finds the row re-claimed or settled, not lost.
+    # Nothing else would ever deliver these. `attempts` carries over. A task
+    # that was only late, not lost, finds a new claim token or a settled row,
+    # and sends nothing.
     Reminder.objects.filter(
         state__in=[State.SENDING, State.RETRYING], updated_at__lt=now - STALE_CLAIM
     ).update(state=State.PENDING, updated_at=now)
@@ -137,10 +139,11 @@ def dispatch_due_reminders() -> dict:
 
     claimed = 0
     for reminder_id in list(due):
-        if not claim(reminder_id):
+        token = uuid.uuid4().hex
+        if not claim(reminder_id, token):
             continue
         try:
-            deliver_reminder.delay(str(reminder_id))
+            deliver_reminder.delay(str(reminder_id), token)
         except (OperationalError, OSError):
             # Nothing will ever deliver a row left in `sending`, so hand it
             # back, and stop: the rest would only fail the same way.
@@ -152,13 +155,20 @@ def dispatch_due_reminders() -> dict:
 
 
 @shared_task(bind=True, name="notifications.tasks.deliver_reminder", max_retries=MAX_PUSH_RETRIES)
-def deliver_reminder(self, reminder_id: str) -> str:
-    """Deliver one claimed reminder, in section 8's order."""
+def deliver_reminder(self, reminder_id: str, claim_token: str | None = None) -> str:
+    """Deliver one claimed reminder, in section 8's order.
+
+    `claim_token` is None only for a task queued before tokens existed.
+    """
     reminder = Reminder.objects.filter(pk=reminder_id).first()
     if reminder is None:
         return "gone"
     if reminder.state in SETTLED:
         return reminder.state
+    if claim_token is not None and reminder.claim_token != claim_token:
+        # The claim went stale and was taken again, so another task owns it.
+        # Sending here too would give the user every alert twice.
+        return "superseded"
 
     rules = rules_for(reminder.user)
     if not rules.send_push and not rules.send_email:
@@ -243,7 +253,11 @@ def _push(task, reminder: Reminder, notification: Notification) -> str:
 def _retry_or_fail(task, reminder: Reminder, notification: Notification, error) -> str:
     """Back off and try again, or give up and flag the alert as missed."""
     attempts = reminder.attempts + 1
-    Reminder.objects.filter(pk=reminder.pk).update(attempts=attempts, state=State.RETRYING)
+    # updated_at by hand, because update() skips auto_now: the stale-claim
+    # clock must run from this attempt, not from the original claim.
+    Reminder.objects.filter(pk=reminder.pk).update(
+        attempts=attempts, state=State.RETRYING, updated_at=timezone.now()
+    )
 
     if attempts <= MAX_PUSH_RETRIES:
         # 60, 120, 240 seconds. task.retry always raises: Retry for the

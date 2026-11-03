@@ -55,6 +55,10 @@ class Reminder(models.Model):
     due_at = models.DateTimeField()
     state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
     attempts = models.PositiveSmallIntegerField(default=0)
+    # Which claim the delivery task belongs to. A claim taken again after
+    # going stale gets a new token, so the old task, if it was only late,
+    # finds it changed and sends nothing (notifications/tasks.py).
+    claim_token = models.CharField(max_length=32, blank=True, default="")
     dedupe_key = models.CharField(max_length=120, unique=True)
     # The user had no time zone, so this was scheduled as UTC and the body
     # says so (spec section 8).
