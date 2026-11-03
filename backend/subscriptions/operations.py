@@ -12,6 +12,8 @@ from decimal import Decimal
 from django.utils import timezone
 from django_mongodb_backend import transaction
 
+from notifications.scheduling import reschedule_for_subscription
+
 from .models import FxRate, PriceHistoryEvent, Subscription
 from .services import money
 from .services.cycles import Cycle, CycleChange, next_bill_date
@@ -71,6 +73,7 @@ def create_subscription(*, today: date, at: datetime | None = None, **fields) ->
             **_cycle_value(sub.cycle),
         },
     )
+    reschedule_for_subscription(sub, today=today)
     return sub
 
 
@@ -114,6 +117,7 @@ def update_subscription(
     ]
     refresh_next_bill_date(sub, today=today)
     sub.save()
+    reschedule_for_subscription(sub, today=today)
     return written
 
 
@@ -130,6 +134,7 @@ def cancel_subscription(sub: Subscription, *, today: date) -> Subscription:
         occurred_at=timezone.now(),
         new_value={"cancelled_on": today.isoformat()},
     )
+    reschedule_for_subscription(sub, today=today)
     return sub
 
 
@@ -143,6 +148,7 @@ def soft_delete(sub: Subscription) -> Subscription:
         sub.status = Status.DELETED
         sub.next_bill_date = None
         sub.save()
+        reschedule_for_subscription(sub, today=timezone.localdate())
     return sub
 
 
@@ -153,14 +159,26 @@ def restore(sub: Subscription, *, today: date) -> Subscription:
         sub.status_before_delete = None
         refresh_next_bill_date(sub, today=today)
         sub.save()
+        reschedule_for_subscription(sub, today=today)
     return sub
 
 
 def convert_due_trials(*, today: date) -> int:
-    """Flip trials that end on or before `today` into paying subscriptions (§6a)."""
-    return Subscription.objects.filter(
-        is_trial=True, status=Status.ACTIVE, trial_ends_on__lte=today
-    ).update(is_trial=False)
+    """Flip trials that end on or before `today` into paying subscriptions (§6a).
+
+    One at a time rather than a bulk update, because each now has a next bill
+    to compute and its trial alert swaps for a renewal one.
+    """
+    due = list(
+        Subscription.objects.filter(is_trial=True, status=Status.ACTIVE, trial_ends_on__lte=today)
+    )
+    for sub in due:
+        with transaction.atomic():
+            sub.is_trial = False
+            refresh_next_bill_date(sub, today=today)
+            sub.save(update_fields=["is_trial", "next_bill_date"])
+            reschedule_for_subscription(sub, today=today)
+    return len(due)
 
 
 # Reading -------------------------------------------------------------------
