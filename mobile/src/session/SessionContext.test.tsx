@@ -25,6 +25,7 @@ import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient } from '@/test/render';
 import { server } from '@/test/server';
 
+import { biometricStore } from './biometricStore';
 import { SessionProvider, useSession, type SessionValue } from './SessionContext';
 import { tokenStore } from './tokenStore';
 
@@ -65,6 +66,7 @@ async function expectStatus(status: SessionValue['status']) {
 beforeEach(async () => {
   __resetRefreshState();
   await tokenStore.clear();
+  await biometricStore.forget();
   session = null;
 });
 
@@ -89,7 +91,74 @@ describe('the server cache', () => {
     expect(queryClient.getQueryData(queryKeys.session.profile())).toBeUndefined();
     expect(queryClient.getQueryData(queryKeys.analytics.summary())).toBeUndefined();
   });
+
+  it('a refresh token revoked elsewhere leaves nothing of the last user either', async () => {
+    const queryClient = keepingClient();
+    await tokenStore.setRefreshToken(VALID_REFRESH);
+    await renderSession(queryClient);
+    await expectStatus('authenticated');
+    queryClient.setQueryData(queryKeys.session.profile(), { email: MOCK_EMAILS.full });
+
+    // A password reset on another device: the access token 401s and the
+    // refresh is rejected, so the client ends the session itself.
+    server.use(
+      http.get('*/dashboard', () =>
+        HttpResponse.json(
+          { error: { code: 'token_invalid', message: 'x' } },
+          { status: 401 },
+        ),
+      ),
+      http.post('*/auth/refresh', () =>
+        HttpResponse.json(
+          { error: { code: 'token_invalid', message: 'x' } },
+          { status: 401 },
+        ),
+      ),
+    );
+    await act(async () => {
+      await request('/dashboard').catch(() => undefined);
+    });
+
+    await expectStatus('unauthenticated');
+    expect(queryClient.getQueryData(queryKeys.session.profile())).toBeUndefined();
+  });
+
+  it('signing in starts empty, however the last session ended', async () => {
+    const queryClient = keepingClient();
+    await renderSession(queryClient);
+    await expectStatus('unauthenticated');
+    // Left over from a session that never went through sign-out.
+    queryClient.setQueryData(queryKeys.session.profile(), { email: 'last@subtrak.test' });
+
+    await act(async () => {
+      await session!.signIn({ access: 'access', refresh: VALID_REFRESH });
+    });
+
+    await expectStatus('authenticated');
+    expect(queryClient.getQueryData(queryKeys.session.profile())).toBeUndefined();
+  });
+
+  it('a biometric unlock starts empty too', async () => {
+    const queryClient = keepingClient();
+    await biometricStore.markEstablished();
+    await biometricStore.park(VALID_REFRESH);
+    await renderSession(queryClient);
+    await expectStatus('unauthenticated');
+    queryClient.setQueryData(queryKeys.session.profile(), { email: 'last@subtrak.test' });
+
+    await act(async () => {
+      await session!.restoreParked();
+    });
+
+    await expectStatus('authenticated');
+    expect(queryClient.getQueryData(queryKeys.session.profile())).toBeUndefined();
+  });
 });
+
+/** The test client drops unused data at once; the real one keeps it 5 minutes. */
+function keepingClient() {
+  return new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
+}
 
 describe('cold start', () => {
   it('us2_no_stored_token_starts_signed_out', async () => {
