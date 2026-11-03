@@ -1,9 +1,8 @@
 from datetime import date
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
-from subscriptions.operations import convert_due_trials
+from subscriptions.tasks import convert_expired_trials
 
 
 class Command(BaseCommand):
@@ -18,5 +17,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, today, **options):
-        converted = convert_due_trials(today=today or timezone.localdate())
+        # The same function the hourly task runs, so the two cannot drift.
+        converted = convert_expired_trials(today.isoformat() if today else None)
         self.stdout.write(f"Converted {converted} trial(s).")
