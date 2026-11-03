@@ -1,23 +1,23 @@
 """AI-epic endpoints (handoff 04 §6a, 11 §2): extractions, trials, shared plans
-and Gmail. The 04 owner freezes their shapes here so mobile can build against
-mocks; the real logic and models are the 11 owner's."""
+and Gmail. The shapes were frozen first so mobile could build against mocks;
+every one is now backed by real models."""
 
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-import mocks
 from accounts.models import rules_for
 from core.clock import today_for
 from core.contract import errors
 from extraction import reviews
 from extraction import service as gmail_service
 
-from . import trials
+from . import sharing, trials
 from .serializers import (
     GmailConnectInputSerializer,
     GmailConnectionSerializer,
+    MarkPaidInputSerializer,
     PendingExtractionListSerializer,
     ReminderSerializer,
     ScanSerializer,
@@ -147,7 +147,11 @@ class SharedPlansView(APIView):
     )
     def get(self, request):
         """The caller's shared plans and what others still owe them. Never changes totals."""
-        return Response(SharedPlanListSerializer(mocks.shared_plans(request.user)).data)
+        return Response(
+            SharedPlanListSerializer(
+                sharing.shared_plans(request.user, today=today_for(request.user))
+            ).data
+        )
 
     @extend_schema(
         operation_id="shared_plans_create",
@@ -159,7 +163,12 @@ class SharedPlansView(APIView):
         """Split one of the caller's subscriptions equally. The caller is added first
         and absorbs any extra cent. 409 `already_shared`."""
         data = body(SharedPlanInputSerializer, request)
-        plan = mocks.create_shared_plan(request.user, data["subscription_id"], data["participants"])
+        plan = sharing.create_shared_plan(
+            request.user,
+            data["subscription_id"],
+            data["participants"],
+            today=today_for(request.user),
+        )
         return Response(SharedPlanSerializer(plan).data, status=status.HTTP_201_CREATED)
 
 
@@ -176,7 +185,28 @@ class RemindView(APIView):
 
         409 `already_paid`. 429 `throttled`: one reminder per 24 hours.
         """
-        return Response(ReminderSerializer(mocks.remind(request.user, plan_id, payment_id)).data)
+        reminder = sharing.remind(request.user, plan_id, payment_id, today=today_for(request.user))
+        return Response(ReminderSerializer(reminder).data)
+
+
+class MarkPaidView(APIView):
+    @extend_schema(
+        operation_id="shared_plans_mark_paid",
+        tags=["shared-plans"],
+        request=MarkPaidInputSerializer,
+        responses={200: SharedPlanSerializer, **errors(400, 401, 404, 409)},
+    )
+    def post(self, request, plan_id, payment_id):
+        """Record that a participant paid their share this period, or undo it with
+        `paid: false`. Returns the updated plan.
+
+        409 `owner_share`: the owner's own share is always paid.
+        """
+        data = body(MarkPaidInputSerializer, request)
+        plan = sharing.mark_paid(
+            request.user, plan_id, payment_id, today=today_for(request.user), paid=data["paid"]
+        )
+        return Response(SharedPlanSerializer(plan).data)
 
 
 # Gmail ------------------------------------------------------------------------------

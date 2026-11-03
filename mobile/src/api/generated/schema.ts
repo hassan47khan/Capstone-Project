@@ -556,6 +556,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shared-plans/{plan_id}/payments/{payment_id}/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Record that a participant paid their share this period, or undo it with
+         *     `paid: false`. Returns the updated plan.
+         *
+         *     409 `owner_share`: the owner's own share is always paid.
+         */
+        post: operations["shared_plans_mark_paid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shared-plans/{plan_id}/payments/{payment_id}/remind": {
         parameters: {
             query?: never;
@@ -929,6 +951,13 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
+        };
+        MarkPaidInputRequest: {
+            /**
+             * @description true marks this period's share paid; false undoes it.
+             * @default true
+             */
+            paid: boolean;
         };
         /** @description An amount always travels with its currency, e.g. {"amount": "129.20", "currency": "USD"}. */
         Money: {
@@ -2727,6 +2756,70 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedPlan"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflicts with the current state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    shared_plans_mark_paid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MarkPaidInputRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MarkPaidInputRequest"];
+                "multipart/form-data": components["schemas"]["MarkPaidInputRequest"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -24,7 +24,7 @@ The backend's stories are built and tested; the mobile screens are still placeho
 
 | Area | State |
 | --- | --- |
-| Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction and the AI insight card are built; shared plans still answer from `backend/mocks.py`. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
+| Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction, shared plans and the AI insight card are built. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
 | Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. 419 tests. Every screen is still a placeholder. |
 | CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. `verify` and `backend-verify` are required checks — see [Continuous Integration](#continuous-integration). |
 | Docs | System design specification is done. Developer handoff specs `00`–`12` are in `docs/handoff/`. Team notes live in the `Capstone_CSC325/` Obsidian vault. |
@@ -234,9 +234,11 @@ Built and tested (1,350 tests at 98% coverage, measured 2026-10-30):
   and computes its confidence, a review queue where nothing becomes a subscription until
   confirmed, and an eval on 25 hand-labelled emails (`docs/ai/extraction-eval.md`).
 - **AI insight card (`08 §2.0`):** one sentence about computed facts, with every number checked.
+- **Shared plans (`11 §2.6`):** split a bill equally to the cent, track who has paid each month,
+  and remind by email or share sheet (once a day). Totals still count the full bill.
 - **Deployment:** `render.yaml` and the [runbook](docs/ops/backend-deploy.md).
 
-Still mocked: **shared plans** (`backend/mocks.py`).
+Nothing answers from a mock any more; `backend/mocks.py` is gone.
 
 ## Getting Started — Mobile
 

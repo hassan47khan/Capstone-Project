@@ -459,6 +459,12 @@ class SharedPlanInputSerializer(serializers.Serializer):
     )
 
 
+class MarkPaidInputSerializer(serializers.Serializer):
+    paid = serializers.BooleanField(
+        default=True, help_text="true marks this period's share paid; false undoes it."
+    )
+
+
 class ReminderSerializer(serializers.Serializer):
     payment_id = serializers.CharField()
     channel = serializers.ChoiceField(
