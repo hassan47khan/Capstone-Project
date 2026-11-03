@@ -9,6 +9,8 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from notifications.tasks import OVERDUE_INCIDENT_MINUTES, oldest_overdue_minutes
+
 
 def home(request):
     return render(request, "core/home.html")
@@ -62,15 +64,18 @@ def health(request):
         # Spec section 12: MongoDB down means 503 so the app shows retry.
         return Response({"status": "unavailable", "database": "down"}, status=503)
     redis_state = _redis_state()
+    overdue = oldest_overdue_minutes()
+    # Section 12: alerts piling up unsent means the dispatcher is not
+    # running, which is an incident even while everything else answers.
+    reminders_stuck = overdue is not None and overdue > OVERDUE_INCIDENT_MINUTES
+    healthy = redis_state == "ok" and not reminders_stuck
     return Response(
         {
-            "status": "ok" if redis_state == "ok" else "degraded",
+            "status": "ok" if healthy else "degraded",
             "database": "ok",
             "redis": redis_state,
-            # Phase 4 reports the age of the oldest due-but-unsent reminder
-            # here and flags it past 30 minutes; phase 5 reports the LLM
-            # circuit. Present and null until then, so the shape is stable.
-            "oldest_overdue_reminder_minutes": None,
+            "oldest_overdue_reminder_minutes": overdue,
+            # Phase 5 reports the LLM circuit here.
             "llm": None,
         }
     )

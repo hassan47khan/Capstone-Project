@@ -94,3 +94,41 @@ def test_the_redis_check_cannot_hang_the_probe(redis_up):
 @pytest.mark.django_db
 def test_health_matches_the_contract(redis_up, contract):
     contract(APIClient().get("/api/v1/health/"), "/health/")
+
+
+@pytest.mark.django_db
+def test_reminders_piling_up_unsent_is_an_incident(redis_up, alex):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from notifications.models import Reminder
+
+    Reminder.objects.all().update(
+        state=Reminder.State.PENDING, due_at=timezone.now() - timedelta(minutes=45)
+    )
+
+    body = APIClient().get("/api/v1/health/").json()
+
+    # Section 12: past 30 minutes the dispatcher is not running, which is
+    # worth seeing even while everything else answers.
+    assert body["oldest_overdue_reminder_minutes"] == 45
+    assert body["status"] == "degraded"
+
+
+@pytest.mark.django_db
+def test_a_reminder_only_just_due_is_not_an_incident(redis_up, alex):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from notifications.models import Reminder
+
+    Reminder.objects.all().update(
+        state=Reminder.State.PENDING, due_at=timezone.now() - timedelta(minutes=2)
+    )
+
+    body = APIClient().get("/api/v1/health/").json()
+
+    assert body["oldest_overdue_reminder_minutes"] == 2
+    assert body["status"] == "ok"

@@ -14,6 +14,7 @@ api_v1 = [
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("", include("accounts.urls")),
     path("", include("subscriptions.urls")),
+    path("", include("notifications.urls")),
 ]
 
 urlpatterns = [

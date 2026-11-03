@@ -30,12 +30,11 @@ from decimal import Decimal
 from bson import ObjectId
 from django.utils import timezone
 
-from accounts.models import User, rules_for
+from accounts.models import User
 from core.contract import ApiError, money, not_found, rounded
 from subscriptions import operations, presenters, seed
 from subscriptions.models import PriceHistoryEvent, Subscription
 from subscriptions.services import money as engine
-from subscriptions.services import trials as trial_math
 
 TODAY = seed.SEED_TODAY
 REMINDER_INTERVAL = timedelta(hours=24)
@@ -116,72 +115,6 @@ def _preview_create(fields: dict) -> dict:
         sub = operations.create_subscription(today=TODAY, owner=user, **fields)
         created.append(sub)
         return presenters.subscription_detail(sub, _context(user))
-
-
-# Trials (04 §6a, 11 §2.5) -----------------------------------------------------
-
-
-def _trial(sub: Subscription, ctx, alert_days: int) -> dict:
-    days_left = (sub.trial_ends_on - TODAY).days
-    length = sub.trial_length_days
-    progress = trial_math.trial_progress(sub.trial_ends_on, length, today=TODAY)
-    if days_left <= alert_days:
-        urgency = "soon"
-    else:
-        urgency = "later" if days_left <= TRIAL_LATER_DAYS else "far"
-    return {
-        "subscription_id": str(sub.pk),
-        "name": sub.name,
-        "category": presenters.category_ref(sub.category),
-        "service_mark": ctx.marks.get(sub.name),
-        "price": money(sub.billing_price, sub.billing_currency),
-        **presenters.cycle_fields(sub.cycle),
-        "trial_ends_on": sub.trial_ends_on,
-        "trial_length_days": length,
-        "days_left": days_left,
-        "elapsed_days": min(max(length - days_left, 0), length),
-        "progress": float(progress.quantize(Decimal("0.0001"))),
-        "urgency": urgency,
-        "at_risk": days_left <= alert_days and sub.trial_decision != Decision.KEEP,
-        "decision": sub.trial_decision,
-        "reminder_enabled": sub.trial_reminder_enabled,
-        "reminder_on": sub.trial_ends_on - timedelta(days=alert_days),
-    }
-
-
-def trials() -> dict:
-    user = demo_user()
-    ctx = _context(user)
-    alert_days = rules_for(user).trial_alert_days_before
-    pending = sorted(
-        (s for s in Subscription.objects.filter(owner=user) if _pending_trial(s)),
-        key=lambda s: (s.trial_ends_on, s.name),
-    )
-    results = [_trial(sub, ctx, alert_days) for sub in pending]
-    at_risk = [sub for sub, row in zip(pending, results, strict=True) if row["at_risk"]]
-    charged = [ctx.convert(s.billing_price, s.billing_currency) for s in at_risk]
-    return {
-        "display_currency": ctx.currency,
-        "alert_days_before": alert_days,
-        "at_risk": {
-            "count": len(at_risk),
-            "amount": money(sum((c for c in charged if c is not None), Decimal(0)), ctx.currency),
-        },
-        "results": results,
-    }
-
-
-def trial_decision(subscription_id: str, decision: str) -> dict:
-    user = demo_user()
-    sub = _owned(user, subscription_id)
-    if not _pending_trial(sub):
-        raise not_found()
-    changes = {"trial_decision": decision}
-    if decision == Decision.REMIND:
-        changes["trial_reminder_enabled"] = True
-    with _discarded(sub):
-        operations.update_subscription(sub, today=TODAY, **changes)
-        return _trial(sub, _context(user), rules_for(user).trial_alert_days_before)
 
 
 # Shared plans (04 §6a, 11 §2.6) ------------------------------------------------
