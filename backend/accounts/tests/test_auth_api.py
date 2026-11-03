@@ -239,15 +239,13 @@ def test_login_needs_a_password(anon, contract):
     ]
 
 
-def test_demo_users_loaded_by_a_request_cannot_log_in(anon, db):
-    # A fresh database: the 04 §6a mocks still seed the demo dataset on
-    # first use. /trials stopped doing it once it became real and scoped to
-    # the caller, so this drives it through one that is still mocked.
+def test_no_request_creates_a_demo_account_anyone_can_log_in_to(anon, db):
+    # A fresh database, and the one area still mocked: only seed_demo loads them.
     someone = User.objects.create_user(email=NEW, password=PASSWORD)
     client = APIClient()
     client.force_authenticate(someone)
     assert client.get("/api/v1/shared-plans").status_code == 200
-    assert User.objects.filter(email=ALEX).exists()
+    assert not User.objects.filter(email=ALEX).exists()
 
     assert login(anon, ALEX, DEMO_PASSWORD).status_code == 401
 
