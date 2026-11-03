@@ -330,10 +330,30 @@ class UpcomingBillSerializer(serializers.Serializer):
     is_trial = serializers.BooleanField(help_text="True when this bill is a trial converting.")
 
 
+class UpcomingDaySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    count = serializers.IntegerField(help_text="Bills on this date, trials converting included.")
+    total = MoneySerializer(
+        allow_null=True,
+        help_text="This date's bills in the display currency, trials converting left out. "
+        "Null when one has no exchange rate. Day totals add up to `total` exactly.",
+    )
+
+
 class UpcomingSerializer(serializers.Serializer):
     display_currency = serializers.CharField()
     start = serializers.DateField()
     end = serializers.DateField(help_text="Inclusive.")
+    total = MoneySerializer(
+        allow_null=True,
+        help_text="Every bill in the window in the display currency, trials converting "
+        "left out (Calendar's month total). Null when one has no exchange rate.",
+    )
+    days = UpcomingDaySerializer(many=True, help_text="Dates that have a bill, soonest first.")
+    tracking_since = serializers.DateField(
+        allow_null=True,
+        help_text="Start date of the user's earliest subscription; null when they have none.",
+    )
     items = UpcomingBillSerializer(many=True, help_text="By date, soonest first.")
 
 

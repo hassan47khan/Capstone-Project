@@ -25,7 +25,7 @@
 
 import type { ApiErrorBody, Subscription } from '@/api/types';
 
-import { contractHomeFor, spendFor } from './contractFixtures';
+import { contractHomeFor, spendFor, upcomingMonthFor } from './contractFixtures';
 import {
   cancelMockSubscription,
   createMockSubscriptionWithKey,
@@ -441,8 +441,11 @@ export const routes: Route[] = [
   {
     method: 'GET',
     pattern: '/analytics/upcoming',
-    handler: protectedRoute((_request, account) =>
-      ok(contractHomeFor(account.profile.email).upcoming),
+    // A start/end range is the Calendar's month (11 §1); `days` is Home's window.
+    handler: protectedRoute((request, account) =>
+      request.query.start
+        ? ok(upcomingMonthFor(account.profile.email, request.query.start))
+        : ok(contractHomeFor(account.profile.email).upcoming),
     ),
   },
 
