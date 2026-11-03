@@ -34,17 +34,6 @@ async function renderPlans(email: string = MOCK_EMAILS.full) {
   );
 }
 
-const unavailable = () =>
-  HttpResponse.json(
-    {
-      error: {
-        code: 'shared_plans_unavailable',
-        message: "Shared plans aren't available yet.",
-      },
-    },
-    { status: 404 },
-  );
-
 beforeEach(async () => {
   await tokenStore.clear();
 });
@@ -123,6 +112,10 @@ describe('Shared plans screen', () => {
     await renderPlans();
     await fireEvent.press(await screen.findByTestId('member-remind-part-sam'));
     await waitFor(() => expect(Share.share).toHaveBeenCalled());
+    // The button stays busy until the share sheet closes.
+    await waitFor(() =>
+      expect(screen.getByTestId('member-remind-part-sam')).toBeEnabled(),
+    );
 
     await fireEvent.press(screen.getByTestId('member-remind-part-sam'));
     await waitFor(() =>
@@ -132,23 +125,71 @@ describe('Shared plans screen', () => {
     );
   });
 
-  it('shared_plans_unavailable on Remind says so plainly', async () => {
-    server.use(http.post('*/shared-plans/:plan/payments/:payment/remind', unavailable));
+  it('Mark paid moves the person to Paid and Outstanding to the server figure', async () => {
     await renderPlans();
+    await fireEvent.press(await screen.findByTestId('member-paid-part-sam'));
 
-    await fireEvent.press(await screen.findByTestId('member-remind-part-sam'));
-
+    await waitFor(() =>
+      expect(screen.getByTestId('member-status-part-sam')).toHaveTextContent('Paid'),
+    );
     expect(
-      await screen.findByText("Shared plans aren't available yet"),
+      within(screen.getByTestId('plan-plan-netflix')).getByText('3 of 3 paid'),
     ).toBeOnTheScreen();
+    // Nobody owes now, so the Outstanding card goes away.
+    await waitFor(() => expect(screen.queryByTestId('shared-outstanding')).toBeNull());
+    expect(screen.queryByTestId('member-paid-part-sam')).toBeNull();
+    expect(screen.queryByTestId('member-remind-part-sam')).toBeNull();
+    expect(
+      screen.getByTestId('toast', { includeHiddenElements: true }),
+    ).toHaveTextContent(/Sam marked as paid\./);
   });
 
-  it('shared_plans_unavailable on the list is an explanation, not an error', async () => {
-    server.use(http.get('*/shared-plans', unavailable));
+  it('Undo on the toast puts them back to Pending', async () => {
     await renderPlans();
+    await fireEvent.press(await screen.findByTestId('member-paid-part-sam'));
+    await waitFor(() =>
+      expect(screen.getByTestId('member-status-part-sam')).toHaveTextContent('Paid'),
+    );
 
-    expect(await screen.findByTestId('shared-unavailable')).toBeOnTheScreen();
-    expect(screen.queryByTestId('shared-error')).toBeNull();
+    await fireEvent.press(screen.getByText('Undo'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('member-status-part-sam')).toHaveTextContent('Pending'),
+    );
+    expect(await screen.findByTestId('shared-outstanding')).toBeOnTheScreen();
+  });
+
+  it('a failed Mark paid leaves the row as it was and says why', async () => {
+    server.use(
+      http.post('*/shared-plans/:plan/payments/:payment/paid', () =>
+        HttpResponse.json(
+          { error: { code: 'server_error', message: 'Something went wrong.' } },
+          { status: 500 },
+        ),
+      ),
+    );
+    await renderPlans();
+    await fireEvent.press(await screen.findByTestId('member-paid-part-sam'));
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('toast', { includeHiddenElements: true }),
+      ).toBeOnTheScreen(),
+    );
+    expect(screen.getByTestId('member-status-part-sam')).toHaveTextContent('Pending');
+  });
+
+  it('a failed list load is an error with Try again', async () => {
+    server.use(
+      http.get('*/shared-plans', () =>
+        HttpResponse.json(
+          { error: { code: 'server_error', message: 'Something went wrong.' } },
+          { status: 500 },
+        ),
+      ),
+    );
+    await renderPlans();
+    expect(await screen.findByTestId('shared-error')).toBeOnTheScreen();
   });
 
   it('someone with no plans sees the empty state and New shared plan', async () => {
@@ -158,7 +199,7 @@ describe('Shared plans screen', () => {
     expect(screen.getByTestId('shared-new')).toBeOnTheScreen();
   });
 
-  it('New shared plan explains shared_plans_unavailable and keeps the sheet open', async () => {
+  it('New shared plan saves, closes the sheet and shows the server split', async () => {
     await renderPlans(MOCK_EMAILS.full);
     await fireEvent.press(await screen.findByTestId('shared-new'));
 
@@ -167,8 +208,27 @@ describe('Shared plans screen', () => {
     await fireEvent.changeText(screen.getByTestId('new-plan-name-0'), 'Jordan Kim');
     await fireEvent.press(screen.getByTestId('new-plan-save'));
 
+    expect(
+      await screen.findByText('Spotify is now shared 2 ways.', {
+        includeHiddenElements: true,
+      }),
+    ).toBeTruthy();
+    expect(await screen.findByTestId('plan-plan-sub-spotify')).toBeOnTheScreen();
+  });
+
+  it('sharing a subscription twice says it is already shared', async () => {
+    await renderPlans(MOCK_EMAILS.full);
+    await fireEvent.press(await screen.findByTestId('shared-new'));
+
+    await fireEvent.press(await screen.findByTestId('new-plan-subscription'));
+    // The plan card behind also says Netflix; the sheet's option is the last one.
+    const options = await screen.findAllByText('Netflix');
+    await fireEvent.press(options[options.length - 1]!);
+    await fireEvent.changeText(screen.getByTestId('new-plan-name-0'), 'Jordan Kim');
+    await fireEvent.press(screen.getByTestId('new-plan-save'));
+
     expect(await screen.findByTestId('new-plan-error')).toHaveTextContent(
-      "Shared plans aren't available yet. Nothing was saved.",
+      'That subscription is already shared.',
     );
   });
 

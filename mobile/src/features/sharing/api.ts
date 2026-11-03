@@ -5,13 +5,10 @@
  * (largest remainder, owner first) and totals what's owed; the client only
  * shows the figures it gets back.
  *
- * Until shared plans have real storage, the backend answers create and remind
- * with 404 `shared_plans_unavailable` for every account but the demo one
- * (#172). `isSharedPlansUnavailable` lets the screen say so plainly instead of
- * showing "not found".
+ * Mark paid (`.../paid`) is newer than the generated client (#174), so its
+ * body is typed here; it answers with the same `SharedPlan` as the list.
  */
 import { request } from '@/api/client';
-import { ApiError } from '@/api/errors';
 import type {
   NewParticipantRequest,
   Reminder,
@@ -23,13 +20,6 @@ export const sharedPlanKeys = {
   all: ['shared-plans'] as const,
   list: () => [...sharedPlanKeys.all, 'list'] as const,
 };
-
-export const SHARED_PLANS_UNAVAILABLE = 'shared_plans_unavailable';
-
-/** True for the backend's "not available yet" answer (#172). */
-export function isSharedPlansUnavailable(error: unknown): boolean {
-  return error instanceof ApiError && error.code === SHARED_PLANS_UNAVAILABLE;
-}
 
 /** The caller's plans and what the others still owe them. */
 export function listSharedPlans(): Promise<SharedPlanList> {
@@ -56,5 +46,21 @@ export function remindParticipant(planId: string, paymentId: string): Promise<Re
   return request<Reminder>(
     `/shared-plans/${encodeURIComponent(planId)}/payments/${encodeURIComponent(paymentId)}/remind`,
     { method: 'POST' },
+  );
+}
+
+/**
+ * Records that someone paid you back this month, or undoes it with
+ * `paid: false`. Returns the plan with its counts redone by the server.
+ * 409 `owner_share`: your own share is always paid.
+ */
+export function markPaid(
+  planId: string,
+  paymentId: string,
+  paid: boolean,
+): Promise<SharedPlan> {
+  return request<SharedPlan>(
+    `/shared-plans/${encodeURIComponent(planId)}/payments/${encodeURIComponent(paymentId)}/paid`,
+    { method: 'POST', body: { paid } },
   );
 }

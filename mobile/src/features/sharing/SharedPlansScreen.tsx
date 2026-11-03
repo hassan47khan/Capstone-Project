@@ -12,9 +12,6 @@
  *   loading      skeleton cards
  *   empty        "No shared plans yet" + New shared plan
  *   failed       full-screen error + Try again
- *   unavailable  the backend's 404 `shared_plans_unavailable` (every account
- *                but the demo one, until shared plans get real storage, #172):
- *                "Shared plans aren't available yet", from any call
  *   loaded       the Outstanding card (only when someone still owes), then a
  *                card per plan with each person's share and status
  *
@@ -22,18 +19,22 @@
  * the OS share sheet with the server's message when they don't. One a day;
  * a second try says when it's allowed again.
  *
+ * Mark paid: the owner records that someone paid them back this month (not
+ * designed; 11 §2.6 only shows Remind). The server redoes the counts and the
+ * Outstanding figure; the toast offers Undo.
+ *
  * Fixes from the frame: the eyebrow that repeated the title is dropped, the
  * "Contract alert" card is cut, and avatar initials are `text`, not the
  * frame's 2.92:1 gold. Totals elsewhere still count the full bill.
  */
 import { useNavigation } from '@react-navigation/native';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Share, Text, View } from 'react-native';
 
 import { ApiError, messageFor } from '@/api/errors';
 import { formatMoney } from '@/api/format';
-import type { Participant, SharedPlan } from '@/api/contract';
+import type { Participant, SharedPlan, SharedPlanList } from '@/api/contract';
 import {
   Badge,
   Button,
@@ -50,12 +51,7 @@ import {
 import { makeStyles, radius, serviceTint, sizes, spacing, useTheme } from '@/theme';
 
 import { describeCycle } from '../subscriptions/formRules';
-import {
-  isSharedPlansUnavailable,
-  listSharedPlans,
-  remindParticipant,
-  sharedPlanKeys,
-} from './api';
+import { listSharedPlans, markPaid, remindParticipant, sharedPlanKeys } from './api';
 import { NewSharedPlanSheet } from './NewSharedPlanSheet';
 
 export const SHARED_COPY = {
@@ -67,12 +63,11 @@ export const SHARED_COPY = {
   emptyTitle: 'No shared plans yet',
   emptyMessage:
     'Split a subscription with friends or family and keep track of who has paid you back.',
-  unavailableTitle: "Shared plans aren't available yet",
-  unavailableMessage:
-    "We're still setting this up. Your subscriptions and totals aren't affected.",
   paid: 'Paid',
   pending: 'Pending',
   remind: 'Remind',
+  markPaid: 'Mark paid',
+  undo: 'Undo',
 } as const;
 
 /** "AK" from "Alex Kim", "S" from "Sam". */
@@ -111,19 +106,11 @@ export function SharedPlansScreen() {
     return (
       <Screen edges={['top']} testID="shared-screen">
         {header}
-        {isSharedPlansUnavailable(plans.error) ? (
-          <EmptyState
-            title={SHARED_COPY.unavailableTitle}
-            message={SHARED_COPY.unavailableMessage}
-            testID="shared-unavailable"
-          />
-        ) : (
-          <ErrorState
-            error={plans.error}
-            onRetry={() => plans.refetch()}
-            testID="shared-error"
-          />
-        )}
+        <ErrorState
+          error={plans.error}
+          onRetry={() => plans.refetch()}
+          testID="shared-error"
+        />
       </Screen>
     );
   }
@@ -259,6 +246,7 @@ function MemberRow({ plan, person }: { plan: SharedPlan; person: Participant }) 
   const styles = useStyles();
   const { colors, servicePalette } = useTheme();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const first = person.display_name.split(' ')[0] ?? person.display_name;
   const amount = formatMoney(person.share.amount, person.share.currency).display;
 
@@ -273,9 +261,7 @@ function MemberRow({ plan, person }: { plan: SharedPlan; person: Participant }) 
       toast.show(`Reminder sent to ${first}.`);
     },
     onError: (error) => {
-      if (isSharedPlansUnavailable(error)) {
-        toast.show(SHARED_COPY.unavailableTitle, 'neutral');
-      } else if (error instanceof ApiError && error.status === 429) {
+      if (error instanceof ApiError && error.status === 429) {
         toast.show(`You already reminded ${first} today. Try again tomorrow.`, 'neutral');
       } else if (error instanceof ApiError && error.code === 'already_paid') {
         toast.show(`${first} has already paid.`, 'neutral');
@@ -283,6 +269,30 @@ function MemberRow({ plan, person }: { plan: SharedPlan; person: Participant }) 
         toast.show(messageFor(error), 'neutral');
       }
     },
+  });
+
+  const paid = useMutation({
+    mutationFn: (value: boolean) => markPaid(plan.id, person.payment_id, value),
+    onSuccess: (updated, value) => {
+      queryClient.setQueryData(
+        sharedPlanKeys.list(),
+        (list: SharedPlanList | undefined) =>
+          list
+            ? {
+                ...list,
+                results: list.results.map((p) => (p.id === updated.id ? updated : p)),
+              }
+            : list,
+      );
+      // Outstanding is the server's figure across every plan, so ask again.
+      void queryClient.invalidateQueries({ queryKey: sharedPlanKeys.all });
+      if (value) {
+        toast.show(`${first} marked as paid.`, 'success', {
+          action: { label: SHARED_COPY.undo, onPress: () => paid.mutate(false) },
+        });
+      }
+    },
+    onError: (error) => toast.show(messageFor(error), 'neutral'),
   });
 
   const pending = person.status === 'pending';
@@ -318,14 +328,26 @@ function MemberRow({ plan, person }: { plan: SharedPlan; person: Participant }) 
         />
       </View>
       {pending && !person.is_owner ? (
-        <Button
-          label={SHARED_COPY.remind}
-          variant="secondary"
-          onPress={() => remind.mutate()}
-          loading={remind.isPending}
-          accessibilityLabel={`Remind ${person.display_name}`}
-          testID={`member-remind-${person.id}`}
-        />
+        <View style={styles.memberActions}>
+          <Button
+            label={SHARED_COPY.markPaid}
+            variant="ghost"
+            onPress={() => paid.mutate(true)}
+            loading={paid.isPending}
+            disabled={remind.isPending}
+            accessibilityLabel={`Mark ${person.display_name} as paid`}
+            testID={`member-paid-${person.id}`}
+          />
+          <Button
+            label={SHARED_COPY.remind}
+            variant="secondary"
+            onPress={() => remind.mutate()}
+            loading={remind.isPending}
+            disabled={paid.isPending}
+            accessibilityLabel={`Remind ${person.display_name}`}
+            testID={`member-remind-${person.id}`}
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -380,13 +402,16 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     ...typography.labelBold,
     color: colors.accent,
   },
+  // Two buttons don't fit beside a name on a small phone, so they sit below.
   member: {
+    gap: spacing.sm,
+  },
+  memberActions: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: spacing.sm,
   },
   memberInfo: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,

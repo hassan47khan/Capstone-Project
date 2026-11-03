@@ -6,9 +6,6 @@
  * first and cover any extra cent), so this sheet shows no shares of its own:
  * the client never divides a price. The plan appears on the screen behind,
  * with every share, as soon as it's saved.
- *
- * Until shared plans have real storage the backend answers 404
- * `shared_plans_unavailable` (#172); the sheet says so instead of "not found".
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -19,7 +16,7 @@ import { BottomSheet, Button, Select, TextField, useToast } from '@/components';
 import { makeStyles, radius, sizes, spacing } from '@/theme';
 
 import { listSubscriptions } from '../subscriptions/api';
-import { createSharedPlan, isSharedPlansUnavailable, sharedPlanKeys } from './api';
+import { createSharedPlan, sharedPlanKeys } from './api';
 
 export const NEW_PLAN_COPY = {
   title: 'New shared plan',
@@ -32,7 +29,6 @@ export const NEW_PLAN_COPY = {
   save: 'Save shared plan',
   cancel: 'Cancel',
   alreadyShared: 'That subscription is already shared.',
-  unavailable: "Shared plans aren't available yet. Nothing was saved.",
   needSomeone: 'Add at least one person.',
 } as const;
 
@@ -99,8 +95,7 @@ export function NewSharedPlanSheet({
       close();
     },
     onError: (failure) => {
-      if (isSharedPlansUnavailable(failure)) setError(NEW_PLAN_COPY.unavailable);
-      else if (failure instanceof ApiError && failure.code === 'already_shared') {
+      if (failure instanceof ApiError && failure.code === 'already_shared') {
         setError(NEW_PLAN_COPY.alreadyShared);
       } else setError(messageFor(failure));
     },
