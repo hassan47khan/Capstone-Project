@@ -147,7 +147,7 @@ class SharedPlansView(APIView):
     )
     def get(self, request):
         """The caller's shared plans and what others still owe them. Never changes totals."""
-        return Response(SharedPlanListSerializer(mocks.shared_plans()).data)
+        return Response(SharedPlanListSerializer(mocks.shared_plans(request.user)).data)
 
     @extend_schema(
         operation_id="shared_plans_create",
@@ -159,7 +159,7 @@ class SharedPlansView(APIView):
         """Split one of the caller's subscriptions equally. The caller is added first
         and absorbs any extra cent. 409 `already_shared`."""
         data = body(SharedPlanInputSerializer, request)
-        plan = mocks.create_shared_plan(data["subscription_id"], data["participants"])
+        plan = mocks.create_shared_plan(request.user, data["subscription_id"], data["participants"])
         return Response(SharedPlanSerializer(plan).data, status=status.HTTP_201_CREATED)
 
 
@@ -176,7 +176,7 @@ class RemindView(APIView):
 
         409 `already_paid`. 429 `throttled`: one reminder per 24 hours.
         """
-        return Response(ReminderSerializer(mocks.remind(plan_id, payment_id)).data)
+        return Response(ReminderSerializer(mocks.remind(request.user, plan_id, payment_id)).data)
 
 
 # Gmail ------------------------------------------------------------------------------

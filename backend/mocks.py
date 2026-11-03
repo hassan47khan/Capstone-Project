@@ -8,11 +8,13 @@ and serializes what it returns with the contract's serializers, so replacing a
 function here changes nothing outside it.
 
 How the mock answers
-  - The signed-in user is always Alex Kim from the canonical dataset (04 §4),
-    and "today" is always SEED_TODAY (2026-10-01). The dataset is loaded on
-    first use if it is not in the database already, with no usable password:
-    a request must never create an account anyone can log in to. Only
-    `seed_demo` gives the demo users DEMO_PASSWORD.
+  - Only the demo account gets a plan: Alex Kim from the canonical dataset
+    (04 §4), once `seed_demo` has loaded it, with "today" always SEED_TODAY
+    (2026-10-01). Anyone else has no shared plans yet, because a mock must not
+    show one person's data to another.
+  - It never loads the dataset itself. That would replace the real exchange
+    rates and create the demo accounts on a production database, on the first
+    request from anyone. Only `seed_demo` loads it.
   - Every figure is computed from that data through the money engine, never
     typed in. Payloads are fixed here, dated from SEED_TODAY.
 """
@@ -36,13 +38,17 @@ REMINDER_INTERVAL = timedelta(hours=24)
 # The mock user --------------------------------------------------------------
 
 
-def demo_user() -> User:
-    """Alex Kim, loading the canonical dataset the first time it is needed.
-    Loaded this way, the demo users cannot log in (see seed.DEMO_PASSWORD)."""
-    user = User.objects.filter(email=seed.ALEX.email).first()
-    if user is None:
-        user = seed.load_demo(today=TODAY)[seed.ALEX.email]
-    return user
+def _is_demo(user: User) -> bool:
+    """The seeded Alex. Having the address is not enough: someone could register
+    it on a database that was never seeded, and they have no Netflix to split."""
+    return (
+        user.email == seed.ALEX.email
+        and Subscription.objects.filter(owner=user, name="Netflix").exists()
+    )
+
+
+def _unavailable() -> ApiError:
+    return ApiError(404, "shared_plans_unavailable", "Shared plans aren't available yet.")
 
 
 def _context(user: User) -> presenters.Context:
@@ -119,9 +125,14 @@ def _netflix_plan(user, ctx) -> dict:
     return _plan(SHARED_PLAN_ID, netflix, _NETFLIX_SPLIT, ctx)
 
 
-def shared_plans() -> dict:
-    user = demo_user()
+def shared_plans(user: User) -> dict:
     ctx = _context(user)
+    if not _is_demo(user):
+        return {
+            "display_currency": ctx.currency,
+            "outstanding": money(Decimal(0), ctx.currency),
+            "results": [],
+        }
     plan = _netflix_plan(user, ctx)
     owed = [
         ctx.convert(Decimal(p["share"]["amount"]), p["share"]["currency"])
@@ -136,8 +147,9 @@ def shared_plans() -> dict:
     }
 
 
-def create_shared_plan(subscription_id: str, participants: list[dict]) -> dict:
-    user = demo_user()
+def create_shared_plan(user: User, subscription_id: str, participants: list[dict]) -> dict:
+    if not _is_demo(user):
+        raise _unavailable()
     sub = _owned(user, subscription_id)
     if sub.name == "Netflix":
         raise ApiError(409, "already_shared", "This subscription is already shared.")
@@ -148,9 +160,8 @@ def create_shared_plan(subscription_id: str, participants: list[dict]) -> dict:
     return _plan(str(ObjectId()), sub, people, _context(user))
 
 
-def remind(plan_id: str, payment_id: str) -> dict:
-    user = demo_user()
-    if plan_id != SHARED_PLAN_ID:
+def remind(user: User, plan_id: str, payment_id: str) -> dict:
+    if not _is_demo(user) or plan_id != SHARED_PLAN_ID:
         raise not_found()
     plan = _netflix_plan(user, _context(user))
     person = next((p for p in plan["participants"] if p["payment_id"] == payment_id), None)
