@@ -263,6 +263,8 @@ def upcoming(user, ctx: presenters.Context, start: date, end: date) -> dict:
     )
     histories = _histories(subs)
     items = []
+    # Unrounded, display currency, per bill: what the totals are summed from.
+    exact: dict[int, Decimal | None] = {}
     for sub in subs:
         history = histories[sub.pk]
         initial_cycle, cycle_changes = operations.cycle_timeline(sub, history)
@@ -272,22 +274,76 @@ def upcoming(user, ctx: presenters.Context, start: date, end: date) -> dict:
             if due < start:
                 continue
             price = _price_on(sub, history, due)
-            items.append(
-                {
-                    "subscription_id": str(sub.pk),
-                    "name": sub.name,
-                    "category": presenters.category_ref(sub.category),
-                    "service_mark": ctx.marks.get(sub.name),
-                    "bill_date": due,
-                    "days_until": (due - ctx.today).days,
-                    "amount": ctx.display(price.price, price.currency),
-                    "billing_amount": money(price.price, price.currency),
-                    **presenters.cycle_fields(_cycle_on(sub, history, due)),
-                    "is_trial": sub.is_trial and due == sub.trial_ends_on,
-                }
-            )
+            item = {
+                "subscription_id": str(sub.pk),
+                "name": sub.name,
+                "category": presenters.category_ref(sub.category),
+                "service_mark": ctx.marks.get(sub.name),
+                "bill_date": due,
+                "days_until": (due - ctx.today).days,
+                "amount": ctx.display(price.price, price.currency),
+                "billing_amount": money(price.price, price.currency),
+                **presenters.cycle_fields(_cycle_on(sub, history, due)),
+                "is_trial": sub.is_trial and due == sub.trial_ends_on,
+            }
+            exact[id(item)] = ctx.convert(price.price, price.currency)
+            items.append(item)
     items.sort(key=lambda item: (item["bill_date"], item["name"]))
-    return {"display_currency": ctx.currency, "start": start, "end": end, "items": items}
+    days = _bill_days(items, exact, ctx.currency)
+    return {
+        "display_currency": ctx.currency,
+        "start": start,
+        "end": end,
+        "total": _window_total(days, ctx.currency),
+        "days": [{"date": d["date"], "count": d["count"], "total": d["total"]} for d in days],
+        "tracking_since": _tracking_since(user),
+        "items": items,
+    }
+
+
+def _bill_days(items: list[dict], exact: dict, currency: str) -> list[dict]:
+    """One row per date with a bill, with that day's total (Calendar, 11 §1).
+
+    A trial converting is listed but not added in: trials stay out of totals
+    until they convert (04 §6a). A day with a bill that has no exchange rate
+    has no total, rather than a wrong one. Day totals are rounded together so
+    they add up to the window's total exactly.
+    """
+    days: list[dict] = []
+    for item in items:
+        if not days or days[-1]["date"] != item["bill_date"]:
+            days.append({"date": item["bill_date"], "count": 0, "exact": Decimal(0)})
+        day = days[-1]
+        day["count"] += 1
+        if item["is_trial"] or day["exact"] is None:
+            continue
+        amount = exact[id(item)]
+        day["exact"] = None if amount is None else day["exact"] + amount
+    known = [d for d in days if d["exact"] is not None]
+    for day, amount in zip(
+        known, engine.round_to_total([d["exact"] for d in known], currency), strict=True
+    ):
+        day["total"] = rounded(amount, currency)
+    for day in days:
+        day.setdefault("total", None)
+    return days
+
+
+def _window_total(days: list[dict], currency: str) -> dict | None:
+    if any(d["exact"] is None for d in days):
+        return None
+    return money(sum((d["exact"] for d in days), Decimal(0)), currency)
+
+
+def _tracking_since(user) -> date | None:
+    """The earliest start date of anything the user tracks (cancelled included,
+    deleted not). Before it, Calendar says "You weren't tracking anything yet"."""
+    return (
+        Subscription.objects.filter(owner=user)
+        .order_by("start_date")
+        .values_list("start_date", flat=True)
+        .first()
+    )
 
 
 def price_changes(
