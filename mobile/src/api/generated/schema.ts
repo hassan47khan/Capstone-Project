@@ -4,6 +4,28 @@
  */
 
 export interface paths {
+    "/api/v1/analytics/insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The Analytics AI insight card (08 §2.0): one sentence, or null to hide the card.
+         *
+         *     Worded by the model from computed facts, and every number in it is
+         *     checked against those facts; otherwise the template sentence is used.
+         */
+        get: operations["analytics_insight"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/price-changes": {
         parameters: {
             query?: never;
@@ -877,6 +899,26 @@ export interface components {
             /** Format: date */
             cancelled_on?: string;
         };
+        Insight: {
+            kind: components["schemas"]["InsightKindEnum"];
+            /** @description One sentence; every number in it is from the facts. */
+            text: string;
+            /** @description The subscription it is about, for tap-through; null for a category. */
+            subscription_id: string | null;
+            /** @description True if the model worded it; false for the template fallback. */
+            generated: boolean;
+        };
+        /**
+         * @description * `price_increase` - price_increase
+         *     * `trial_converting` - trial_converting
+         *     * `largest_category` - largest_category
+         * @enum {string}
+         */
+        InsightKindEnum: "price_increase" | "trial_converting" | "largest_category";
+        InsightResponse: {
+            /** @description Null: there is nothing to say; hide the card. */
+            insight: components["schemas"]["Insight"] | null;
+        };
         /**
          * @description * `price_change` - price_change
          *     * `trial_ending` - trial_ending
@@ -1512,6 +1554,34 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    analytics_insight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     analytics_price_changes: {
         parameters: {
             query?: {

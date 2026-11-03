@@ -3,6 +3,31 @@ info:
   title: SubTrak API
   version: 1.0.0
 paths:
+  /api/v1/analytics/insight:
+    get:
+      operationId: analytics_insight
+      description: |-
+        The Analytics AI insight card (08 §2.0): one sentence, or null to hide the card.
+
+        Worded by the model from computed facts, and every number in it is
+        checked against those facts; otherwise the template sentence is used.
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
   /api/v1/analytics/price-changes:
     get:
       operationId: analytics_price_changes
@@ -1965,6 +1990,47 @@ components:
         cancelled_on:
           type: string
           format: date
+    Insight:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/InsightKindEnum'
+        text:
+          type: string
+          description: One sentence; every number in it is from the facts.
+        subscription_id:
+          type:
+          - string
+          - 'null'
+          description: The subscription it is about, for tap-through; null for a category.
+        generated:
+          type: boolean
+          description: True if the model worded it; false for the template fallback.
+      required:
+      - generated
+      - kind
+      - subscription_id
+      - text
+    InsightKindEnum:
+      enum:
+      - price_increase
+      - trial_converting
+      - largest_category
+      type: string
+      description: |-
+        * `price_increase` - price_increase
+        * `trial_converting` - trial_converting
+        * `largest_category` - largest_category
+    InsightResponse:
+      type: object
+      properties:
+        insight:
+          oneOf:
+          - $ref: '#/components/schemas/Insight'
+          - type: 'null'
+          description: 'Null: there is nothing to say; hide the card.'
+      required:
+      - insight
     KindEnum:
       enum:
       - price_change
