@@ -25,9 +25,20 @@
 
 import type { ApiErrorBody, Subscription } from '@/api/types';
 
+import type { PendingExtraction, SharedPlanList, Trial } from '@/api/contract';
+
+import {
+  alexSharedPlans,
+  alexTrials,
+  mockNotificationRule,
+  mockScanResults,
+  noSharedPlans,
+  noTrials,
+} from './aiFixtures';
 import { contractHomeFor, spendFor } from './contractFixtures';
 import {
   cancelMockSubscription,
+  createMockSubscription,
   createMockSubscriptionWithKey,
   deleteMockSubscription,
   resetCreatedSubscriptions,
@@ -147,11 +158,25 @@ function protectedRoute(
 let subscriptionOverrides: Record<string, Subscription[]> = {};
 let preferences = { ...mockNotificationPreferences };
 
+// The AI epic (11 §2): who has connected Gmail, what their scans found, trial
+// decisions, and which shared-plan payments were reminded today.
+let gmailConnected = new Set<string>();
+let pendingExtractions: Record<string, PendingExtraction[]> = {};
+let trialDecisions: Record<string, Trial['decision']> = {};
+let remindedPayments = new Set<string>();
+
 export function resetMockState(): void {
   subscriptionOverrides = {};
   preferences = { ...mockNotificationPreferences };
   resetCreatedSubscriptions();
+  gmailConnected = new Set();
+  pendingExtractions = {};
+  trialDecisions = {};
+  remindedPayments = new Set();
 }
+
+/** Only Alex has trials and a shared plan, like the seeded demo account. */
+const isAlex = (email: string) => email === MOCK_EMAILS.full;
 
 function subscriptionsFor(email: string): Subscription[] {
   return subscriptionOverrides[email] ?? mockAccounts[email]?.subscriptions ?? [];
@@ -557,6 +582,181 @@ export const routes: Route[] = [
         list.filter((s) => s.id !== request.params.id),
       );
       return { status: 204, body: null };
+    }),
+  },
+
+  // --- Epic D/E: Gmail, extraction review, Trial Shield, shared plans (11 §2) --
+
+  {
+    method: 'POST',
+    pattern: '/integrations/gmail/connect',
+    handler: protectedRoute((request, account) => {
+      const { code } = (request.body ?? {}) as { code?: string };
+      // Any code but the mock one is what Google's "denied" looks like here.
+      if (code !== 'mock-gmail-code') {
+        return fail(400, 'gmail_denied', 'Access was denied or timed out.');
+      }
+      gmailConnected.add(account.profile.email);
+      return ok({
+        provider: 'gmail',
+        email: account.profile.email,
+        connected_at: '2026-10-01T09:00:00Z',
+      });
+    }),
+  },
+  {
+    method: 'DELETE',
+    pattern: '/integrations/gmail',
+    handler: protectedRoute((_request, account) => {
+      gmailConnected.delete(account.profile.email);
+      pendingExtractions[account.profile.email] = [];
+      return ok(null, 204);
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/extractions/scan',
+    handler: protectedRoute((_request, account) => {
+      const email = account.profile.email;
+      if (!gmailConnected.has(email)) {
+        return fail(409, 'gmail_not_connected', 'Connect Gmail first.');
+      }
+      // Alex's inbox has two; everyone else's has none (the "nothing found" state).
+      pendingExtractions[email] = isAlex(email) ? [...mockScanResults] : [];
+      return ok({ status: 'scanning' }, 202);
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/extractions/pending',
+    handler: protectedRoute((_request, account) =>
+      ok({ scanning: false, results: pendingExtractions[account.profile.email] ?? [] }),
+    ),
+  },
+  {
+    method: 'POST',
+    pattern: '/extractions/:id/confirm',
+    handler: protectedRoute((request, account) => {
+      const email = account.profile.email;
+      const list = pendingExtractions[email] ?? [];
+      if (!list.some((row) => row.id === request.params.id)) {
+        return fail(404, 'not_found', 'Not found.');
+      }
+      const result = createMockSubscription(email, request.body);
+      if (result.error) {
+        const { status = 400, code, message, fields } = result.error;
+        return fail(status, code, message, fields);
+      }
+      pendingExtractions[email] = list.filter((row) => row.id !== request.params.id);
+      return ok(result.detail, 201);
+    }),
+  },
+  {
+    method: 'DELETE',
+    pattern: '/extractions/:id',
+    handler: protectedRoute((request, account) => {
+      const email = account.profile.email;
+      const list = pendingExtractions[email] ?? [];
+      if (!list.some((row) => row.id === request.params.id)) {
+        return fail(404, 'not_found', 'Not found.');
+      }
+      pendingExtractions[email] = list.filter((row) => row.id !== request.params.id);
+      return ok(null, 204);
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/me/notification-rules',
+    handler: protectedRoute(() => ok(mockNotificationRule)),
+  },
+  {
+    method: 'GET',
+    pattern: '/trials',
+    handler: protectedRoute((_request, account) => {
+      if (!isAlex(account.profile.email)) return ok(noTrials);
+      const results = alexTrials.results.map((trial) => {
+        const decision = trialDecisions[trial.subscription_id] ?? trial.decision;
+        return { ...trial, decision, at_risk: trial.at_risk && decision !== 'keep' };
+      });
+      // Hulu is the only trial inside the window, so keeping it empties the card.
+      const anyAtRisk = results.some((trial) => trial.at_risk);
+      return ok({
+        ...alexTrials,
+        at_risk: anyAtRisk ? alexTrials.at_risk : noTrials.at_risk,
+        results,
+      });
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/trials/:id/decision',
+    handler: protectedRoute((request, account) => {
+      const trial = isAlex(account.profile.email)
+        ? alexTrials.results.find((t) => t.subscription_id === request.params.id)
+        : undefined;
+      if (!trial) return fail(404, 'not_found', 'Not found.');
+      const { decision } = (request.body ?? {}) as { decision?: Trial['decision'] };
+      if (decision !== 'keep' && decision !== 'remind' && decision !== 'none') {
+        return fail(400, 'validation_error', 'Choose keep or remind.', {
+          decision: ['Choose keep or remind.'],
+        });
+      }
+      trialDecisions[trial.subscription_id] = decision;
+      return ok({ ...trial, decision, at_risk: trial.at_risk && decision !== 'keep' });
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/shared-plans',
+    handler: protectedRoute((_request, account) => {
+      const list: SharedPlanList = isAlex(account.profile.email)
+        ? alexSharedPlans
+        : noSharedPlans;
+      return ok(list);
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/shared-plans',
+    handler: protectedRoute((request, account) => {
+      const { subscription_id } = (request.body ?? {}) as { subscription_id?: string };
+      if (isAlex(account.profile.email) && subscription_id === 'sub-netflix') {
+        return fail(409, 'already_shared', 'This subscription is already shared.');
+      }
+      // Like the backend since #172: nobody can create a plan yet.
+      return fail(404, 'shared_plans_unavailable', "Shared plans aren't available yet.");
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/shared-plans/:planId/payments/:paymentId/remind',
+    handler: protectedRoute((request, account) => {
+      if (!isAlex(account.profile.email)) {
+        return fail(
+          404,
+          'shared_plans_unavailable',
+          "Shared plans aren't available yet.",
+        );
+      }
+      const plan = alexSharedPlans.results.find((p) => p.id === request.params.planId);
+      const person = plan?.participants.find(
+        (p) => p.payment_id === request.params.paymentId,
+      );
+      if (!plan || !person) return fail(404, 'not_found', 'Not found.');
+      if (person.status === 'paid') {
+        return fail(409, 'already_paid', 'They have already paid.');
+      }
+      if (remindedPayments.has(person.payment_id)) {
+        return fail(429, 'throttled', 'You can remind them again tomorrow.');
+      }
+      remindedPayments.add(person.payment_id);
+      return ok({
+        payment_id: person.payment_id,
+        channel: person.email ? 'email' : 'share_sheet',
+        message: `Hi ${person.display_name}, your share of ${plan.name} for October is $${person.share.amount}.`,
+        last_reminded_at: '2026-10-01T09:00:00Z',
+        next_reminder_available_at: '2026-10-02T09:00:00Z',
+      });
     }),
   },
 
