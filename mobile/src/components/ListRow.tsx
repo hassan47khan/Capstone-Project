@@ -14,12 +14,16 @@
  *   - long names truncate on one line; the price column is fixed and never
  *     truncates;
  *   - a cancelled subscription dims its title and price to 60% and gains a
- *     "Cancelled" badge (history is kept — 07).
+ *     "Cancelled" badge (history is kept — 07);
+ *   - a cancelled one has no next bill (the contract sends null), so the
+ *     subtitle says when it was cancelled instead, in the same two tones:
+ *     "Cancelled: Oct 1, 2026" (#167).
  *
  * Accessibility
  *   The whole row is one touchable with one composed label —
  *   "Netflix, $15.49 per month, next bill October 12, 2026" — so a screen reader
- *   does not stop on three loose text nodes.
+ *   does not stop on three loose text nodes. A cancelled one ends "cancelled
+ *   October 1, 2026" instead.
  *
  * Money
  *   Price is a decimal string formatted by `Amount`; nothing here calculates.
@@ -71,18 +75,27 @@ import { Amount } from './Amount';
 import { Badge } from './Badge';
 import { ServiceMark } from './ServiceMark';
 
+/** The subtitle's date: the next bill, or once cancelled, when. */
+interface DateLine {
+  label: 'Next bill' | 'Cancelled';
+  date: string;
+}
+
 export interface ListRowProps {
   name: string;
   /** Decimal string from the API. */
   price: MoneyString;
   currency: CurrencyCode;
   cycle: BillingCycle;
-  /** "YYYY-MM-DD". */
-  nextBillOn: string;
+  /** "YYYY-MM-DD", or null once cancelled (there is no next bill). */
+  nextBillOn: string | null;
+  /** "YYYY-MM-DD", the contract's `cancelled_on`. Shown when there's no next bill. */
+  cancelledOn?: string | null;
   /** Catalog brand colours for the logo. */
   brand?: ServiceColors;
   /** The catalog's 1–2 character mark ("iC", "GP"). Falls back to the initial. */
   mark?: string;
+  /** Dims the row and adds the badge. Also implied by no next bill + `cancelledOn`. */
   cancelled?: boolean;
   /**
    * The smaller, quieter row of Home's Upcoming Renewals (02 §9). Pair it with
@@ -104,9 +117,10 @@ export function ListRow({
   currency,
   cycle,
   nextBillOn,
+  cancelledOn = null,
   brand,
   mark,
-  cancelled = false,
+  cancelled: cancelledProp = false,
   compact = false,
   today,
   onPress,
@@ -115,16 +129,29 @@ export function ListRow({
   const styles = useStyles();
   const { display } = formatMoney(price, currency);
 
-  // Only when a reference day was supplied; otherwise the absolute date stands.
-  const relative = compact && today ? formatRelativeDays(nextBillOn, today) : null;
+  // A cancelled date with no next bill is a cancelled row, even if the caller
+  // forgot `cancelled`: the data decides, so the dimming and badge can't
+  // disagree with the subtitle (#169).
+  const cancelled = cancelledProp || (!nextBillOn && cancelledOn != null);
+  // The one date line, used by both the subtitle and the spoken label.
+  const when: DateLine | null = nextBillOn
+    ? { label: 'Next bill', date: nextBillOn }
+    : cancelledOn
+      ? { label: 'Cancelled', date: cancelledOn }
+      : null;
+  // Only when a reference day was supplied, and only for a next bill;
+  // otherwise the absolute date stands.
+  const relative =
+    compact && today && nextBillOn ? formatRelativeDays(nextBillOn, today) : null;
 
   const label = [
     name,
     `${display} ${formatCycle(cycle.unit, cycle.count)}`,
     // The spoken form stays absolute even on a compact row: "in 2 days" read
     // aloud with no date is not something a user can act on.
-    `next bill ${formatDateSpoken(nextBillOn)}`,
-    cancelled ? 'cancelled' : null,
+    when ? `${when.label.toLowerCase()} ${formatDateSpoken(when.date)}` : null,
+    // "cancelled" once: not again when the date line already said it.
+    cancelled && when?.label !== 'Cancelled' ? 'cancelled' : null,
   ]
     .filter(Boolean)
     .join(', ');
@@ -170,12 +197,12 @@ export function ListRow({
           <Text style={styles.subtitle} numberOfLines={1}>
             {relative}
           </Text>
-        ) : (
+        ) : when ? (
           <Text style={styles.subtitle} numberOfLines={1}>
-            Next bill:{' '}
-            <Text style={styles.subtitleValue}>{formatDateLong(nextBillOn)}</Text>
+            {when.label}:{' '}
+            <Text style={styles.subtitleValue}>{formatDateLong(when.date)}</Text>
           </Text>
-        )}
+        ) : null}
       </View>
 
       <View style={[styles.price, cancelled && styles.dimmed]}>

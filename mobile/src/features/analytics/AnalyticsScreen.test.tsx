@@ -7,7 +7,7 @@
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { processColor, StyleSheet, Text } from 'react-native';
 
@@ -28,7 +28,7 @@ import {
   deleteMockSubscription,
 } from '@/test/subscriptionFixtures';
 import { server } from '@/test/server';
-import { lightCategoryColors, lightColors, type CategoryKey } from '@/theme';
+import { lightCategoryColors, lightColors, opacity, type CategoryKey } from '@/theme';
 
 import { ANALYTICS_COPY, AnalyticsScreen } from './AnalyticsScreen';
 import { barFractions, CATEGORY_COPY } from './CategoryCard';
@@ -725,13 +725,33 @@ describe('Subscription list (08 §2.4)', () => {
     expect(rowIds()).toHaveLength(10);
   });
 
-  it('leaves cancelled subscriptions out for now (#167)', async () => {
+  it('shows a cancelled subscription dimmed, with when it was cancelled, last in its group (08 §5)', async () => {
+    // As the real list sends it: next_bill_date null, cancelled_on set, sorted last.
     cancelMockSubscription(MOCK_EMAILS.full, 'sub-netflix');
     await renderAnalytics();
     await screen.findByTestId('analytics-list');
 
-    expect(rowIds()).not.toContain('sub-netflix');
-    expect(rowIds()).toHaveLength(10);
+    expect(rowIds()).toHaveLength(11);
+    expect(screen.getByTestId('analytics-row-sub-netflix').props.accessibilityLabel).toBe(
+      'Netflix, $15.49 per month, cancelled October 1, 2026',
+    );
+    // Dimmed, with the "Cancelled" badge (02 §9).
+    const row = screen.getByTestId('analytics-row-sub-netflix');
+    expect(
+      StyleSheet.flatten(
+        within(row).getByText('Netflix', { includeHiddenElements: true }).props.style,
+      ).opacity,
+    ).toBe(opacity.cancelled);
+    expect(
+      within(row).getByText('Cancelled', { includeHiddenElements: true }),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('analytics-chip-entertainment'));
+    expect(rowIds()).toEqual([
+      'sub-hulu',
+      'sub-spotify',
+      'sub-youtube-premium',
+      'sub-netflix',
+    ]);
   });
 
   it("a failed list doesn't take the other sections with it, and Try again recovers", async () => {
