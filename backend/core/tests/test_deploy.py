@@ -141,11 +141,22 @@ ON_RENDER = {"RENDER": "true", "RENDER_EXTERNAL_HOSTNAME": "subtrak-api.onrender
 
 
 def test_djangos_deployment_checklist_passes_on_render():
-    result = run_django("check", "--deploy", "--fail-level", "WARNING", **ON_RENDER)
+    # With a mail key, as the Blueprint asks for: Django rightly fails the
+    # checklist on the console backend, so this can't lean on a developer's .env.
+    result = run_django(
+        "check", "--deploy", "--fail-level", "WARNING", RESEND_API_KEY="re_test", **ON_RENDER
+    )
 
     assert result.returncode == 0, result.stdout + result.stderr
     # Only the two silenced on purpose (HSTS subdomains and preload).
     assert "no issues (2 silenced)" in result.stdout
+
+
+def test_httpx_does_not_log_request_urls():
+    # At INFO it logs every URL it calls: Gmail message ids and search queries.
+    out = show({}, level='__import__("logging").getLogger("httpx").level')
+
+    assert out["level"] == "30"
 
 
 def show(env, **expressions):

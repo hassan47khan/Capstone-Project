@@ -523,3 +523,28 @@ def test_a_broker_failure_hands_the_claim_back(reminder):
 
     reminder.refresh_from_db()
     assert reminder.state == State.PENDING
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", [State.SENDING, State.RETRYING])
+def test_a_claim_whose_task_was_lost_goes_out_again(reminder, state):
+    # Free Key Value keeps nothing across a restart, so the queued task is gone.
+    Reminder.objects.filter(pk=reminder.pk).update(
+        state=state, updated_at=timezone.now() - tasks.STALE_CLAIM - timedelta(minutes=1)
+    )
+
+    with mock.patch.object(tasks.deliver_reminder, "delay") as delay:
+        assert tasks.dispatch_due_reminders()["claimed"] == 1
+
+    delay.assert_called_once_with(str(reminder.pk))
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", [State.SENDING, State.RETRYING])
+def test_a_recent_claim_is_left_with_its_task(reminder, state):
+    Reminder.objects.filter(pk=reminder.pk).update(state=state, updated_at=timezone.now())
+
+    with mock.patch.object(tasks.deliver_reminder, "delay") as delay:
+        assert tasks.dispatch_due_reminders()["claimed"] == 0
+
+    delay.assert_not_called()

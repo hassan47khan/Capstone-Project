@@ -46,6 +46,10 @@ RETRY_BACKOFF_SECONDS = 60
 # asked about forever.
 RECEIPT_TTL = timedelta(hours=24)
 
+# A claim this old lost its delivery task: free Key Value keeps nothing across
+# a restart, and a task can die with its worker. Well past the longest retry.
+STALE_CLAIM = timedelta(minutes=30)
+
 # Past this, an undelivered reminder is an incident worth seeing on /health/.
 OVERDUE_INCIDENT_MINUTES = 30
 
@@ -114,6 +118,12 @@ def ensure_notification(reminder: Reminder) -> Notification:
 def dispatch_due_reminders() -> dict:
     """Claim everything due and hand each one to a delivery task."""
     now = timezone.now()
+
+    # Nothing else would ever deliver these. `attempts` carries over, and a
+    # task that was only late finds the row re-claimed or settled, not lost.
+    Reminder.objects.filter(
+        state__in=[State.SENDING, State.RETRYING], updated_at__lt=now - STALE_CLAIM
+    ).update(state=State.PENDING, updated_at=now)
 
     # Expire first, so a backlog from an outage does not get sent as a
     # burst of stale warnings when the workers come back.

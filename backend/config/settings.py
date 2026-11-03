@@ -231,6 +231,8 @@ LOGGING = {
         }
     },
     "root": {"handlers": ["stdout"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
+    # At INFO these log every URL called, Gmail message ids and searches included.
+    "loggers": {"httpx": {"level": "WARNING"}, "httpcore": {"level": "WARNING"}},
 }
 
 
