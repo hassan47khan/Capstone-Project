@@ -7,7 +7,7 @@
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { processColor, StyleSheet, Text } from 'react-native';
 
@@ -23,12 +23,17 @@ import {
 } from '@/test/contractFixtures';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient, renderWithProviders } from '@/test/render';
+import {
+  cancelMockSubscription,
+  deleteMockSubscription,
+} from '@/test/subscriptionFixtures';
 import { server } from '@/test/server';
 import { lightCategoryColors, lightColors, type CategoryKey } from '@/theme';
 
 import { ANALYTICS_COPY, AnalyticsScreen } from './AnalyticsScreen';
 import { barFractions, CATEGORY_COPY } from './CategoryCard';
 import { SPEND_COPY } from './SpendTrend';
+import { LIST_COPY } from './SubscriptionList';
 
 const category = (slug: string, name: string, key: string) => ({
   slug,
@@ -120,7 +125,7 @@ function serve(summary: AnalyticsSummary) {
 
 async function renderAnalytics(
   queryClient = createTestQueryClient(),
-  { reduceMotion = false } = {},
+  { reduceMotion = false, settle = true } = {},
 ) {
   await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
   await renderWithProviders(
@@ -129,12 +134,15 @@ async function renderAnalytics(
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Analytics" component={AnalyticsScreen} />
           <Stack.Screen name="AddSubscription" component={Stub} />
+          <Stack.Screen name="SubscriptionDetail" component={Stub} />
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
     { queryClient, reduceMotion },
   );
   await screen.findByTestId('analytics-screen');
+  // Let all three sections' requests finish, so none lands after the test.
+  if (settle) await waitFor(() => expect(queryClient.isFetching()).toBe(0));
   return queryClient;
 }
 
@@ -323,7 +331,7 @@ describe('screen states (08 §4)', () => {
         return HttpResponse.json(alexReal);
       }),
     );
-    await renderAnalytics();
+    await renderAnalytics(createTestQueryClient(), { settle: false });
 
     expect(screen.getByLabelText(ANALYTICS_COPY.loading)).toBeOnTheScreen();
     await act(async () => release());
@@ -427,7 +435,7 @@ describe('Spend over time (08 §2.1)', () => {
   });
 
   it('draws 12 months: the accent line, an 8% fill, the current month marked, and a round top', async () => {
-    await renderAnalytics();
+    await renderAnalytics(createTestQueryClient(), { reduceMotion: true });
     await screen.findByTestId('analytics-spend');
     await layOut(300);
 
@@ -448,7 +456,7 @@ describe('Spend over time (08 §2.1)', () => {
   });
 
   it('labels every month by its initial, the current one in bold', async () => {
-    await renderAnalytics();
+    await renderAnalytics(createTestQueryClient(), { reduceMotion: true });
     await screen.findByTestId('analytics-spend');
     await layOut(300);
 
@@ -463,7 +471,7 @@ describe('Spend over time (08 §2.1)', () => {
   });
 
   it('on a narrow screen, every 2nd month label, ending on the current month', async () => {
-    await renderAnalytics();
+    await renderAnalytics(createTestQueryClient(), { reduceMotion: true });
     await screen.findByTestId('analytics-spend');
     await layOut(200);
 
@@ -579,6 +587,10 @@ describe('Spend over time (08 §2.1)', () => {
     expect(Number(hidden('analytics-spend-line').props.strokeDashoffset)).toBeGreaterThan(
       0,
     );
+    // Let the draw finish, so it doesn't update the screen after the test.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    });
   });
 
   it("the mock's year ends in Home's two months, so the screens agree", () => {
@@ -587,5 +599,160 @@ describe('Spend over time (08 §2.1)', () => {
       months: alexSpend.months,
     });
     expect(spendFor(MOCK_EMAILS.full, 12).months).toHaveLength(12);
+  });
+});
+
+// 08 §2.4, with the mock store's copy of Alex's real list (11 subscriptions).
+describe('Subscription list (08 §2.4)', () => {
+  const rowIds = () =>
+    screen
+      .queryAllByTestId(/^analytics-row-/)
+      .map((node) => node.props.testID.replace('analytics-row-', ''));
+
+  it('comes last, grouped by category with a header each', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-list');
+    await screen.findByTestId('analytics-category-card');
+
+    const order = screen
+      .getAllByTestId(/^analytics-(spend|category-card|list)$/)
+      .map((node) => node.props.testID);
+    expect(order).toEqual([
+      'analytics-spend',
+      'analytics-category-card',
+      'analytics-list',
+    ]);
+    expect(rowIds()).toHaveLength(11);
+    expect(screen.getByTestId('analytics-group-entertainment')).toHaveTextContent(
+      'Entertainment',
+    );
+    // Groups A to Z, the same order as the chips.
+    const groups = screen
+      .getAllByTestId(/^analytics-group-/)
+      .map((node) => node.props.testID.replace('analytics-group-', ''));
+    expect(groups).toEqual([
+      'ai-tools',
+      'cloud-storage',
+      'entertainment',
+      'health-wellness',
+      'news-media',
+      'other',
+      'productivity',
+    ]);
+  });
+
+  it('a row reads as one stop, with its real price and next bill, and opens Detail', async () => {
+    await renderAnalytics();
+    const netflix = await screen.findByTestId('analytics-row-sub-netflix');
+
+    expect(netflix.props.accessibilityLabel).toBe(
+      'Netflix, $15.49 per month, next bill October 12, 2026',
+    );
+    // Headspace bills every 2 months (real seed).
+    expect(
+      screen.getByTestId('analytics-row-sub-headspace').props.accessibilityLabel,
+    ).toMatch(/^Headspace, \$12\.99 every 2 months/);
+
+    await fireEvent.press(netflix);
+    expect(await screen.findByTestId('stub')).toHaveTextContent('SubscriptionDetail');
+  });
+
+  it('search narrows by name as you type, and says how many match', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-list');
+
+    await fireEvent.changeText(screen.getByTestId('analytics-search-input'), '  NET ');
+
+    expect(rowIds()).toEqual(['sub-netflix']);
+    const count = screen.getByTestId('analytics-list-count');
+    expect(count).toHaveTextContent('1 subscription');
+    expect(count.props.accessibilityLiveRegion).toBe('polite');
+  });
+
+  it('no matches: "No results for \'…\'"', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-list');
+
+    await fireEvent.changeText(screen.getByTestId('analytics-search-input'), 'zzz');
+
+    expect(screen.getByText("No results for 'zzz'")).toBeOnTheScreen();
+    expect(rowIds()).toEqual([]);
+  });
+
+  it('chips: "All" plus one per category, each saying its count; one picks a group', async () => {
+    await renderAnalytics();
+    await screen.findByTestId('analytics-list');
+
+    expect(screen.getByTestId('analytics-chip-all').props.accessibilityLabel).toBe(
+      'All, 11 subscriptions',
+    );
+    const chip = screen.getByTestId('analytics-chip-entertainment');
+    expect(chip.props.accessibilityLabel).toBe('Entertainment, 4 subscriptions');
+
+    await fireEvent.press(chip);
+
+    expect(rowIds()).toEqual([
+      'sub-hulu',
+      'sub-spotify',
+      'sub-netflix',
+      'sub-youtube-premium',
+    ]);
+    expect(screen.getByTestId('analytics-chip-entertainment')).toBeSelected();
+    expect(screen.getByTestId('analytics-chip-all')).not.toBeSelected();
+    expect(screen.getByTestId('analytics-list-count')).toHaveTextContent(
+      '4 subscriptions',
+    );
+  });
+
+  it('a chip whose category empties out: "No subscriptions in …" and Clear filter', async () => {
+    const queryClient = await renderAnalytics();
+    await screen.findByTestId('analytics-list');
+    await fireEvent.press(screen.getByTestId('analytics-chip-ai-tools'));
+    expect(rowIds()).toEqual(['sub-chatgpt-plus']);
+
+    // ChatGPT Plus is deleted elsewhere, and the list refreshes.
+    deleteMockSubscription(MOCK_EMAILS.full, 'sub-chatgpt-plus');
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: queryKeys.subscriptions.list() });
+    });
+
+    // Every category keeps its chip, so the message names it (08 §4).
+    expect(screen.getByText(LIST_COPY.noneInCategory('AI Tools'))).toBeOnTheScreen();
+    expect(screen.getByTestId('analytics-chip-ai-tools').props.accessibilityLabel).toBe(
+      'AI Tools, no subscriptions',
+    );
+    await fireEvent.press(screen.getByTestId('analytics-clear-filter'));
+    expect(rowIds()).toHaveLength(10);
+  });
+
+  it('leaves cancelled subscriptions out for now (#167)', async () => {
+    cancelMockSubscription(MOCK_EMAILS.full, 'sub-netflix');
+    await renderAnalytics();
+    await screen.findByTestId('analytics-list');
+
+    expect(rowIds()).not.toContain('sub-netflix');
+    expect(rowIds()).toHaveLength(10);
+  });
+
+  it("a failed list doesn't take the other sections with it, and Try again recovers", async () => {
+    let fail = true;
+    server.use(
+      http.get('*/subscriptions', () =>
+        fail
+          ? HttpResponse.json(
+              { error: { code: 'server_error', message: 'Down.' } },
+              { status: 503 },
+            )
+          : undefined,
+      ),
+    );
+    await renderAnalytics();
+
+    await screen.findByTestId('analytics-list-error');
+    expect(await screen.findByTestId('analytics-category-card')).toBeOnTheScreen();
+
+    fail = false;
+    await fireEvent.press(screen.getByTestId('analytics-list-error-retry'));
+    expect(await screen.findByTestId('analytics-list')).toBeOnTheScreen();
   });
 });
