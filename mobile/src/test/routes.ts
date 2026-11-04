@@ -26,6 +26,7 @@
 import type { ApiErrorBody, Subscription } from '@/api/types';
 
 import { contractHomeFor, spendFor } from './contractFixtures';
+import * as family from './familyMock';
 import {
   cancelMockSubscription,
   createMockSubscriptionWithKey,
@@ -151,6 +152,7 @@ export function resetMockState(): void {
   subscriptionOverrides = {};
   preferences = { ...mockNotificationPreferences };
   resetCreatedSubscriptions();
+  family.resetFamilyMock();
 }
 
 function subscriptionsFor(email: string): Subscription[] {
@@ -558,6 +560,87 @@ export const routes: Route[] = [
       );
       return { status: 204, body: null };
     }),
+  },
+
+  // --- Family (handoff 10; see familyMock.ts) ---------------------------------
+
+  {
+    method: 'GET',
+    pattern: '/family',
+    handler: protectedRoute((_request, account) =>
+      family.getFamily(account.profile.email),
+    ),
+  },
+  {
+    method: 'POST',
+    pattern: '/family',
+    handler: protectedRoute((request, account) =>
+      family.createFamily(
+        account.profile.email,
+        ((request.body ?? {}) as { name?: string }).name ?? '',
+        account.profile.name ?? account.profile.email,
+      ),
+    ),
+  },
+  {
+    method: 'GET',
+    pattern: '/family/members/:id',
+    handler: protectedRoute((request, account) =>
+      family.getMember(account.profile.email, request.params.id ?? ''),
+    ),
+  },
+  {
+    method: 'PATCH',
+    pattern: '/family/members/:id',
+    handler: protectedRoute((request, account) =>
+      family.updateMember(account.profile.email, request.params.id ?? '', request.body),
+    ),
+  },
+  {
+    method: 'DELETE',
+    pattern: '/family/members/:id',
+    handler: protectedRoute((request, account) =>
+      family.removeMember(account.profile.email, request.params.id ?? ''),
+    ),
+  },
+  {
+    method: 'POST',
+    pattern: '/family/invitations',
+    handler: protectedRoute((request, account) =>
+      family.invite(account.profile.email, request.body),
+    ),
+  },
+  {
+    method: 'POST',
+    pattern: '/family/invitations/:id/resend',
+    handler: protectedRoute((request, account) =>
+      family.resend(account.profile.email, request.params.id ?? ''),
+    ),
+  },
+  {
+    method: 'DELETE',
+    pattern: '/family/invitations/:id',
+    handler: protectedRoute((request, account) =>
+      family.revoke(account.profile.email, request.params.id ?? ''),
+    ),
+  },
+  {
+    method: 'POST',
+    pattern: '/invitations/preview',
+    handler: protectedRoute((request, account) =>
+      family.preview(account.profile.email, request.body),
+    ),
+  },
+  {
+    method: 'POST',
+    pattern: '/invitations/accept',
+    handler: protectedRoute((request, account) =>
+      family.accept(
+        account.profile.email,
+        request.body,
+        account.profile.name ?? account.profile.email,
+      ),
+    ),
   },
 
   // --- Operations -----------------------------------------------------------
