@@ -556,6 +556,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shared-plans/{plan_id}/payments/{payment_id}/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Record that a participant paid their share this period, or undo it with
+         *     `paid: false`. Returns the updated plan.
+         *
+         *     409 `owner_share`: the owner's own share is always paid.
+         */
+        post: operations["shared_plans_mark_paid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shared-plans/{plan_id}/payments/{payment_id}/remind": {
         parameters: {
             query?: never;
@@ -930,6 +952,13 @@ export interface components {
             email: string;
             password: string;
         };
+        MarkPaidInputRequest: {
+            /**
+             * @description true marks this period's share paid; false undoes it.
+             * @default true
+             */
+            paid: boolean;
+        };
         /** @description An amount always travels with its currency, e.g. {"amount": "129.20", "currency": "USD"}. */
         Money: {
             /** @description Decimal string, rounded to the currency's minor unit. */
@@ -1195,7 +1224,7 @@ export interface components {
             last_reminded_at: string;
             /**
              * Format: date-time
-             * @description One reminder per 24 hours.
+             * @description One email per 24 hours. Now for the share sheet, which isn't limited.
              */
             next_reminder_available_at: string;
         };
@@ -1243,6 +1272,8 @@ export interface components {
             display_currency: string;
             /** @description Other participants' pending shares, owed to you. Display currency. */
             outstanding: components["schemas"]["Money"];
+            /** @description Pending shares left out of `outstanding` because their currency has no FX rate. */
+            unconverted_count: number;
             results: components["schemas"]["SharedPlan"][];
         };
         SpendOverTime: {
@@ -2727,6 +2758,70 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedPlan"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflicts with the current state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    shared_plans_mark_paid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MarkPaidInputRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MarkPaidInputRequest"];
+                "multipart/form-data": components["schemas"]["MarkPaidInputRequest"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
