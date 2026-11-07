@@ -86,7 +86,9 @@ class FamilySerializer(serializers.Serializer):
         ),
     )
     unconverted_count = serializers.IntegerField(
-        help_text="Subscriptions left out of the total because their currency has no rate."
+        allow_null=True,
+        help_text="Subscriptions left out of the total because their currency has no rate. "
+        "Null without permission, like `total`.",
     )
     members = FamilyMemberSerializer(many=True)
 

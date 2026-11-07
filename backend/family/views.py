@@ -120,7 +120,8 @@ class MemberView(APIView):
         """Remove someone (admins), or leave (your own id). Their subscriptions stay
         theirs and leave the family total; nothing is deleted.
 
-        409 `last_admin`: promote someone first.
+        409 `last_admin`: promote someone first. 409 `only_member`: alone in the
+        family, delete it instead.
         """
         service.remove_member(request.user, membership_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
