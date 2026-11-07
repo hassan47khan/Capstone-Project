@@ -71,6 +71,13 @@ export function RootNavigator() {
         screen: 'SubscriptionDetail',
         params: { id: decodeURIComponent(id) },
       });
+      return;
+    }
+    // A family invitation (10 §3.5): someone new registers, then lands here.
+    const invite = url?.match(/^subtrak:\/\/family-invite(?:\?(.*))?$/);
+    if (invite) {
+      const token = new URLSearchParams(invite[1] ?? '').get('token') ?? undefined;
+      navigationRef.navigate('App', { screen: 'FamilyInvite', params: { token } });
     }
   }, [decision, navigationRef]);
 

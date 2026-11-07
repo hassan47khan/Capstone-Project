@@ -320,6 +320,7 @@ describe('tab stacks (03 §1)', () => {
     ['Calendar', 'calendar-trial-shield', 'Trial Shield'],
     ['Settings', 'settings-shared-plans', 'Shared plans'],
     ['Settings', 'settings-connect-email', 'Connect email'],
+    ['Settings', 'settings-family', 'Family Members (3 of 5)'],
   ])(
     '%s pushes %s inside the tab, with back and the tab bar kept',
     async (tab, rowTestID, expectedTitle) => {
@@ -632,6 +633,21 @@ describe('deep links (03 §6)', () => {
       expect(
         screen.getByRole('header', { name: 'Subscription detail' }),
       ).toBeOnTheScreen(),
+    );
+  });
+
+  it('backgrounded, signed out: a family invitation waits for sign-in, then opens', async () => {
+    const deliver = captureUrlListener();
+    await renderApp(<SignInForTest />);
+    await waitFor(() => expect(title()).toBe('Log In'));
+
+    await deliver('subtrak://family-invite?token=invite-kim');
+    expect(title()).toBe('Log In');
+
+    await fireEvent.press(screen.getByText('test-sign-in'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Family invitation' })).toBeOnTheScreen(),
     );
   });
 
