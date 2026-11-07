@@ -62,6 +62,15 @@ def last_admin() -> ApiError:
     )
 
 
+def only_member() -> ApiError:
+    """Leaving a family you're alone in: there's nobody to make an admin."""
+    return ApiError(
+        status.HTTP_409_CONFLICT,
+        "only_member",
+        "You're the only one in this family. Delete the family instead.",
+    )
+
+
 # Lookups ----------------------------------------------------------------------------
 
 
@@ -210,7 +219,8 @@ def dashboard(user, *, today: date) -> dict:
             "may_view_family_total": sees_all,
         },
         "total": money(family_total, ctx.currency) if sees_all else None,
-        "unconverted_count": sum(f.unconverted for f in figures) if sees_all else 0,
+        # None, like `total`: without the permission nothing is claimed either way.
+        "unconverted_count": sum(f.unconverted for f in figures) if sees_all else None,
         "members": members,
     }
 
@@ -301,6 +311,9 @@ def member_detail(user, membership_id: str, *, today: date) -> dict:
         for s in figures.subscriptions
     ]
     known = [m for m in monthly if m is not None]
+    # One rounded line per known amount, in order: each row with an amount takes
+    # the next one (comprehensions run left to right), and rows without one take
+    # none. The stable sort below then keeps named rows in the query's order.
     lines = iter(engine.round_to_total(known, ctx.currency))
     rows = [
         _subscription_row(
@@ -348,7 +361,10 @@ def remove_member(user, membership_id: str) -> None:
             raise admin_only()
         family = viewer.family
         if target.is_admin and _admin_count(family) == 1:
-            # Covers the last admin leaving and an admin removing themselves alone.
+            # Alone in the family, promoting someone isn't possible: the way
+            # out is DELETE /family.
+            if len(Membership.objects.filter(family=family).values_list("pk")) == 1:
+                raise only_member()
             raise last_admin()
         target.delete()
         if family.owner_id == target.user_id:
@@ -358,5 +374,8 @@ def remove_member(user, membership_id: str) -> None:
                 .order_by("joined_at")
                 .first()
             )
+            # The guards above keep an admin behind; this keeps that local.
+            if heir is None:
+                raise last_admin()
             family.owner_id = heir.user_id
             family.save(update_fields=["owner"])

@@ -1199,7 +1199,8 @@ paths:
         Remove someone (admins), or leave (your own id). Their subscriptions stay
         theirs and leave the family total; nothing is deleted.
 
-        409 `last_admin`: promote someone first.
+        409 `last_admin`: promote someone first. 409 `only_member`: alone in the
+        family, delete it instead.
       parameters:
       - in: path
         name: membership_id
@@ -2600,9 +2601,11 @@ components:
           description: Every member's monthly total, in the family's currency. Null
             without permission.
         unconverted_count:
-          type: integer
+          type:
+          - integer
+          - 'null'
           description: Subscriptions left out of the total because their currency
-            has no rate.
+            has no rate. Null without permission, like `total`.
         members:
           type: array
           items:
@@ -3709,7 +3712,8 @@ components:
         next_reminder_available_at:
           type: string
           format: date-time
-          description: One reminder per 24 hours.
+          description: One email per 24 hours. Now for the share sheet, which isn't
+            limited.
       required:
       - channel
       - last_reminded_at
@@ -3828,6 +3832,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/Money'
           description: Other participants' pending shares, owed to you. Display currency.
+        unconverted_count:
+          type: integer
+          description: Pending shares left out of `outstanding` because their currency
+            has no FX rate.
         results:
           type: array
           items:
@@ -3836,6 +3844,7 @@ components:
       - display_currency
       - outstanding
       - results
+      - unconverted_count
     SpendOverTime:
       type: object
       properties:

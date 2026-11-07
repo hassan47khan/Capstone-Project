@@ -19,6 +19,7 @@ from subscriptions.models import (
     SharedPlanPayment,
     Subscription,
 )
+from subscriptions.services.money import split_shares
 
 PLANS = "/api/v1/shared-plans"
 REMIND = "/shared-plans/{plan_id}/payments/{payment_id}/remind"
@@ -124,6 +125,7 @@ def test_a_cancelled_subscriptions_plan_is_hidden(api, alex):
     assert api.get(PLANS).json() == {
         "display_currency": "USD",
         "outstanding": usd("0.00"),
+        "unconverted_count": 0,
         "results": [],
     }
     assert mark(api, plan, plan["participants"][2]).status_code == 404
@@ -165,6 +167,35 @@ def test_outstanding_is_converted_to_the_display_currency(api, alex):
     assert body["outstanding"]["currency"] == "EUR"
     # The plan itself stays in the billing currency.
     assert body["results"][0]["participants"][2]["share"] == usd("5.16")
+    assert body["unconverted_count"] == 0
+
+
+def test_a_share_with_no_rate_is_counted_not_guessed(api, alex):
+    Subscription.objects.filter(owner=alex, name="Netflix").update(billing_currency="GBP")
+
+    body = api.get(PLANS).json()
+
+    # Sam's pending share can't be converted to USD, so it's left out and counted.
+    assert body["outstanding"] == usd("0.00")
+    assert body["unconverted_count"] == 1
+    assert body["results"][0]["participants"][2]["share"] == {
+        "amount": "5.16",
+        "currency": "GBP",
+    }
+
+
+def test_one_plan_that_cant_be_split_leaves_the_rest_of_the_list(api, alex):
+    spotify = Subscription.objects.get(owner=alex, name="Spotify")
+    assert share(api, spotify, ["Jo"]).status_code == 201
+    # Stored before the create check existed: ¥1000.50 isn't a whole number of yen.
+    Subscription.objects.filter(pk=spotify.pk).update(
+        billing_currency="JPY", billing_price=Decimal("1000.50")
+    )
+
+    response = api.get(PLANS)
+
+    assert response.status_code == 200
+    assert [p["name"] for p in response.json()["results"]] == ["Netflix"]
 
 
 # Creating ---------------------------------------------------------------------------
@@ -192,7 +223,23 @@ def test_create_a_shared_plan(api, alex, contract):
     assert [p["name"] for p in api.get(PLANS).json()["results"]] == ["Netflix", "Spotify"]
 
 
+def test_split_shares_sums_to_the_price_for_100_random_prices():
+    """11 §2.6's test: 100 random prices, 2–6 participants, exact sums."""
+    rng = random.Random(2026)
+    for _ in range(100):
+        price = Decimal(rng.randint(100, 99_999)) / 100
+        n = rng.randint(2, 6)
+
+        shares = split_shares(price, n)
+
+        assert len(shares) == n
+        assert sum(shares) == price
+        assert max(shares) - min(shares) <= Decimal("0.01")
+        assert shares[0] == max(shares)
+
+
 def test_shares_always_sum_to_the_price(api, alex):
+    """The same, end to end through the API."""
     rng = random.Random(325)
     sub = Subscription.objects.get(owner=alex, name="Spotify")
     for _ in range(25):
@@ -305,6 +352,26 @@ def test_a_price_too_small_to_split_is_400(api, alex):
     assert share(api, spotify, ["A", "B"]).status_code == 201
 
 
+def test_a_price_that_isnt_whole_minor_units_is_400(api, alex):
+    """¥1000.50 isn't a representable amount, so it can't be split exactly. It's
+    refused before anything is stored, so the list never sees it."""
+    spotify = Subscription.objects.get(owner=alex, name="Spotify")
+    Subscription.objects.filter(pk=spotify.pk).update(
+        billing_currency="JPY", billing_price=Decimal("1000.50")
+    )
+
+    response = share(api, spotify, ["A", "B"])
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+    assert "subscription_id" in response.json()["error"]["fields"]
+    assert not SharedPlan.objects.filter(subscription=spotify).exists()
+    assert api.get(PLANS).status_code == 200
+
+    Subscription.objects.filter(pk=spotify.pk).update(billing_price=Decimal("1000"))
+    assert share(api, spotify, ["A", "B"]).status_code == 201
+
+
 # Reminding --------------------------------------------------------------------------
 
 
@@ -335,20 +402,35 @@ def test_remind_by_email_when_there_is_an_address(api, contract):
     assert "your share of Netflix for October 2026 is 5.16 USD" in sent.body
 
 
-def test_remind_is_throttled_to_once_a_day(api, contract):
+def test_remind_emails_at_most_once_a_day(api, contract):
     plan = netflix_plan(api)
-    sam = plan["participants"][2]
-    remind(api, plan, sam)
+    jordan = plan["participants"][1]
+    mark(api, plan, jordan, paid=False)
+    remind(api, plan, jordan)
 
-    again = remind(api, plan, sam)
+    again = remind(api, plan, jordan)
     assert again.status_code == 429
     assert contract(again, REMIND)["error"]["code"] == "throttled"
     assert 0 < int(again["Retry-After"]) <= 24 * 3600
+    assert len(mail.outbox) == 1
 
-    payment = SharedPlanPayment.objects.get(pk=sam["payment_id"])
+    payment = SharedPlanPayment.objects.get(pk=jordan["payment_id"])
     payment.last_reminded_at -= timedelta(hours=24, seconds=1)
     payment.save()
-    assert remind(api, plan, sam).status_code == 200
+    assert remind(api, plan, jordan).status_code == 200
+
+
+def test_the_share_sheet_is_not_rate_limited(api, contract):
+    """Only the email is limited (11 §2.6). Opening the share sheet and backing
+    out sends nothing, so it mustn't lock the button for a day."""
+    plan = netflix_plan(api)
+    sam = plan["participants"][2]
+    first = contract(remind(api, plan, sam), REMIND)
+
+    again = remind(api, plan, sam)
+
+    assert again.status_code == 200
+    assert first["next_reminder_available_at"] == first["last_reminded_at"]
 
 
 @pytest.mark.parametrize(

@@ -453,6 +453,9 @@ class SharedPlanListSerializer(serializers.Serializer):
     outstanding = MoneySerializer(
         help_text="Other participants' pending shares, owed to you. Display currency."
     )
+    unconverted_count = serializers.IntegerField(
+        help_text="Pending shares left out of `outstanding` because their currency has no FX rate."
+    )
     results = SharedPlanSerializer(many=True)
 
 
@@ -483,7 +486,9 @@ class ReminderSerializer(serializers.Serializer):
     )
     message = serializers.CharField()
     last_reminded_at = serializers.DateTimeField()
-    next_reminder_available_at = serializers.DateTimeField(help_text="One reminder per 24 hours.")
+    next_reminder_available_at = serializers.DateTimeField(
+        help_text="One email per 24 hours. Now for the share sheet, which isn't limited."
+    )
 
 
 # Extractions (§6a) -----------------------------------------------------------
