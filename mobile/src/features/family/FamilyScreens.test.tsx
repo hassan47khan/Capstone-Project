@@ -12,7 +12,7 @@ import { tokenStore } from '@/session/tokenStore';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
 
-import { FamilyInviteScreen, problemCopy } from './FamilyInviteScreen';
+import { ACCEPT_COPY, FamilyInviteScreen, problemCopy } from './FamilyInviteScreen';
 import { FamilyMemberScreen, nextLabel } from './FamilyMemberScreen';
 import { FamilyScreen, initials, memberCaption, memberLabel } from './FamilyScreen';
 
@@ -115,6 +115,29 @@ describe('helpers', () => {
     expect(problemCopy({ ...base, problem: 'wrong_account' }).title).toBe(
       'This invitation is for sam@subtrak.test',
     );
+  });
+
+  it('names the role with the right article, and never says "null"', () => {
+    expect(ACCEPT_COPY.invitedBy('Alex Kim', 'admin')).toBe(
+      'Alex Kim invited you as an admin.',
+    );
+    expect(ACCEPT_COPY.invitedBy('Alex Kim', 'viewer')).toBe(
+      'Alex Kim invited you as a viewer.',
+    );
+    expect(ACCEPT_COPY.invitedBy(null, 'member')).toBe("You're invited as a member.");
+    const nameless = {
+      family_name: 'Kim family',
+      invited_by: null as unknown as string,
+      email: 'sam@subtrak.test',
+      role: 'member' as const,
+      status: 'expired' as const,
+      expires_at: '',
+    };
+    for (const problem of ['expired', 'accepted', 'revoked'] as const) {
+      const { message } = problemCopy({ ...nameless, problem });
+      expect(message).not.toMatch(/null|undefined/);
+      expect(message).toMatch(/the person who invited you/);
+    }
   });
 });
 

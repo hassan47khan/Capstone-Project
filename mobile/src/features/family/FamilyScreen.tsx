@@ -92,6 +92,13 @@ export const ROLE_LABELS: Record<FamilyRole, string> = {
   viewer: 'Viewer',
 };
 
+/** A role inside a sentence, with its article: "as an admin", "as a member". */
+export const ROLE_PHRASES: Record<FamilyRole, string> = {
+  admin: 'an admin',
+  member: 'a member',
+  viewer: 'a viewer',
+};
+
 /** "Family Members (3 of 5)": the seat count in the title (10 §3.3). */
 export function membersTitle(family: Family): string {
   return `Family Members (${family.seats_used} of ${family.seat_limit})`;

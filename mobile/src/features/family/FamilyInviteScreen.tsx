@@ -43,17 +43,20 @@ import {
   acceptInvitation,
   familyKeys,
   previewInvitation,
+  type FamilyRole,
   type InvitationPreview,
 } from './api';
-import { ROLE_LABELS } from './FamilyScreen';
+import { ROLE_PHRASES } from './FamilyScreen';
 
 export const ACCEPT_COPY = {
   title: 'Family invitation',
   close: 'Close',
   loading: 'Checking the invitation',
   heading: (family: string) => `Join ${family}`,
-  invitedBy: (name: string, role: string) =>
-    `${name} invited you as a ${role.toLowerCase()}.`,
+  invitedBy: (name: string | null | undefined, role: FamilyRole) =>
+    name
+      ? `${name} invited you as ${ROLE_PHRASES[role]}.`
+      : `You're invited as ${ROLE_PHRASES[role]}.`,
   disclosure:
     'Family admins can see your subscriptions and what they cost. You can mark any subscription private: it still counts in the family total, but its name is hidden.',
   accept: 'Join family',
@@ -65,6 +68,11 @@ export const ACCEPT_COPY = {
 
 type Problem = NonNullable<InvitationPreview['problem']>;
 
+/** Who to ask, even if the server sends no name: never "Ask null". */
+function inviterOf(preview: InvitationPreview): string {
+  return preview.invited_by || 'the person who invited you';
+}
+
 export function problemCopy(preview: InvitationPreview): {
   title: string;
   message: string;
@@ -74,17 +82,17 @@ export function problemCopy(preview: InvitationPreview): {
     case 'expired':
       return {
         title: 'This invitation has expired',
-        message: `Invitations last 7 days. Ask ${preview.invited_by} to send a new one.`,
+        message: `Invitations last 7 days. Ask ${inviterOf(preview)} to send a new one.`,
       };
     case 'accepted':
       return {
         title: 'This invitation has already been used',
-        message: `Ask ${preview.invited_by} for a new one if you still need to join.`,
+        message: `Ask ${inviterOf(preview)} for a new one if you still need to join.`,
       };
     case 'revoked':
       return {
         title: 'This invitation was cancelled',
-        message: `Ask ${preview.invited_by} if you should still join ${preview.family_name}.`,
+        message: `Ask ${inviterOf(preview)} if you should still join ${preview.family_name}.`,
       };
     case 'wrong_account':
       return {
@@ -184,7 +192,7 @@ export function FamilyInviteScreen() {
             {ACCEPT_COPY.heading(data.family_name)}
           </Text>
           <Text style={styles.body}>
-            {ACCEPT_COPY.invitedBy(data.invited_by, ROLE_LABELS[data.role])}
+            {ACCEPT_COPY.invitedBy(data.invited_by, data.role)}
           </Text>
           <Text style={styles.caption}>{ACCEPT_COPY.disclosure}</Text>
         </Card>
