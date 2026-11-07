@@ -50,6 +50,14 @@ HANDOFFS = {
         title="Reset your password",
         message="Open SubTrak to choose a new password.",
     ),
+    # A family invitation (10 §3.5). The app previews it, then accepts it,
+    # after sign-up first if the invitee has no account yet.
+    "family-invite": Handoff(
+        app_path="family-invite",
+        params=("token",),
+        title="Join a family on SubTrak",
+        message="Open SubTrak to see the invitation.",
+    ),
     # Google's consent screen redirects here, because a Web-application
     # client cannot redirect to a custom scheme. The app checks `state`
     # against the one it sent, then posts `code` and its PKCE verifier to
