@@ -1,28 +1,36 @@
 /**
- * The offline banner (11 §3.4): "You're offline. Showing data from 3:05 PM."
+ * The offline banner (11 §3.4): "You're offline. Some of what you see is from
+ * as early as 3:05 PM."
  *
  * Shown while the phone has no connection, under each tab's content and
- * above the tab bar. It can be dismissed, and comes back the next time the
- * connection drops. On reconnect it goes away and the screens refetch (see
+ * above the tab bar (not below the header: see the handoff errata). Dismissing
+ * it hides it in every tab until the connection comes back; the next outage
+ * shows it again. On reconnect it goes away and the screens refetch (see
  * connectivity.ts).
  *
- * The time is when the newest cached answer arrived. With nothing cached the
- * banner says only that the phone is offline; the screen itself shows the
- * offline error.
+ * The time is the oldest answer any mounted screen is showing, so it's a
+ * claim the app can stand behind: everything on screen is from then or later.
+ * (Tabs stay mounted, so this can't be narrowed to the tab you're on.) Home
+ * keeps its own, exact stale line. With nothing showing cached data the banner
+ * says only that the phone is offline; the screen shows the offline error.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { WifiOff, X } from 'lucide-react-native';
-import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { formatTimeOfDay } from '@/api/format';
 import { makeStyles, opacity, radius, sizes, spacing, useTheme } from '@/theme';
 
-import { useIsOnline } from './connectivity';
+import {
+  dismissOfflineBanner,
+  useIsOnline,
+  useOfflineBannerDismissed,
+} from './connectivity';
 
 export const OFFLINE_COPY = {
   offline: "You're offline.",
-  showing: (time: string) => `You're offline. Showing data from ${time}.`,
+  showing: (time: string) =>
+    `You're offline. Some of what you see is from as early as ${time}.`,
 };
 
 export function OfflineBanner() {
@@ -30,27 +38,19 @@ export function OfflineBanner() {
   const { colors } = useTheme();
   const online = useIsOnline();
   const client = useQueryClient();
-  const [dismissed, setDismissed] = useState(false);
-  const [wasOnline, setWasOnline] = useState(online);
-
-  // Each new outage shows the banner again: reset on the way back online,
-  // during render rather than in an effect.
-  if (online !== wasOnline) {
-    setWasOnline(online);
-    if (online) setDismissed(false);
-  }
+  const dismissed = useOfflineBannerDismissed();
 
   if (online || dismissed) return null;
 
-  const newest = Math.max(
-    0,
-    ...client
-      .getQueryCache()
-      .getAll()
-      .map((q) => q.state.dataUpdatedAt),
-  );
+  // Only queries a mounted screen is reading, and only ones holding data.
+  const shown = client
+    .getQueryCache()
+    .getAll()
+    .filter((q) => q.getObserversCount() > 0 && q.state.dataUpdatedAt > 0)
+    .map((q) => q.state.dataUpdatedAt);
+  const oldest = shown.length > 0 ? Math.min(...shown) : 0;
   const text =
-    newest > 0 ? OFFLINE_COPY.showing(formatTimeOfDay(newest)) : OFFLINE_COPY.offline;
+    oldest > 0 ? OFFLINE_COPY.showing(formatTimeOfDay(oldest)) : OFFLINE_COPY.offline;
 
   return (
     <View style={styles.banner} testID="offline-banner">
@@ -64,7 +64,7 @@ export function OfflineBanner() {
         <Text style={styles.text}>{text}</Text>
       </View>
       <Pressable
-        onPress={() => setDismissed(true)}
+        onPress={dismissOfflineBanner}
         accessibilityRole="button"
         accessibilityLabel="Dismiss offline notice"
         hitSlop={(sizes.minTouch - sizes.iconSmall) / 2}

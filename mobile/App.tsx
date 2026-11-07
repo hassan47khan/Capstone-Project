@@ -35,7 +35,7 @@ import { SessionProvider } from '@/session/SessionContext';
 import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
 
 // Once, at startup: network state drives refetch-on-reconnect and the offline banner.
-watchConnectivity(queryClient);
+watchConnectivity();
 
 /** Status-bar glyphs that contrast with the live theme's ground. */
 function ThemedStatusBar() {

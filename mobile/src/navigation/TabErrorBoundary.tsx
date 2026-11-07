@@ -35,7 +35,8 @@ export class TabErrorBoundary extends Component<TabErrorBoundaryProps, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // No crash reporter yet; the console is where a developer will look.
+    // TODO(crash reporter): send this to the reporter once there is one. This
+    // is the only call site. Until then the console is where a developer looks.
     console.error(`The ${this.props.tab} tab crashed`, error, info.componentStack);
   }
 
