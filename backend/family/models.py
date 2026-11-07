@@ -117,6 +117,16 @@ class Invitation(models.Model):
     class Meta:
         db_table = "family_invitations"
         indexes = [models.Index(fields=["family", "status"], name="invitation_family_status")]
+        constraints = [
+            # One live invitation per address per family, so two quick taps on
+            # Invite can't both create one. An expired invite keeps `pending`
+            # in storage, so `invite()` stores it as expired before inviting again.
+            models.UniqueConstraint(
+                fields=["family", "email"],
+                condition=models.Q(status="pending"),
+                name="pending_invitation_per_email",
+            )
+        ]
 
     def __str__(self):
         return f"invite {self.email} to {self.family_id} ({self.status})"
