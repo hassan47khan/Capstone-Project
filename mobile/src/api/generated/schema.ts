@@ -443,7 +443,8 @@ export interface paths {
          * @description Remove someone (admins), or leave (your own id). Their subscriptions stay
          *     theirs and leave the family total; nothing is deleted.
          *
-         *     409 `last_admin`: promote someone first.
+         *     409 `last_admin`: promote someone first. 409 `only_member`: alone in the
+         *     family, delete it instead.
          */
         delete: operations["family_members_remove"];
         options?: never;
@@ -963,8 +964,8 @@ export interface components {
             you: components["schemas"]["You"];
             /** @description Every member's monthly total, in the family's currency. Null without permission. */
             total: components["schemas"]["Money"] | null;
-            /** @description Subscriptions left out of the total because their currency has no rate. */
-            unconverted_count: number;
+            /** @description Subscriptions left out of the total because their currency has no rate. Null without permission, like `total`. */
+            unconverted_count: number | null;
             members: components["schemas"]["FamilyMember"][];
         };
         FamilyCreateRequest: {

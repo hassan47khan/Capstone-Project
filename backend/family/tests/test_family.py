@@ -120,6 +120,7 @@ def test_a_viewer_without_the_total_sees_only_their_own(sam, contract):
     body = contract(signed_in(sam).get(FAMILY), "/family")
 
     assert body["total"] is None
+    assert body["unconverted_count"] is None
     members = by_name(body)
     assert members["Sam"]["total"] == usd("22.98")
     assert members["Alex Kim"]["total"] is None
@@ -344,6 +345,17 @@ def test_the_last_admin_cant_leave_or_remove_themselves(api, alex):
     response = api.delete(member_url(alex))
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "last_admin"
+
+
+def test_alone_in_the_family_leaving_says_to_delete_it(api, alex, jordan, sam):
+    api.delete(member_url(jordan))
+    api.delete(member_url(sam))
+
+    response = api.delete(member_url(alex))
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "only_member"
+    assert "Delete the family" in response.json()["error"]["message"]
 
 
 def test_when_the_creator_leaves_another_admin_takes_over(api, alex, jordan):
