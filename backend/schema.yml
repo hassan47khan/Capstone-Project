@@ -2696,7 +2696,8 @@ components:
         next_reminder_available_at:
           type: string
           format: date-time
-          description: One reminder per 24 hours.
+          description: One email per 24 hours. Now for the share sheet, which isn't
+            limited.
       required:
       - channel
       - last_reminded_at
@@ -2815,6 +2816,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/Money'
           description: Other participants' pending shares, owed to you. Display currency.
+        unconverted_count:
+          type: integer
+          description: Pending shares left out of `outstanding` because their currency
+            has no FX rate.
         results:
           type: array
           items:
@@ -2823,6 +2828,7 @@ components:
       - display_currency
       - outstanding
       - results
+      - unconverted_count
     SpendOverTime:
       type: object
       properties:

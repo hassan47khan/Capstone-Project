@@ -1224,7 +1224,7 @@ export interface components {
             last_reminded_at: string;
             /**
              * Format: date-time
-             * @description One reminder per 24 hours.
+             * @description One email per 24 hours. Now for the share sheet, which isn't limited.
              */
             next_reminder_available_at: string;
         };
@@ -1272,6 +1272,8 @@ export interface components {
             display_currency: string;
             /** @description Other participants' pending shares, owed to you. Display currency. */
             outstanding: components["schemas"]["Money"];
+            /** @description Pending shares left out of `outstanding` because their currency has no FX rate. */
+            unconverted_count: number;
             results: components["schemas"]["SharedPlan"][];
         };
         SpendOverTime: {
