@@ -25,7 +25,7 @@ The backend's stories are built and tested; the mobile screens are still placeho
 | Area | State |
 | --- | --- |
 | Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction, shared plans and the AI insight card are built. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
-| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. 419 tests. Every screen is still a placeholder. |
+| Mobile | Auth, Home, Subscriptions, Analytics and Settings are built on the Phase 0 base (scaffold, Figma design tokens in light and dark, the handoff-02 component library with a dev gallery, API layer, mock backend, session, and the handoff 03 navigation tree). The AI-epic screens (11) are still placeholders on `main`. See [Mobile status](#mobile-status). |
 | CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. `verify` and `backend-verify` are required checks — see [Continuous Integration](#continuous-integration). |
 | Docs | System design specification is done. Developer handoff specs `00`–`12` are in `docs/handoff/`. Team notes live in the `Capstone_CSC325/` Obsidian vault. |
 
@@ -305,8 +305,9 @@ All run from `mobile/`.
 
 Phase 0 is complete: the Expo scaffold, design tokens, 20 UI primitives with
 tests, the API layer, the mock backend, session handling and the navigation
-shell, including the AI-epic routes from handoff 11. **Every screen is still a
-placeholder** — Epic A is Phase 1, Epic C is Phase 2, Epic B is Phase 3. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
+shell, including the AI-epic routes from handoff 11. On top of it, the auth
+screens (05), Home (06), Subscriptions (07), Analytics (08) and Settings (09) are
+built. The AI-epic screens (11) are still placeholders. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
 
 The tokens follow the Figma design: DM Serif Display and DM Sans, with light and
 dark themes that follow the phone's setting. Components read colours through

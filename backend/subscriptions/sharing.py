@@ -14,6 +14,7 @@ shapes. Three rules shape everything here:
     everyone but the owner pending again.
 """
 
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -29,6 +30,8 @@ from core.tasks import queue_email
 from . import presenters
 from .models import SharedPlan, SharedPlanParticipant, SharedPlanPayment, Subscription
 from .services import money as engine
+
+logger = logging.getLogger(__name__)
 
 REMINDER_INTERVAL = timedelta(hours=24)
 MAX_PARTICIPANTS = 20
@@ -111,10 +114,17 @@ def _shares(plan: SharedPlan, count: int) -> list[Decimal]:
     return engine.split_shares(sub.billing_price, count, sub.billing_currency)
 
 
-def present(plan: SharedPlan, rows: list[tuple], ctx: presenters.Context, period: str) -> dict:
-    """The contract's SharedPlan."""
+def present(
+    plan: SharedPlan,
+    rows: list[tuple],
+    ctx: presenters.Context,
+    period: str,
+    shares: list[Decimal] | None = None,
+) -> dict:
+    """The contract's SharedPlan. `shares` defaults to a fresh split."""
     sub = plan.subscription
-    shares = _shares(plan, len(rows))
+    if shares is None:
+        shares = _shares(plan, len(rows))
     participants = [
         {
             "id": str(person.pk),
@@ -141,7 +151,7 @@ def present(plan: SharedPlan, rows: list[tuple], ctx: presenters.Context, period
         "period": period,
         "participant_count": len(participants),
         "paid_count": sum(1 for p in participants if p["status"] == "paid"),
-        "your_share": participants[0]["share"],
+        "your_share": next(p["share"] for p in participants if p["is_owner"]),
         "participants": participants,
     }
 
@@ -151,29 +161,48 @@ def _plan_dict(plan: SharedPlan, ctx: presenters.Context, period: str) -> dict:
 
 
 def shared_plans(user, *, today: date) -> dict:
-    """GET /shared-plans: the caller's plans on active subscriptions, and what's owed."""
+    """GET /shared-plans: the caller's plans on active subscriptions, and what's owed.
+
+    Not side-effect free: the first read in a new month opens that month's
+    payments (see `_payments_for`).
+
+    A plan that can't be split (a price that isn't a whole number of its
+    currency's minor units, which creating a plan now refuses) is left out and
+    logged, so one bad row costs one card rather than the whole screen.
+    """
     ctx = presenters.Context.for_user(user, today=today)
     period = period_of(today)
     plans = (
         SharedPlan.objects.select_related("subscription").filter(owner=user).order_by("created_at")
     )
-    results = [
-        _plan_dict(plan, ctx, period)
-        for plan in plans
-        if plan.subscription.status == Subscription.Status.ACTIVE
-    ]
+    results = []
     owed = Decimal(0)
-    for plan in results:
-        for person in plan["participants"]:
-            if person["is_owner"] or person["status"] != "pending":
+    unconverted = 0
+    for plan in plans:
+        if plan.subscription.status != Subscription.Status.ACTIVE:
+            continue
+        rows = _payments_for(plan, period)
+        try:
+            shares = _shares(plan, len(rows))
+        except ValueError:
+            logger.warning("Shared plan %s can't be split; left out of the list.", plan.pk)
+            continue
+        results.append(present(plan, rows, ctx, period, shares))
+        currency = plan.subscription.billing_currency
+        for (person, payment), amount in zip(rows, shares, strict=True):
+            if person.is_owner or payment.status != SharedPlanPayment.Status.PENDING:
                 continue
-            converted = ctx.convert(Decimal(person["share"]["amount"]), person["share"]["currency"])
-            # A currency with no rate can't be added in; it's left out, never guessed.
-            if converted is not None:
+            converted = ctx.convert(amount, currency)
+            # A currency with no rate can't be added in; it's left out, never
+            # guessed, and counted so the screen can say so.
+            if converted is None:
+                unconverted += 1
+            else:
                 owed += converted
     return {
         "display_currency": ctx.currency,
         "outstanding": money(owed, ctx.currency),
+        "unconverted_count": unconverted,
         "results": results,
     }
 
@@ -201,8 +230,18 @@ def create_shared_plan(user, subscription_id: str, participants: list[dict], *, 
             f"A plan can be split at most {MAX_PARTICIPANTS} ways.",
             fields={"participants": [f"Add at most {MAX_PARTICIPANTS - 1} people."]},
         )
-    # Every share must be at least one minor unit: $0.03 can't go 4 ways.
+    # A price must be a whole number of its currency's minor units (¥1000.50
+    # isn't), or it can't be split exactly.
     unit = engine.minor_unit(sub.billing_currency)
+    if sub.billing_price % unit:
+        message = f"That price can't be split in {sub.billing_currency}."
+        raise ApiError(
+            status.HTTP_400_BAD_REQUEST,
+            "validation_error",
+            message,
+            fields={"subscription_id": [message]},
+        )
+    # Every share must be at least one minor unit: $0.03 can't go 4 ways.
     if sub.billing_price < unit * (len(participants) + 1):
         raise ApiError(
             status.HTTP_400_BAD_REQUEST,
@@ -248,28 +287,32 @@ def _create_plan(user, sub: Subscription, participants: list[dict]) -> SharedPla
 
 
 def _payment(plan: SharedPlan, payment_id: str, period: str) -> tuple:
-    """This period's (participant, payment) on `plan`, or 404."""
+    """This period's rows, and the index of `payment_id` among them, or 404."""
     rows = _payments_for(plan, period)
     wanted = _object_id(payment_id)
-    for person, payment in rows:
+    for index, (_person, payment) in enumerate(rows):
         if payment.pk == wanted:
-            return rows, person, payment
+            return rows, index
     raise not_found()
 
 
 def remind(user, plan_id: str, payment_id: str, *, today: date) -> dict:
     """POST .../remind: email the participant, or hand the app a share-sheet message.
 
-    409 `already_paid`; 429 `throttled`, one reminder per payment per 24 hours.
+    409 `already_paid`; 429 `throttled`, one email per payment per 24 hours.
+    Only the email is rate-limited (11 §2.6): the share sheet sends nothing
+    itself, so backing out of it mustn't cost a day.
     """
     plan = _owned_plan(user, plan_id)
     period = period_of(today)
-    rows, person, payment = _payment(plan, payment_id, period)
+    rows, index = _payment(plan, payment_id, period)
+    person, payment = rows[index]
     if payment.status == SharedPlanPayment.Status.PAID:
         raise ApiError(status.HTTP_409_CONFLICT, "already_paid", "This share is already paid.")
 
     now = _now()
-    if payment.last_reminded_at and now - payment.last_reminded_at < REMINDER_INTERVAL:
+    last = payment.last_reminded_at
+    if person.email and last and now - last < REMINDER_INTERVAL:
         available = payment.last_reminded_at + REMINDER_INTERVAL
         raise ApiError(
             status.HTTP_429_TOO_MANY_REQUESTS,
@@ -278,8 +321,7 @@ def remind(user, plan_id: str, payment_id: str, *, today: date) -> dict:
             retry_after=int((available - now).total_seconds()) + 1,
         )
 
-    shares = _shares(plan, len(rows))
-    share = shares[[p.pk for p, _ in rows].index(person.pk)]
+    share = _shares(plan, len(rows))[index]
     sub = plan.subscription
     amount = rounded(share, sub.billing_currency)
     owner = user.name or user.email
@@ -296,6 +338,7 @@ def remind(user, plan_id: str, payment_id: str, *, today: date) -> dict:
         )
         channel = "email"
 
+    # Recorded either way, so the card can say when they were last reminded.
     payment.last_reminded_at = now
     payment.save(update_fields=["last_reminded_at"])
     return {
@@ -303,7 +346,7 @@ def remind(user, plan_id: str, payment_id: str, *, today: date) -> dict:
         "channel": channel,
         "message": message,
         "last_reminded_at": now,
-        "next_reminder_available_at": now + REMINDER_INTERVAL,
+        "next_reminder_available_at": now + REMINDER_INTERVAL if person.email else now,
     }
 
 
@@ -314,7 +357,8 @@ def mark_paid(user, plan_id: str, payment_id: str, *, today: date, paid: bool) -
     """
     plan = _owned_plan(user, plan_id)
     period = period_of(today)
-    _rows, person, payment = _payment(plan, payment_id, period)
+    rows, index = _payment(plan, payment_id, period)
+    person, payment = rows[index]
     if person.is_owner:
         raise ApiError(status.HTTP_409_CONFLICT, "owner_share", "Your own share is always paid.")
     payment.status = SharedPlanPayment.Status.PAID if paid else SharedPlanPayment.Status.PENDING
