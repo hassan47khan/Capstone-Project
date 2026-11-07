@@ -475,7 +475,8 @@ export interface paths {
         /**
          * @description Send a new link with 7 more days; the old link stops working. Admins only.
          *
-         *     409 `invitation_accepted` / `invitation_revoked`, or `seat_limit_reached`
+         *     409 `invitation_accepted` / `invitation_revoked` / `invitation_expired` (replaced
+         *     by a newer invite), or `seat_limit_reached`
          *     for an expired one when no seat is free.
          */
         post: operations["family_invitations_resend"];

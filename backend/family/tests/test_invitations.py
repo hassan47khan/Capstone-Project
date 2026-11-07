@@ -7,6 +7,7 @@ from datetime import timedelta
 
 import pytest
 from django.core import mail
+from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -336,3 +337,82 @@ def test_ending_the_family_removes_its_invitations(api):
     api.delete(FAMILY)
     assert not Invitation.objects.exists()
     assert not Family.objects.exists()
+
+
+# Review follow-ups -----------------------------------------------------------------
+
+
+def test_an_inviter_with_no_name_is_named_by_their_email(alex, riley, contract):
+    """Registering never asks for a name, so most real inviters have none."""
+    Membership.objects.filter(user=alex).delete()
+    nameless = person("pat@example.com", name=None)
+    signed_in(nameless).post(FAMILY, {"name": "Pat's family"}, format="json")
+
+    invite(signed_in(nameless), "riley@example.com", "admin")
+
+    (message,) = mail.outbox
+    assert message.subject == "pat@example.com invited you to Pat's family on SubTrak"
+    assert "None" not in message.body
+    assert "as an admin." in message.body
+    body = contract(
+        signed_in(riley).post(PREVIEW, {"token": token_from_last_email()}, format="json"),
+        "/invitations/preview",
+    )
+    assert body["invited_by"] == "pat@example.com"
+
+
+@pytest.mark.parametrize(
+    ("role", "phrase"),
+    [("admin", "as an admin."), ("member", "as a member."), ("viewer", "as a viewer.")],
+)
+def test_the_email_names_the_role_with_the_right_article(api, role, phrase):
+    invite(api, role=role)
+    assert phrase in mail.outbox[-1].body
+
+
+def test_the_database_keeps_one_pending_invitation_per_address(alex):
+    """What backs `already_invited` when two invites race past the check."""
+    family = Family.objects.get()
+    now = timezone.now()
+    fields = {
+        "family": family,
+        "email": "riley@example.com",
+        "invited_by": alex,
+        "expires_at": now + timedelta(days=7),
+        "sent_at": now,
+    }
+    Invitation.objects.create(digest="a" * 64, **fields)
+    with pytest.raises(IntegrityError):
+        Invitation.objects.create(digest="b" * 64, **fields)
+    # A revoked or accepted one doesn't count.
+    Invitation.objects.update(status=Invitation.Status.REVOKED)
+    Invitation.objects.create(digest="c" * 64, **fields)
+
+
+def test_inviting_again_after_expiry_replaces_the_old_invitation(api, riley):
+    invite(api)
+    old = Invitation.objects.get()
+    Invitation.objects.update(expires_at=timezone.now() - timedelta(days=1))
+
+    assert invite(api).status_code == 201
+
+    old.refresh_from_db()
+    assert old.status == Invitation.Status.EXPIRED
+    (row,) = api.get(FAMILY).json()["invitations"]
+    assert row["status"] == "pending"
+    response = api.post(f"{INVITES}/{old.pk}/resend")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "invitation_expired"
+
+
+@pytest.mark.parametrize(
+    ("stored", "code"), [("accepted", "invitation_accepted"), ("revoked", "invitation_revoked")]
+)
+def test_resending_a_finished_invitation_says_which(api, stored, code):
+    invite(api)
+    Invitation.objects.update(status=stored)
+
+    response = api.post(f"{INVITES}/{Invitation.objects.get().pk}/resend")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == code

@@ -9,12 +9,15 @@ The token travels in request bodies, never in a path, so it doesn't end up in
 the request log. Accepting needs a verified email that matches the invite:
 that's what proves the link reached the person it was meant for.
 
-Seats: members plus invitations still pending count against `seat_limit`, so
-a family can't over-invite and find out at accept time.
+Seats: members plus invitations still pending count against `seat_limit`.
+That check is read-then-write with nothing in the database behind it, so two
+invitations to different addresses sent at the same moment can both pass and
+leave the family one over; accept still refuses nobody for it. A second invite
+to the same address can't race through: `pending_invitation_per_email` backs
+`already_invited`.
 """
 
 import hashlib
-import hmac
 import secrets
 from datetime import timedelta
 
@@ -52,12 +55,26 @@ def _issue(invitation: Invitation) -> str:
     return token
 
 
+ROLE_PHRASES = {
+    Membership.Role.ADMIN: "an admin",
+    Membership.Role.MEMBER: "a member",
+    Membership.Role.VIEWER: "a viewer",
+}
+
+
+def display_name(user) -> str:
+    """Who someone is to other people. Registering never asks for a name, so
+    most real accounts have none: fall back to the email, never "None"."""
+    return user.name or user.email
+
+
 def _send(invitation: Invitation, token: str, inviter) -> None:
     link = app_link("family-invite", token=token)
-    subject = f"{inviter.name} invited you to {invitation.family.name} on SubTrak"
+    who = display_name(inviter)
+    subject = f"{who} invited you to {invitation.family.name} on SubTrak"
     body = (
-        f"{inviter.name} invited you to join {invitation.family.name} on SubTrak as a "
-        f"{invitation.role}.\n\n"
+        f"{who} invited you to join {invitation.family.name} on SubTrak as "
+        f"{ROLE_PHRASES[invitation.role]}.\n\n"
         "Family admins can see your subscriptions and what they cost. You can mark any "
         "subscription private: it still counts in the family total, but its name is hidden.\n\n"
         f"The invitation works for 7 days.\n\n{link}\n"
@@ -71,6 +88,12 @@ def _send(invitation: Invitation, token: str, inviter) -> None:
 def _conflict(code: str, message: str, field: str | None = None) -> ApiError:
     fields = {field: [message]} if field else None
     return ApiError(status.HTTP_409_CONFLICT, code, message, fields=fields)
+
+
+def _already_invited() -> ApiError:
+    return _conflict(
+        "already_invited", "They already have an invitation. Resend it instead.", "email"
+    )
 
 
 def seat_limit_reached(family) -> ApiError:
@@ -116,7 +139,8 @@ def present(invitation: Invitation, now) -> dict:
 
 def for_admin(family) -> list[dict]:
     """Pending and expired invitations, newest first: the members list shows
-    them as "Invited" rows with Resend and Revoke (10 §6)."""
+    them as "Invited" rows with Resend and Revoke (10 §6). Expired rows keep
+    `pending` in storage (see `Invitation.status_at`), so one filter gets both."""
     now = timezone.now()
     rows = Invitation.objects.filter(family=family, status=Status.PENDING).order_by("-sent_at")
     return [present(i, now) for i in rows]
@@ -132,16 +156,21 @@ def invite(user, *, email: str, role: str) -> dict:
         if any(m.user.email == email for m in members):
             raise _conflict("already_member", "They're already in this family.", "email")
         if any(i.email == email for i in _pending(family, now)):
-            raise _conflict(
-                "already_invited",
-                "They already have an invitation. Resend it instead.",
-                "email",
-            )
+            raise _already_invited()
         if seats_taken(family, now) >= family.seat_limit:
             raise seat_limit_reached(family)
+        # An old invite to this address that expired is still `pending` in
+        # storage; record it as expired so the new one can take its place.
+        Invitation.objects.filter(
+            family=family, email=email, status=Status.PENDING, expires_at__lte=now
+        ).update(status=Status.EXPIRED)
         invitation = Invitation(family=family, email=email, role=role, invited_by=user)
         token = _issue(invitation)
-        invitation.save()
+        try:
+            invitation.save()
+        except IntegrityError:
+            # Lost a race with a simultaneous invite to the same address.
+            raise _already_invited() from None
     _send(invitation, token, user)
     return present(invitation, now)
 
@@ -163,10 +192,13 @@ def _admins_invitation(user, invitation_id: str) -> Invitation:
 def resend(user, invitation_id: str) -> dict:
     """A new link and seven more days. The old link stops working."""
     invitation = _admins_invitation(user, invitation_id)
-    if invitation.status != Status.PENDING:
-        raise _conflict(
-            f"invitation_{invitation.status}", f"This invitation was {invitation.status}."
-        )
+    if invitation.status == Status.ACCEPTED:
+        raise _conflict("invitation_accepted", "This invitation was accepted.")
+    if invitation.status == Status.REVOKED:
+        raise _conflict("invitation_revoked", "This invitation was revoked.")
+    if invitation.status == Status.EXPIRED:
+        # Stored as expired when a newer invite replaced it: resend that one.
+        raise _conflict("invitation_expired", "This invitation was replaced by a newer one.")
     now = timezone.now()
     if invitation.status_at(now) == Status.EXPIRED and (
         seats_taken(invitation.family, now) >= invitation.family.seat_limit
@@ -191,8 +223,10 @@ def revoke(user, invitation_id: str) -> None:
 
 def _by_token(token: str) -> Invitation:
     digest = _digest(token)
+    # Looked up by digest, so the comparison happens in the query. A 256-bit
+    # random token leaves nothing to guess or time.
     found = Invitation.objects.filter(digest=digest).select_related("family", "invited_by").first()
-    if found is None or not hmac.compare_digest(found.digest, digest):
+    if found is None:
         raise _invalid()
     return found
 
@@ -216,7 +250,7 @@ def preview(user, token: str) -> dict:
         problem = None
     return {
         "family_name": invitation.family.name,
-        "invited_by": invitation.invited_by.name,
+        "invited_by": display_name(invitation.invited_by),
         "email": invitation.email,
         "role": invitation.role,
         "status": state,
