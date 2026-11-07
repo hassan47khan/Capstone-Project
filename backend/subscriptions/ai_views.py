@@ -12,6 +12,7 @@ from core.clock import today_for
 from core.contract import errors
 from extraction import reviews
 from extraction import service as gmail_service
+from family.permissions import require_add, require_edit
 
 from . import sharing, trials
 from .serializers import (
@@ -78,11 +79,13 @@ class ConfirmExtractionView(APIView):
         operation_id="extractions_confirm",
         tags=["extractions"],
         request=SubscriptionInputSerializer,
-        responses={201: SubscriptionDetailSerializer, **errors(400, 401, 404)},
+        responses={201: SubscriptionDetailSerializer, **errors(400, 401, 403, 404)},
     )
     def post(self, request, extraction_id):
         """Create the subscription from the reviewed fields ("Confirm and track") and
-        delete the pending record. The body is the same as POST /subscriptions."""
+        delete the pending record. The body is the same as POST /subscriptions.
+        403 `family_cannot_add`, as for POST /subscriptions."""
+        require_add(request.user)
         fields = body(SubscriptionInputSerializer, request)
         sub = reviews.confirm(request.user, extraction_id, fields)
         sub.refresh_from_db()  # as stored, like POST /subscriptions
@@ -121,10 +124,12 @@ class TrialDecisionView(APIView):
         operation_id="trials_decision",
         tags=["trials"],
         request=TrialDecisionInputSerializer,
-        responses={200: TrialSerializer, **errors(400, 401, 404)},
+        responses={200: TrialSerializer, **errors(400, 401, 403, 404)},
     )
     def post(self, request, subscription_id):
-        """Keep it (stop nagging; it converts on its end date) or Remind me."""
+        """Keep it (stop nagging; it converts on its end date) or Remind me.
+        403 `family_cannot_edit`."""
+        require_edit(request.user)
         data = body(TrialDecisionInputSerializer, request)
         decided = trials.decide(
             request.user,

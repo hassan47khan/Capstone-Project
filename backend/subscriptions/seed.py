@@ -309,6 +309,29 @@ def _seed_shared_plan(owner, netflix: Subscription, *, today: date) -> SharedPla
     return plan
 
 
+def _seed_family(users: dict[str, User]) -> None:
+    """10 §4.5: Alex runs the family; Jordan is a member with a $100 limit (the
+    Member detail frame), Sam a viewer who can't see the family total."""
+    # Imported here: family depends on subscriptions, not the other way round.
+    from family.models import Family, Membership
+
+    alex = users[ALEX.email]
+    family = Family.objects.create(name="Kim family", owner=alex)
+    Membership.objects.create(family=family, user=alex, role=Membership.Role.ADMIN)
+    Membership.objects.create(
+        family=family,
+        user=users[JORDAN.email],
+        role=Membership.Role.MEMBER,
+        spending_limit=Decimal("100.00"),
+    )
+    Membership.objects.create(
+        family=family,
+        user=users[SAM.email],
+        role=Membership.Role.VIEWER,
+        can_view_family_total=False,
+    )
+
+
 @transaction.atomic
 def load_demo(*, today: date = SEED_TODAY, password: str | None = None) -> dict[str, User]:
     """Reset and load the whole demo dataset. Safe to run any number of times.
@@ -317,7 +340,7 @@ def load_demo(*, today: date = SEED_TODAY, password: str | None = None) -> dict[
     otherwise, so they cannot log in until `seed_demo` sets DEMO_PASSWORD.
 
     Removes only what it owns: the demo users (their subscriptions, history,
-    settings and rules go with them), the catalog and the seeded FX rates.
+    settings, rules and the demo family go with them), the catalog and the seeded FX rates.
     """
     User.objects.filter(email__in=[u.email for u in DEMO_USERS]).delete()
     categories = ensure_system_categories()
@@ -339,4 +362,5 @@ def load_demo(*, today: date = SEED_TODAY, password: str | None = None) -> dict[
         for trial in demo.trials:
             _seed_trial(user, trial, categories, today=today)
         users[demo.email] = user
+    _seed_family(users)
     return users

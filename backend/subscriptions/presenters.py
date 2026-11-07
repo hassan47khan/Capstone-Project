@@ -98,6 +98,7 @@ def subscription(sub: Subscription, ctx: Context) -> dict:
         "trial_length_days": sub.trial_length_days,
         "trial_reminder_enabled": sub.trial_reminder_enabled,
         "trial_decision": sub.trial_decision,
+        "is_private": sub.is_private,
         "counts_toward_totals": counts(sub, ctx.today),
         "normalized_monthly": ctx.display(monthly, sub.billing_currency),
         "service_mark": ctx.marks.get(sub.name),
