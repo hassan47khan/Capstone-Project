@@ -19,6 +19,7 @@ import { render as rntlRender } from '@testing-library/react-native';
 import type { ReactElement, ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { createQueryClient } from '@/api/queryClient';
 import { ToastProvider } from '@/components/Toast';
 import { ThemeProvider, type ColorScheme } from '@/theme';
 
@@ -30,14 +31,17 @@ import { ThemeProvider, type ColorScheme } from '@/theme';
  * A fresh client per test also stops one test's cached data reaching the next.
  */
 export function createTestQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0, staleTime: 0 },
-      // gcTime 0 for mutations too: the default five-minute timer holds Jest
-      // open after any test that runs one.
-      mutations: { retry: false, gcTime: 0 },
-    },
+  // Built from the app's client, so tests see the app's behaviour (networkMode
+  // above all), with only the timing overridden.
+  const client = createQueryClient();
+  const defaults = client.getDefaultOptions();
+  client.setDefaultOptions({
+    queries: { ...defaults.queries, retry: false, gcTime: 0, staleTime: 0 },
+    // gcTime 0 for mutations too: the default five-minute timer holds Jest
+    // open after any test that runs one.
+    mutations: { ...defaults.mutations, retry: false, gcTime: 0 },
   });
+  return client;
 }
 
 /**

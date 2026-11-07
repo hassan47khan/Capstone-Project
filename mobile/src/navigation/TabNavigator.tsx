@@ -21,10 +21,17 @@
  *   03's tree has none; Family is handoff 10, a stretch goal. SharedPlans is not
  *   Family: it belongs to the AI epic (11 §2.6, graded) and lives in the Settings
  *   stack above.
+ *
+ * One error boundary per tab
+ *   `screenLayout` wraps each tab in TabErrorBoundary, so a render crash shows
+ *   a recoverable fallback in that tab alone (11 §3.3). The offline banner
+ *   (11 §3.4) is drawn under each tab's content, outside the boundary.
  */
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+import { StyleSheet, View } from 'react-native';
 
 import { TabBar } from '@/components';
 import { AnalyticsScreen } from '@/features/analytics/AnalyticsScreen';
@@ -34,7 +41,9 @@ import { ConnectEmailScreen } from '@/features/extraction/ConnectEmailScreen';
 import { HomeScreen } from '@/features/home/HomeScreen';
 import { SettingsScreen } from '@/features/settings/SettingsScreen';
 import { SharedPlansScreen } from '@/features/sharing/SharedPlansScreen';
+import { OfflineBanner } from '@/offline/OfflineBanner';
 
+import { TabErrorBoundary } from './TabErrorBoundary';
 import type {
   CalendarStackParamList,
   MainTabParamList,
@@ -77,6 +86,16 @@ export function TabNavigator() {
       )}
       // Every screen draws its own Header.
       screenOptions={{ headerShown: false }}
+      // A crash in one tab stays in that tab (11 §3.3).
+      // The offline banner sits under the tab's content, above the tab bar (11 §3.4).
+      screenLayout={({ children, route }) => (
+        <View style={styles.tab}>
+          <View style={styles.tab}>
+            <TabErrorBoundary tab={route.name}>{children}</TabErrorBoundary>
+          </View>
+          <OfflineBanner />
+        </View>
+      )}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Home' }} />
       <Tab.Screen
@@ -97,3 +116,7 @@ export function TabNavigator() {
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  tab: { flex: 1 },
+});
