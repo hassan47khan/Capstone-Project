@@ -53,6 +53,7 @@ describe('helpers', () => {
     expect(outstandingCaption(alexSharedPlans.results)).toBe(
       'Sam still owes you for Netflix',
     );
+    expect(outstandingCaption([])).toBe('Nobody owes you anything');
   });
 });
 

@@ -14,6 +14,8 @@
  *
  * With mocks on, no browser opens: it answers with a fixed code the mock
  * route accepts, so the whole flow runs in Expo Go with no Google account.
+ * The real flow needs a dev or standalone build: Expo Go only claims exp://
+ * links, so `subtrak://gmail-callback` would never come back to it.
  */
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
@@ -23,6 +25,7 @@ import { env } from '@/config/env';
 export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 export const APP_CALLBACK = 'subtrak://gmail-callback';
 export const MOCK_GMAIL_CODE = 'mock-gmail-code';
+export const MOCK_CODE_VERIFIER = 'mock-code-verifier';
 
 export type GmailAuthResult =
   | { kind: 'code'; code: string; codeVerifier: string; redirectUri: string }
@@ -58,19 +61,20 @@ export function parseCallback(url: string): Record<string, string> {
 }
 
 export async function authorizeGmail(): Promise<GmailAuthResult> {
-  const codeVerifier = randomToken(32);
-
+  // Before any crypto, so the mock flow needs nothing native (getRandomBytes,
+  // and `btoa`, which comes from Hermes rather than react-native).
   if (env.useMocks) {
     return {
       kind: 'code',
       code: MOCK_GMAIL_CODE,
-      codeVerifier,
+      codeVerifier: MOCK_CODE_VERIFIER,
       redirectUri: 'https://mock.subtrak.test/integrations/gmail/callback',
     };
   }
 
   if (!env.googleClientId || !env.gmailRedirectUri) return { kind: 'failed' };
 
+  const codeVerifier = randomToken(32);
   const state = randomToken(16);
   const challenge = base64Url(
     await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, codeVerifier, {

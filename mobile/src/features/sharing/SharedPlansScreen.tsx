@@ -84,6 +84,7 @@ export function outstandingCaption(plans: SharedPlan[]): string {
       .filter((p) => !p.is_owner && p.status === 'pending')
       .map((p) => ({ name: p.display_name.split(' ')[0], plan: plan.name })),
   );
+  if (owing.length === 0) return 'Nobody owes you anything';
   if (owing.length === 1) return `${owing[0]!.name} still owes you for ${owing[0]!.plan}`;
   return `${owing.length} people still owe you`;
 }
