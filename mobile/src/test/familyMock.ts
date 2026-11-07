@@ -218,7 +218,7 @@ function view(family: MockFamily, me: Person): Family {
       may_view_family_total: all,
     },
     total: all ? usd(dollars(total)) : null,
-    unconverted_count: 0,
+    unconverted_count: all ? 0 : null,
     members: family.people.map((p) => {
       const visible = all || p === me;
       return {
@@ -243,6 +243,12 @@ const LAST_ADMIN = fail(
   409,
   'last_admin',
   'A family needs an admin. Make someone else an admin first.',
+);
+
+const ONLY_MEMBER = fail(
+  409,
+  'only_member',
+  "You're the only one in this family. Delete the family instead.",
 );
 
 export function getFamily(email: string): FamilyResponse {
@@ -314,8 +320,10 @@ export function removeMember(email: string, id: string): FamilyResponse {
   const found = target(email, id);
   if ('error' in found) return found.error!;
   if (found.who !== found.me && !isAdmin(found.me)) return ADMIN_ONLY;
-  if (isAdmin(found.who) && found.family.people.filter(isAdmin).length === 1)
+  if (isAdmin(found.who) && found.family.people.filter(isAdmin).length === 1) {
+    if (found.family.people.length === 1) return ONLY_MEMBER;
     return LAST_ADMIN;
+  }
   found.family.people = found.family.people.filter((p) => p !== found.who);
   return ok(null, 204);
 }

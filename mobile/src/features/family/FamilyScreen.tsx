@@ -243,7 +243,7 @@ function Loaded({ family }: { family: Family }) {
             {formatMoney(family.total.amount, family.total.currency).display}
             <Text style={styles.caption}>{FAMILY_COPY.perMonth}</Text>
           </Text>
-          {family.unconverted_count > 0 ? (
+          {family.unconverted_count ? (
             <Text style={styles.caption}>
               {FAMILY_COPY.unconverted(family.unconverted_count)}
             </Text>
