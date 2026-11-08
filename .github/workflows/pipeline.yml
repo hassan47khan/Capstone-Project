@@ -79,12 +79,22 @@ jobs:
           tar -xzf "${tarball}" gitleaks
           ./gitleaks git --redact --verbose --exit-code 1 .
 
+      # Resolves PYTHON_VERSION to the exact patch release this runner has.
+      # A cached venv points at that exact interpreter, so the key must change
+      # when the runner image moves to a newer 3.12.x, or Test would restore a
+      # venv whose python no longer exists.
+      - name: Resolve the Python version
+        id: python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       # One key per toolchain, from the lock files and the runtime version, so
       # Dependencies and Test agree on exactly which cache to use.
       - name: Work out the cache keys
         id: keys
         run: |
-          echo "backend=backend-venv-${{ runner.os }}-py${PYTHON_VERSION}-${{ hashFiles('backend/requirements.txt', 'backend/requirements-dev.txt') }}" >> "$GITHUB_OUTPUT"
+          echo "backend=backend-venv-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('backend/requirements.txt', 'backend/requirements-dev.txt') }}" >> "$GITHUB_OUTPUT"
           echo "mobile=mobile-node-modules-${{ runner.os }}-node${NODE_VERSION}-${{ hashFiles('mobile/package-lock.json') }}" >> "$GITHUB_OUTPUT"
 
   dependencies:
