@@ -338,7 +338,7 @@ Setup ──► Dependencies ──► Test ──► Deploy (push to main only)
 | **Setup** | Checks out the full history and scans every commit for secrets with gitleaks (version pinned, download checked against the release checksums). Works out the cache keys the next stages share, from the lock files. |
 | **Dependencies** | Installs the backend into `backend/.venv` (`pip install -r requirements-dev.txt`) and the mobile app (`npm ci`), and caches both. A run with unchanged lock files reuses the cache. |
 | **Test** | Restores both caches, starts MongoDB and Redis from `docker-compose.yml`, then runs every check. Backend: ruff check and format, `makemigrations --check`, the stale-schema check, and pytest against the real MongoDB with a 90% coverage floor. Mobile: the generated API client check, ESLint, Prettier, `tsc --noEmit` and Jest. Coverage reports are uploaded as an artifact. |
-| **Deploy** | Only on a push to `main`, and only when Test passed. Calls the Render deploy hooks for the API and the worker with `ref` set to the commit that was just tested, waits until both are live, then checks `/api/v1/health/` on the live API. Pull requests stop after Test. |
+| **Deploy** | Only on a push to `main`, and only when Test passed. Calls the Render deploy hook for the API (and the worker's, if its hook is set) with `ref` set to the commit that was just tested, waits until they're live, then checks `/api/v1/health/` on the live API. Pull requests stop after Test. |
 | Audit | `pip-audit` on `requirements.txt`, beside Test. It reports and never blocks: advisories land in unrelated packages on their own schedule. Not a required check. |
 
 Details worth knowing:
@@ -387,7 +387,7 @@ stage enforces that on every run by scanning the whole history.
 | Secret | Where it lives | Used by |
 | --- | --- | --- |
 | `RENDER_DEPLOY_HOOK_API` | GitHub Secrets (Settings > Secrets and variables > Actions) | Deploy stage: deploys the API |
-| `RENDER_DEPLOY_HOOK_WORKER` | GitHub Secrets | Deploy stage: deploys the Celery worker |
+| `RENDER_DEPLOY_HOOK_WORKER` | GitHub Secrets (optional) | Deploy stage: deploys the Celery worker. Without this secret, Deploy ships the API alone and logs a warning. |
 | `RENDER_API_KEY` | GitHub Secrets | Deploy stage: waits for both deploys to go live |
 | `RENDER_API_URL` | GitHub Variables (not secret: it's the public URL) | Deploy stage: health check after the deploy |
 | `MONGODB_URI`, `RESEND_API_KEY`, `LLM_API_KEY`, Google OAuth, `GMAIL_TOKEN_ENCRYPTION_KEY`, `EXPO_ACCESS_TOKEN` | Render's environment (`sync: false` in `render.yaml`) | The running app. They never pass through GitHub. |
@@ -401,8 +401,8 @@ and masked in the log. Locally, secrets go in `backend/.env` (gitignored); copy
 Done once, by a repository admin:
 
 1. In Render, open **subtrak-api** > Settings > Deploy Hook and copy the URL. Add it in GitHub as
-   the secret `RENDER_DEPLOY_HOOK_API`. Do the same for **subtrak-worker** as
-   `RENDER_DEPLOY_HOOK_WORKER`.
+   the secret `RENDER_DEPLOY_HOOK_API`. If **subtrak-worker** is deployed, do the same for it as
+   `RENDER_DEPLOY_HOOK_WORKER` (optional: without it, Deploy ships the API alone).
 2. In Render, Account Settings > API Keys, create a key and add it as `RENDER_API_KEY`. Without it
    Deploy still ships, but stops once Render accepts the deploy instead of waiting for it to go live.
 3. Add the API's public URL (`https://<name>.onrender.com`) as the repository **variable**

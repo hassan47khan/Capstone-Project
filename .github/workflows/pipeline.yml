@@ -20,8 +20,9 @@
 #
 # Secrets
 #   Only Deploy uses any, all from GitHub Secrets (Settings > Secrets and
-#   variables > Actions): RENDER_DEPLOY_HOOK_API, RENDER_DEPLOY_HOOK_WORKER,
-#   and optionally RENDER_API_KEY. The app's own keys (MongoDB, Resend, Google,
+#   variables > Actions): RENDER_DEPLOY_HOOK_API, and optionally
+#   RENDER_DEPLOY_HOOK_WORKER (only if the worker is deployed) and
+#   RENDER_API_KEY. The app's own keys (MongoDB, Resend, Google,
 #   the LLM) live in Render's environment and never pass through GitHub. CI
 #   needs none of them: the Django secret key below is generated per run.
 #
@@ -328,9 +329,10 @@ jobs:
             echo "::error::GitHub secret RENDER_DEPLOY_HOOK_API is not set. See "Setting up the Deploy stage" in README.md."
             missing=1
           fi
+          # The worker may not be deployed: without its hook, Deploy ships the
+          # API alone.
           if [ -z "$HOOK_WORKER" ]; then
-            echo "::error::GitHub secret RENDER_DEPLOY_HOOK_WORKER is not set. See "Setting up the Deploy stage" in README.md."
-            missing=1
+            echo "::warning::GitHub secret RENDER_DEPLOY_HOOK_WORKER is not set, so only the API is deployed."
           fi
           exit "$missing"
 
@@ -342,6 +344,10 @@ jobs:
         run: |
           for svc in api worker; do
             if [ "$svc" = api ]; then hook="$HOOK_API"; else hook="$HOOK_WORKER"; fi
+            if [ -z "$hook" ]; then
+              echo "Skipping the $svc: no deploy hook."
+              continue
+            fi
             body=$(curl -sSf -X POST "${hook}&ref=${GITHUB_SHA}")
             deploy_id=$(echo "$body" | jq -r '.deploy.id // empty')
             service_id=$(echo "$hook" | sed -E 's#.*/deploy/(srv-[a-z0-9]+).*#\1#')
@@ -383,7 +389,10 @@ jobs:
             return 1
           }
           wait_for api "$API_SERVICE" "$API_DEPLOY"
-          wait_for worker "$WORKER_SERVICE" "$WORKER_DEPLOY"
+          # No hook, no worker deploy to wait for.
+          if [ -n "$WORKER_SERVICE" ]; then
+            wait_for worker "$WORKER_SERVICE" "$WORKER_DEPLOY"
+          fi
 
       - name: Check the live API answers
         if: ${{ env.API_URL != '' }}
