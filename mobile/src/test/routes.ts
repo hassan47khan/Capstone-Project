@@ -27,6 +27,11 @@ import type { ApiErrorBody, Subscription } from '@/api/types';
 
 import { contractHomeFor, spendFor } from './contractFixtures';
 import {
+  notificationRulesFor,
+  resetNotificationRules,
+  updateMockNotificationRules,
+} from './notificationRulesFixtures';
+import {
   cancelMockSubscription,
   createMockSubscriptionWithKey,
   deleteMockSubscription,
@@ -151,6 +156,7 @@ export function resetMockState(): void {
   subscriptionOverrides = {};
   preferences = { ...mockNotificationPreferences };
   resetCreatedSubscriptions();
+  resetNotificationRules();
 }
 
 function subscriptionsFor(email: string): Subscription[] {
@@ -362,6 +368,29 @@ export const routes: Route[] = [
       const next = { ...account.settings, ...patch };
       if (patch.currency) next.currency = patch.currency;
       return ok(next);
+    }),
+  },
+
+  // Notification Rules (09 §5), as the real server does it; see
+  // notificationRulesFixtures.ts.
+  {
+    method: 'GET',
+    pattern: '/me/notification-rules',
+    handler: protectedRoute((_request, account) =>
+      ok(notificationRulesFor(account.profile.email)),
+    ),
+  },
+
+  {
+    method: 'PATCH',
+    pattern: '/me/notification-rules',
+    handler: protectedRoute((request, account) => {
+      const result = updateMockNotificationRules(account.profile.email, request.body);
+      if (result.error) {
+        const { code, message, fields } = result.error;
+        return fail(400, code, message, fields);
+      }
+      return ok(result.rules);
     }),
   },
 
