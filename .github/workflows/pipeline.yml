@@ -1,0 +1,401 @@
+# SubTrak CI/CD pipeline.
+#
+# One workflow, four stages, run on every push to main and every pull request:
+#
+#   Setup -> Dependencies -> Test -> Deploy
+#
+#   Setup         Checks out the full history and scans it for leaked secrets,
+#                 then works out the cache keys the later stages share.
+#   Dependencies  Installs the backend (pip, into a venv) and the mobile app
+#                 (npm ci) once, and saves both to the cache.
+#   Test          Restores those caches and runs every check: ruff, migrations,
+#                 the OpenAPI schema and pytest against a real MongoDB for the
+#                 backend; the API client check, ESLint, Prettier, tsc and Jest
+#                 for the mobile app. This is the required check on main.
+#   Deploy        Only on a push to main, and only after Test passed: asks
+#                 Render to deploy exactly this commit, then waits for it.
+#
+# Audit (pip-audit) runs beside Test and only reports: advisories land in
+# unrelated packages on their own schedule, so it never blocks a merge.
+#
+# Secrets
+#   Only Deploy uses any, all from GitHub Secrets (Settings > Secrets and
+#   variables > Actions): RENDER_DEPLOY_HOOK_API, RENDER_DEPLOY_HOOK_WORKER,
+#   and optionally RENDER_API_KEY. The app's own keys (MongoDB, Resend, Google,
+#   the LLM) live in Render's environment and never pass through GitHub. CI
+#   needs none of them: the Django secret key below is generated per run.
+#
+# Why no path filters
+#   A required check that a path filter skips never reports, and the pull
+#   request waits on it forever. Every stage always runs.
+
+name: pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push to a pull request cancels its previous run. Runs on main are never
+# cancelled, so a deploy is never cut off halfway.
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Read-only token: nothing here writes to the repository.
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '22'
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend-key: ${{ steps.keys.outputs.backend }}
+      mobile-key: ${{ steps.keys.outputs.mobile }}
+    steps:
+      - name: Check out the full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Scans every commit, not just this one, so a key that was committed and
+      # then deleted still fails the run. The version is pinned and the
+      # download is checked against the release's published checksums.
+      - name: Scan the history for secrets
+        env:
+          GITLEAKS_VERSION: 8.21.2
+        run: |
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfLO "${base}/${tarball}"
+          curl -sSfL "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt" | grep " ${tarball}\$" | sha256sum --check
+          tar -xzf "${tarball}" gitleaks
+          ./gitleaks git --redact --verbose --exit-code 1 .
+
+      # Resolves PYTHON_VERSION to the exact patch release this runner has.
+      # A cached venv points at that exact interpreter, so the key must change
+      # when the runner image moves to a newer 3.12.x, or Test would restore a
+      # venv whose python no longer exists.
+      - name: Resolve the Python version
+        id: python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # One key per toolchain, from the lock files and the runtime version, so
+      # Dependencies and Test agree on exactly which cache to use.
+      - name: Work out the cache keys
+        id: keys
+        run: |
+          echo "backend=backend-venv-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('backend/requirements.txt', 'backend/requirements-dev.txt') }}" >> "$GITHUB_OUTPUT"
+          echo "mobile=mobile-node-modules-${{ runner.os }}-node${NODE_VERSION}-${{ hashFiles('mobile/package-lock.json') }}" >> "$GITHUB_OUTPUT"
+
+  dependencies:
+    name: Dependencies
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Look for cached backend dependencies
+        id: backend-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/.venv
+          key: ${{ needs.setup.outputs.backend-key }}
+
+      - name: Install backend dependencies
+        if: steps.backend-cache.outputs.cache-hit != 'true'
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements-dev.txt
+
+      - name: Save backend dependencies
+        if: steps.backend-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: backend/.venv
+          key: ${{ needs.setup.outputs.backend-key }}
+
+      - name: Look for cached mobile dependencies
+        id: mobile-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: mobile/node_modules
+          key: ${{ needs.setup.outputs.mobile-key }}
+
+      # `npm ci` rather than `npm install`: it installs exactly what the lock
+      # file says and fails if package.json and the lock have drifted.
+      - name: Install mobile dependencies
+        if: steps.mobile-cache.outputs.cache-hit != 'true'
+        working-directory: mobile
+        run: npm ci
+
+      - name: Save mobile dependencies
+        if: steps.mobile-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: mobile/node_modules
+          key: ${{ needs.setup.outputs.mobile-key }}
+
+  test:
+    name: Test
+    needs: [setup, dependencies]
+    # A job whose `needs` failed is skipped, and GitHub counts a skipped
+    # required check as passing. So Test always starts, and fails on its own
+    # first step when an earlier stage did not succeed.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DJANGO_DEBUG: 'False'
+      MONGODB_URI: mongodb://localhost:27017/subtrak
+    steps:
+      - name: Require Setup and Dependencies to have passed
+        if: ${{ needs.setup.result != 'success' || needs.dependencies.result != 'success' }}
+        run: |
+          echo "::error::Setup was '${{ needs.setup.result }}' and Dependencies was '${{ needs.dependencies.result }}'. Fix those first."
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore backend dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/.venv
+          key: ${{ needs.setup.outputs.backend-key }}
+          fail-on-cache-miss: true
+
+      - name: Restore mobile dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: mobile/node_modules
+          key: ${{ needs.setup.outputs.mobile-key }}
+          fail-on-cache-miss: true
+
+      # Settings refuse to start without a secret key. A fresh random one per
+      # run means no key, real or dummy, is written in this file.
+      - name: Generate a throwaway Django secret key
+        run: |
+          key=$(python -c 'import secrets; print(secrets.token_urlsafe(50))')
+          echo "::add-mask::${key}"
+          echo "DJANGO_SECRET_KEY=${key}" >> "$GITHUB_ENV"
+
+      - name: Put the backend venv on PATH
+        run: echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> "$GITHUB_PATH"
+
+      # The compose file starts a single-node replica set (its healthcheck
+      # initiates it), the same database a teammate gets locally. --wait
+      # returns once MongoDB accepts writes and Redis answers PING. REDIS_URL
+      # stays unset, so tests never depend on a broker.
+      - name: Start MongoDB and Redis
+        run: docker compose up -d --wait --wait-timeout 120
+
+      - name: Backend lint
+        working-directory: backend
+        run: ruff check .
+
+      - name: Backend formatting
+        working-directory: backend
+        run: ruff format --check .
+
+      # Fails when a model changed but nobody ran makemigrations.
+      - name: Backend migrations are complete
+        working-directory: backend
+        run: python manage.py makemigrations --check --dry-run
+
+      # schema.yml is the contract the mobile client is built against.
+      - name: Backend OpenAPI schema is current
+        working-directory: backend
+        run: |
+          python manage.py spectacular --file schema.yml --validate
+          git diff --exit-code -- schema.yml || {
+            echo "::error file=backend/schema.yml::schema.yml is stale. Run: python manage.py spectacular --file schema.yml --validate, then commit it."
+            exit 1
+          }
+
+      - name: Backend tests
+        working-directory: backend
+        run: pytest --cov --cov-report=term-missing --cov-report=html --cov-fail-under=90
+
+      # The committed client types must match backend/schema.yml.
+      - name: Mobile API client is current
+        working-directory: mobile
+        run: npm run api:check
+
+      - name: Mobile lint
+        working-directory: mobile
+        run: npx eslint .
+
+      - name: Mobile formatting
+        working-directory: mobile
+        run: npx prettier --check .
+
+      - name: Mobile typecheck
+        working-directory: mobile
+        run: npx tsc --noEmit
+
+      - name: Mobile tests
+        working-directory: mobile
+        run: npx jest --coverage --ci
+
+      - name: Upload coverage
+        if: ${{ !cancelled() && needs.dependencies.result == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: |
+            backend/htmlcov/
+            mobile/coverage/
+          retention-days: 14
+
+  audit:
+    name: Audit
+    needs: [setup, dependencies]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Reports, never blocks. Do not make it a required check.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Restore backend dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/.venv
+          key: ${{ needs.setup.outputs.backend-key }}
+          fail-on-cache-miss: true
+
+      - name: Audit runtime dependencies
+        working-directory: backend
+        run: .venv/bin/pip-audit -r requirements.txt
+
+  deploy:
+    name: Deploy
+    needs: test
+    # Pull requests stop after Test. Only a push to main ships.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.test.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Shows each deploy, and its commit, under the repository's Deployments.
+    environment:
+      name: production
+      url: ${{ vars.RENDER_API_URL }}
+    # Two deploys must never overlap. A newer one waits for the older to end.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+      HOOK_WORKER: ${{ secrets.RENDER_DEPLOY_HOOK_WORKER }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      API_URL: ${{ vars.RENDER_API_URL }}
+    steps:
+      - name: Check the deploy secrets are set
+        run: |
+          missing=0
+          if [ -z "$HOOK_API" ]; then
+            echo "::error::GitHub secret RENDER_DEPLOY_HOOK_API is not set. See "Setting up the Deploy stage" in README.md."
+            missing=1
+          fi
+          if [ -z "$HOOK_WORKER" ]; then
+            echo "::error::GitHub secret RENDER_DEPLOY_HOOK_WORKER is not set. See "Setting up the Deploy stage" in README.md."
+            missing=1
+          fi
+          exit "$missing"
+
+      # A Render deploy hook builds the commit named by `ref`, so what ships is
+      # exactly the commit that just passed Test. The hook URLs carry their own
+      # key, so they are secrets and are never printed.
+      - name: Deploy the API and the worker to Render
+        id: trigger
+        run: |
+          for svc in api worker; do
+            if [ "$svc" = api ]; then hook="$HOOK_API"; else hook="$HOOK_WORKER"; fi
+            body=$(curl -sSf -X POST "${hook}&ref=${GITHUB_SHA}")
+            deploy_id=$(echo "$body" | jq -r '.deploy.id // empty')
+            service_id=$(echo "$hook" | sed -E 's#.*/deploy/(srv-[a-z0-9]+).*#\1#')
+            echo "Render accepted the $svc deploy ${deploy_id:-(no id returned)} for ${GITHUB_SHA}."
+            echo "${svc}_deploy=${deploy_id}" >> "$GITHUB_OUTPUT"
+            echo "${svc}_service=${service_id}" >> "$GITHUB_OUTPUT"
+          done
+
+      # With RENDER_API_KEY set, the job waits until both deploys are live and
+      # fails if either fails, so a green Deploy means it really shipped.
+      # Without it, the job stops once Render has accepted both deploys.
+      - name: Wait for both deploys to go live
+        if: ${{ env.RENDER_API_KEY != '' }}
+        env:
+          API_DEPLOY: ${{ steps.trigger.outputs.api_deploy }}
+          API_SERVICE: ${{ steps.trigger.outputs.api_service }}
+          WORKER_DEPLOY: ${{ steps.trigger.outputs.worker_deploy }}
+          WORKER_SERVICE: ${{ steps.trigger.outputs.worker_service }}
+        run: |
+          wait_for() {
+            local label=$1 service=$2 deploy=$3 status
+            if [ -z "$deploy" ]; then
+              echo "::error::Render returned no deploy id for the $label."
+              return 1
+            fi
+            for _ in $(seq 1 90); do
+              status=$(curl -sSf -H "Authorization: Bearer ${RENDER_API_KEY}" \
+                "https://api.render.com/v1/services/${service}/deploys/${deploy}" | jq -r '.status')
+              echo "$label: $status"
+              case "$status" in
+                live) return 0 ;;
+                build_failed|update_failed|canceled|pre_deploy_failed|deactivated)
+                  echo "::error::The $label deploy ended as $status."
+                  return 1 ;;
+              esac
+              sleep 10
+            done
+            echo "::error::The $label deploy was not live after 15 minutes."
+            return 1
+          }
+          wait_for api "$API_SERVICE" "$API_DEPLOY"
+          wait_for worker "$WORKER_SERVICE" "$WORKER_DEPLOY"
+
+      - name: Check the live API answers
+        if: ${{ env.API_URL != '' }}
+        run: |
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o health.json -w '%{http_code}' "${API_URL%/}/api/v1/health/" || true)
+            if [ "$code" = 200 ]; then
+              cat health.json
+              exit 0
+            fi
+            echo "Health check answered ${code}, retrying."
+            sleep 10
+          done
+          echo "::error::${API_URL%/}/api/v1/health/ did not answer 200."
+          exit 1
