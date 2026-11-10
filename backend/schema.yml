@@ -3335,16 +3335,37 @@ components:
           type: string
           format: date
           description: Inclusive.
+        total:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Every bill in the window in the display currency, trials converting
+            left out (Calendar's month total). Null when one has no exchange rate.
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpcomingDay'
+          description: Dates that have a bill, soonest first.
+        tracking_since:
+          type:
+          - string
+          - 'null'
+          format: date
+          description: Start date of the user's earliest subscription; null when they
+            have none.
         items:
           type: array
           items:
             $ref: '#/components/schemas/UpcomingBill'
           description: By date, soonest first.
       required:
+      - days
       - display_currency
       - end
       - items
       - start
+      - total
+      - tracking_since
     UpcomingBill:
       type: object
       properties:
@@ -3407,6 +3428,26 @@ components:
       - name
       - service_mark
       - subscription_id
+    UpcomingDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        count:
+          type: integer
+          description: Bills on this date, trials converting included.
+        total:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: This date's bills in the display currency, trials converting
+            left out. Null when one has no exchange rate. Day totals add up to `total`
+            exactly.
+      required:
+      - count
+      - date
+      - total
     UrgencyEnum:
       enum:
       - soon

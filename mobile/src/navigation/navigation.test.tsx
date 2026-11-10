@@ -352,7 +352,8 @@ describe('tab stacks (03 §1)', () => {
     await waitFor(() =>
       expect(screen.queryByRole('header', { name: 'Trial Shield' })).toBeNull(),
     );
-    expect(screen.getByRole('header', { name: 'Calendar' })).toBeOnTheScreen();
+    // Calendar's root is titled with the month, not "Calendar" (11 §1).
+    expect(screen.getByTestId('calendar-title')).toBeOnTheScreen();
   });
 
   it('Connect email opens Review extraction as a modal, and no tab changes', async () => {
