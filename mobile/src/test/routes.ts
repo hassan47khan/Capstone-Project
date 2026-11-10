@@ -25,6 +25,7 @@
 
 import type { ApiErrorBody, Subscription } from '@/api/types';
 
+import { confirmMockCharge, resetCharges, unconfirmedChargesFor } from './chargeFixtures';
 import { contractHomeFor, spendFor } from './contractFixtures';
 import {
   notificationRulesFor,
@@ -157,6 +158,7 @@ export function resetMockState(): void {
   preferences = { ...mockNotificationPreferences };
   resetCreatedSubscriptions();
   resetNotificationRules();
+  resetCharges();
 }
 
 function subscriptionsFor(email: string): Subscription[] {
@@ -465,6 +467,30 @@ export const routes: Route[] = [
     handler: protectedRoute((_request, account) =>
       ok(contractHomeFor(account.profile.email).urgent),
     ),
+  },
+
+  // Charges (US-19): "Was the charge different?"; see chargeFixtures.ts.
+  {
+    method: 'GET',
+    pattern: '/charges',
+    handler: protectedRoute((_request, account) =>
+      ok(unconfirmedChargesFor(account.profile.email)),
+    ),
+  },
+
+  {
+    method: 'POST',
+    pattern: '/charges/:id/confirm',
+    handler: protectedRoute((request, account) => {
+      const result = confirmMockCharge(
+        account.profile.email,
+        request.params.id ?? '',
+        request.body,
+      );
+      if (result.status === 200) return ok(result.charge);
+      const fields = result.field ? { [result.field]: [result.message] } : undefined;
+      return fail(result.status, result.code, result.message, fields);
+    }),
   },
 
   {

@@ -75,6 +75,8 @@ export type AppStackParamList = {
   SubscriptionDetail: { id: string };
   EditSubscription: { id: string };
   EditHistory: { id: string };
+  /** "Was the charge different?" for one unconfirmed charge (US-19). */
+  ConfirmCharge: { id: string };
   SelectCurrency: undefined;
   /** A bottom sheet confirming the switch to `currency`. */
   ConfirmCurrencyChange: { currency: string };

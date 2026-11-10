@@ -20,6 +20,7 @@
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { ConfirmChargeScreen } from '@/features/charges/ConfirmChargeScreen';
 import { GalleryScreen } from '@/features/dev/GalleryScreen';
 import { ReviewExtractionScreen } from '@/features/extraction/ReviewExtractionScreen';
 import { ConfirmCurrencyChangeSheet } from '@/features/settings/ConfirmCurrencyChangeSheet';
@@ -56,6 +57,7 @@ export function AppNavigator() {
         <Stack.Screen name="SubscriptionDetail" component={SubscriptionDetailScreen} />
         <Stack.Screen name="EditSubscription" component={EditSubscriptionScreen} />
         <Stack.Screen name="EditHistory" component={EditHistoryScreen} />
+        <Stack.Screen name="ConfirmCharge" component={ConfirmChargeScreen} />
         <Stack.Screen name="SelectCurrency" component={SelectCurrencyScreen} />
         <Stack.Screen name="SelectTimeZone" component={SelectTimeZoneScreen} />
         <Stack.Screen name="NotificationRules" component={NotificationRulesScreen} />
