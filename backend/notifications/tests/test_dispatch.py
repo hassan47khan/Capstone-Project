@@ -435,14 +435,17 @@ def test_a_trial_reminder_names_its_end_date(alex):
 
 
 @pytest.mark.django_db
-def test_a_price_increase_alert_has_copy_of_its_own(reminder):
+def test_a_price_increase_alert_with_no_charge_behind_it_still_has_copy(reminder):
+    # The amounts come from the charge it was raised for (test_charges);
+    # without one there is still something true to say.
     Reminder.objects.filter(pk=reminder.pk).update(kind=Kind.PRICE_INCREASE)
     reminder.refresh_from_db()
 
     title, body = tasks.copy_for(reminder)
 
-    assert title == "Price went up"
-    assert reminder.subscription.name in body
+    name = reminder.subscription.name
+    assert title == f"{name} price increase"
+    assert body == f"The price of {name} has gone up."
 
 
 @pytest.mark.django_db

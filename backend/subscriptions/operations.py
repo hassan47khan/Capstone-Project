@@ -16,7 +16,7 @@ from django_mongodb_backend import transaction
 from core.clock import latest_today, today_for
 from notifications.scheduling import reschedule_for_subscription
 
-from .models import FxRate, PriceHistoryEvent, Subscription
+from .models import Charge, FxRate, PriceHistoryEvent, Subscription
 from .services import money
 from .services.cycles import Cycle, CycleChange, next_bill_date
 
@@ -185,6 +185,26 @@ def convert_due_trials(*, today: date) -> int:
     return len(due)
 
 
+def record_bill(sub: Subscription, charged_on: date) -> Charge:
+    """The unconfirmed charge for one bill that went by, written once.
+
+    At the price on file now: the bill was for whatever the subscription said
+    it cost. A second run for the same bill finds the first row. Confirming
+    it is subscriptions/charges.py.
+    """
+    charge, _ = Charge.objects.get_or_create(
+        subscription=sub,
+        charged_on=charged_on,
+        defaults={
+            "owner": sub.owner,
+            "expected_amount": sub.billing_price,
+            "amount": sub.billing_price,
+            "currency": sub.billing_currency,
+        },
+    )
+    return charge
+
+
 def roll_forward_bills(*, today: date | None = None) -> int:
     """Move next_bill_date past any bill that has gone by, and reschedule.
 
@@ -240,6 +260,10 @@ def _roll_one(pk, *, today: date | None, days: dict) -> bool:
     ).update(next_bill_date=sub.next_bill_date)
     if not moved:
         return False
+    # The bill that went by, for the app to ask "Was the charge different?".
+    # Only the latest one when several were missed: that is the one the
+    # user can still check against a statement.
+    record_bill(sub, passed)
     reschedule_for_subscription(sub, today=day, defer_overdue=True)
     return True
 

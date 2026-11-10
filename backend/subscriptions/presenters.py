@@ -13,7 +13,7 @@ from accounts.models import settings_for
 from core.contract import money
 
 from . import operations
-from .models import Category, PriceHistoryEvent, ServiceCatalogEntry, Subscription
+from .models import Category, Charge, PriceHistoryEvent, ServiceCatalogEntry, Subscription
 from .services import money as engine
 
 
@@ -141,4 +141,19 @@ def subscription_detail(sub: Subscription, ctx: Context) -> dict:
         "total_spent_to_date": _spent(sub, ctx),
         "saved_per_year": saved,
         "history": history(sub),
+    }
+
+
+def charge(row: Charge) -> dict:
+    """One bill that went by, in its own currency: never converted, because
+    the comparison it feeds must not move with exchange rates (US-19)."""
+    return {
+        "id": str(row.pk),
+        "subscription_id": str(row.subscription_id),
+        "name": row.subscription.name,
+        "charged_on": row.charged_on,
+        "expected": money(row.expected_amount, row.currency),
+        "amount": money(row.amount, row.currency),
+        "confirmed": row.confirmed,
+        "outcome": row.outcome,
     }

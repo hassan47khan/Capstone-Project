@@ -567,6 +567,89 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Validation failed; `error.fields` names each problem.
+  /api/v1/charges:
+    get:
+      operationId: charges_list
+      description: Bills that went by and are waiting for "Was the charge different?".
+      tags:
+      - charges
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChargeList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+  /api/v1/charges/{charge_id}/confirm:
+    post:
+      operationId: charges_confirm
+      description: |-
+        Confirm a charge as expected, or with the amount actually charged.
+
+        Higher than expected: the subscription takes the new price and, if the
+        notification rules want it, a price-increase alert goes out. Lower: the
+        new price, silently. Editing the price directly never alerts.
+        409 `charge_already_confirmed`.
+      parameters:
+      - in: path
+        name: charge_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - charges
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChargeConfirmInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChargeConfirmInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChargeConfirmInputRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
   /api/v1/devices:
     post:
       operationId: devices_register
@@ -1636,6 +1719,81 @@ components:
       description: |-
         * `email` - email
         * `share_sheet` - share_sheet
+    Charge:
+      type: object
+      properties:
+        id:
+          type: string
+        subscription_id:
+          type: string
+        name:
+          type: string
+          description: The subscription's name.
+        charged_on:
+          type: string
+          format: date
+        expected:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: The price on file when the bill went by.
+        amount:
+          allOf:
+          - $ref: '#/components/schemas/Money'
+          description: 'What was charged: the expected amount until confirmed. Both
+            are in the billing currency of the day, never converted.'
+        confirmed:
+          type: boolean
+        outcome:
+          description: |-
+            Null until confirmed. higher: the price went up and the alert was raised if the rules want it. needs_review: the subscription changed currency since, so nothing was compared.
+
+            * `higher` - Higher
+            * `lower` - Lower
+            * `same` - Same
+            * `needs_review` - Needs Review
+          oneOf:
+          - $ref: '#/components/schemas/ChargeOutcomeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - amount
+      - charged_on
+      - confirmed
+      - expected
+      - id
+      - name
+      - outcome
+      - subscription_id
+    ChargeConfirmInputRequest:
+      type: object
+      properties:
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: What was actually charged, in the charge's currency. Leave
+            it out to confirm the expected amount.
+    ChargeList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Charge'
+          description: Unconfirmed charges, newest first.
+      required:
+      - results
+    ChargeOutcomeEnum:
+      enum:
+      - higher
+      - lower
+      - same
+      - needs_review
+      type: string
+      description: |-
+        * `higher` - Higher
+        * `lower` - Lower
+        * `same` - Same
+        * `needs_review` - Needs Review
     Cooldown:
       type: object
       properties:

@@ -281,6 +281,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bills that went by and are waiting for "Was the charge different?". */
+        get: operations["charges_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/charges/{charge_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Confirm a charge as expected, or with the amount actually charged.
+         *
+         *     Higher than expected: the subscription takes the new price and, if the
+         *     notification rules want it, a price-increase alert goes out. Lower: the
+         *     new price, silently. Editing the price directly never alerts.
+         *     409 `charge_already_confirmed`.
+         */
+        post: operations["charges_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/devices": {
         parameters: {
             query?: never;
@@ -759,6 +800,47 @@ export interface components {
          * @enum {string}
          */
         ChannelEnum: "email" | "share_sheet";
+        Charge: {
+            id: string;
+            subscription_id: string;
+            /** @description The subscription's name. */
+            name: string;
+            /** Format: date */
+            charged_on: string;
+            /** @description The price on file when the bill went by. */
+            expected: components["schemas"]["Money"];
+            /** @description What was charged: the expected amount until confirmed. Both are in the billing currency of the day, never converted. */
+            amount: components["schemas"]["Money"];
+            confirmed: boolean;
+            /**
+             * @description Null until confirmed. higher: the price went up and the alert was raised if the rules want it. needs_review: the subscription changed currency since, so nothing was compared.
+             *
+             *     * `higher` - Higher
+             *     * `lower` - Lower
+             *     * `same` - Same
+             *     * `needs_review` - Needs Review
+             */
+            outcome: components["schemas"]["ChargeOutcomeEnum"] | components["schemas"]["NullEnum"];
+        };
+        ChargeConfirmInputRequest: {
+            /**
+             * Format: decimal
+             * @description What was actually charged, in the charge's currency. Leave it out to confirm the expected amount.
+             */
+            amount?: string;
+        };
+        ChargeList: {
+            /** @description Unconfirmed charges, newest first. */
+            results: components["schemas"]["Charge"][];
+        };
+        /**
+         * @description * `higher` - Higher
+         *     * `lower` - Lower
+         *     * `same` - Same
+         *     * `needs_review` - Needs Review
+         * @enum {string}
+         */
+        ChargeOutcomeEnum: "higher" | "lower" | "same" | "needs_review";
         Cooldown: {
             /** @description Keep Resend disabled for this long, with a visible countdown. */
             cooldown_seconds: number;
@@ -2130,6 +2212,97 @@ export interface operations {
             };
             /** @description Validation failed; `error.fields` names each problem. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    charges_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeList"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    charges_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                charge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ChargeConfirmInputRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ChargeConfirmInputRequest"];
+                "multipart/form-data": components["schemas"]["ChargeConfirmInputRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Charge"];
+                };
+            };
+            /** @description Validation failed; `error.fields` names each problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, expired or invalid token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found, or not yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflicts with the current state. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

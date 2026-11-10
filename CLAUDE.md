@@ -50,6 +50,8 @@ Backend, from `backend/` with MongoDB up (`docker compose up -d --wait` at the r
 - **AI input path (11 §2.1):** Gmail only, read-only (`gmail.readonly`, the narrowest scope that can search), Google OAuth in Testing mode; Outlook hidden for the MVP; no pasted text. The pipeline is input-agnostic (`raw_text → fields`, `backend/extraction/pipeline.py`) so the eval runs on fixtures. Values not found in the email are blanked and flagged, confidence is computed from checks, and nothing auto-creates: only "Confirm and track" writes a subscription.
 - **Retention (11 §2.9):** the snippet the review screen quotes (≤ 300 characters) lives on a pending extraction with a **24-hour TTL index**, deleted sooner on confirm or discard. Afterwards only the extracted fields and a SHA-256 of the message id, salted per user, remain; email bodies are never stored. Refresh tokens are Fernet-encrypted and access tokens are never stored. Disconnect revokes at Google and deletes every pending extraction. Why: email is as sensitive as the health data dropped from LabelLens, so we keep the minimum for the minimum time.
 
+- **Price-increase alerts (US-19):** only a confirmed charge raises one, never a price edit. When a bill passes, the roll-forward job writes an unconfirmed `Charge` at the price on file; `POST /charges/{id}/confirm` with a higher amount moves the price (a revision dated the charge) and queues a `price_increase` reminder due now, if the user's Price changes rules want it (threshold compared in the display currency, "changes > $X"). Amounts are compared in the charge's own currency; a currency switch since is flagged `needs_review`, not compared.
+
 (add here: Family privacy option)
 
 ## Figma

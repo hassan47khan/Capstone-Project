@@ -168,9 +168,15 @@ def reschedule_for_subscription(
                 changes |= {"state": State.PENDING, "attempts": 0}
             Reminder.objects.filter(pk=row.pk).update(updated_at=now, **changes)
 
-        Reminder.objects.filter(
+        unwanted = Reminder.objects.filter(
             subscription=sub, state__in=[State.PENDING, State.SENDING, State.RETRYING]
-        ).exclude(dedupe_key__in=keep).update(state=State.CANCELLED)
+        ).exclude(dedupe_key__in=keep)
+        if sub.status == Subscription.Status.ACTIVE:
+            # A price-increase alert is about a charge that already happened,
+            # not derived from the dates here (notifications/price_alerts.py),
+            # so an edit must not cancel it. Cancelling or deleting still does.
+            unwanted = unwanted.exclude(kind=Kind.PRICE_INCREASE)
+        unwanted.update(state=State.CANCELLED)
 
     return wanted
 

@@ -13,6 +13,8 @@ urlpatterns = [
     path("analytics/spend-over-time", views.SpendOverTimeView.as_view()),
     path("analytics/upcoming", views.UpcomingView.as_view()),
     path("analytics/price-changes", views.PriceChangesView.as_view()),
+    path("charges", views.ChargesView.as_view()),
+    path("charges/<str:charge_id>/confirm", views.ChargeConfirmView.as_view()),
     path("extractions/scan", ai_views.ScanView.as_view()),
     path("extractions/pending", ai_views.PendingExtractionsView.as_view()),
     path("extractions/<str:extraction_id>", ai_views.ExtractionView.as_view()),

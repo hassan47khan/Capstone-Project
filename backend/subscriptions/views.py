@@ -19,10 +19,13 @@ from rest_framework.views import APIView
 from core.clock import today_for
 from core.contract import ApiError, errors, not_found
 
-from . import analytics, idempotency, operations, presenters
+from . import analytics, charges, idempotency, operations, presenters
 from .models import Category, Subscription
 from .serializers import (
     STATUSES,
+    ChargeConfirmInputSerializer,
+    ChargeListSerializer,
+    ChargeSerializer,
     HistoryEventSerializer,
     PriceChangesSerializer,
     SpendOverTimeSerializer,
@@ -368,3 +371,38 @@ class PriceChangesView(APIView):
             subscription=owned(request, subscription) if subscription else None,
         )
         return Response(PriceChangesSerializer(result).data)
+
+
+# Charges (US-16, US-19) -----------------------------------------------------
+
+
+class ChargesView(APIView):
+    @extend_schema(
+        operation_id="charges_list",
+        tags=["charges"],
+        responses={200: ChargeListSerializer, **errors(401)},
+    )
+    def get(self, request):
+        """Bills that went by and are waiting for "Was the charge different?"."""
+        rows = charges.unconfirmed(request.user)
+        return Response({"results": [presenters.charge(row) for row in rows]})
+
+
+class ChargeConfirmView(APIView):
+    @extend_schema(
+        operation_id="charges_confirm",
+        tags=["charges"],
+        request=ChargeConfirmInputSerializer,
+        responses={200: ChargeSerializer, **errors(400, 401, 404, 409)},
+    )
+    def post(self, request, charge_id):
+        """Confirm a charge as expected, or with the amount actually charged.
+
+        Higher than expected: the subscription takes the new price and, if the
+        notification rules want it, a price-increase alert goes out. Lower: the
+        new price, silently. Editing the price directly never alerts.
+        409 `charge_already_confirmed`."""
+        row = charges.owned(request.user, charge_id)
+        amount = body(ChargeConfirmInputSerializer, request).get("amount")
+        row = charges.confirm(row, amount=amount, today=today_for(request.user))
+        return Response(presenters.charge(row))
