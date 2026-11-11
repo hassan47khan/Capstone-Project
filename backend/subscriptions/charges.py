@@ -1,14 +1,17 @@
-"""Bills that went by, and confirming what they really were (US-16, US-19).
+"""Bills that went by, and confirming what they really were (US-19).
 
 The system design spec's rule: only a confirmed charge can raise a
-price-increase alert. The roll-forward job records each bill as it passes at
-the price on file; the user then confirms it, or corrects the amount, and a
-correction upward is the price going up behind their back. Editing the price
-directly is the user's own change, writes a revision and never alerts.
+price-increase alert. The roll-forward job records the latest bill that went
+by at the price on file; the user then confirms it, or corrects the amount,
+and a correction upward is the price going up behind their back. Editing the
+price directly is the user's own change, writes a revision and never alerts.
+Only the latest bill alerts or moves the price; an older one is history.
 
 A charge is compared with what SubTrak expected it to be, the price on file
-when it went by, never with the display currency, so an exchange-rate move
-cannot look like a price rise.
+when it went by, not with the previous confirmed charge as spec section 9
+says: that would alert on a price the user typed in themselves between two
+bills, which the same section forbids (errata, 2026-11-11). Never in the
+display currency either, so an exchange-rate move cannot look like a rise.
 """
 
 from datetime import date
@@ -90,10 +93,14 @@ def confirm(charge: Charge, *, amount: Decimal | None, today: date) -> Charge:
     charge.refresh_from_db()
 
     sub = charge.subscription
+    # Only the latest bill moves the price. An older one, confirmed after a
+    # newer bill has gone by, is history: repricing from its date would
+    # rewrite every figure since (spec section 9's backfilled events).
     if (
         outcome in (Outcome.HIGHER, Outcome.LOWER)
         and sub.status == Subscription.Status.ACTIVE
         and sub.billing_price == charge.expected_amount
+        and price_alerts.is_latest_bill(charge, today=today)
     ):
         operations.update_subscription(
             sub, today=today, at=operations.at_start_of(charge.charged_on), billing_price=amount

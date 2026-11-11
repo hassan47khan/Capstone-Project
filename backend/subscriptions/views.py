@@ -373,7 +373,7 @@ class PriceChangesView(APIView):
         return Response(PriceChangesSerializer(result).data)
 
 
-# Charges (US-16, US-19) -----------------------------------------------------
+# Charges (US-19) ------------------------------------------------------------
 
 
 class ChargesView(APIView):

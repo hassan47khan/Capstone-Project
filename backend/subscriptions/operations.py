@@ -18,7 +18,7 @@ from notifications.scheduling import reschedule_for_subscription
 
 from .models import Charge, FxRate, PriceHistoryEvent, Subscription
 from .services import money
-from .services.cycles import Cycle, CycleChange, next_bill_date
+from .services.cycles import Cycle, CycleChange, bill_dates, next_bill_date
 
 Event = PriceHistoryEvent.EventType
 logger = logging.getLogger(__name__)
@@ -185,6 +185,16 @@ def convert_due_trials(*, today: date) -> int:
     return len(due)
 
 
+def latest_bill_before(sub: Subscription, day: date) -> date | None:
+    """The last bill date strictly before `day`, on the cycle history; None
+    when nothing has been billed yet."""
+    initial, changes = cycle_timeline(sub)
+    latest = None
+    for latest in bill_dates(sub.start_date, initial, changes, before=day):  # noqa: B007
+        pass
+    return latest
+
+
 def record_bill(sub: Subscription, charged_on: date) -> Charge:
     """The unconfirmed charge for one bill that went by, written once.
 
@@ -261,9 +271,10 @@ def _roll_one(pk, *, today: date | None, days: dict) -> bool:
     if not moved:
         return False
     # The bill that went by, for the app to ask "Was the charge different?".
-    # Only the latest one when several were missed: that is the one the
-    # user can still check against a statement.
-    record_bill(sub, passed)
+    # Only the latest one when several were missed (`passed` is the oldest):
+    # that is the one the user can still check against a statement, and the
+    # only one recent enough to alert about (charges.py).
+    record_bill(sub, latest_bill_before(sub, day))
     reschedule_for_subscription(sub, today=day, defer_overdue=True)
     return True
 

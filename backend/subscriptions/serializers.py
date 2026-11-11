@@ -549,7 +549,7 @@ class GmailConnectionSerializer(serializers.Serializer):
     connected_at = serializers.DateTimeField()
 
 
-# Charges (US-16, US-19) -----------------------------------------------------
+# Charges (US-19) ------------------------------------------------------------
 
 
 class ChargeConfirmInputSerializer(serializers.Serializer):

@@ -15,11 +15,10 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.utils import timezone
 
 from accounts.models import rules_for
+from subscriptions.services.money import label
 
 from .models import Reminder
 from .scheduling import dedupe_key, target_date_of
-
-_SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "INR": "₹"}
 
 
 def wanted(charge, *, today: date) -> bool:
@@ -41,9 +40,22 @@ def wanted(charge, *, today: date) -> bool:
     return rise is None or rise > rules.price_alert_threshold
 
 
+def is_latest_bill(charge, *, today: date) -> bool:
+    """Whether no newer bill of this subscription has gone by since.
+
+    A bill older than the current cycle is a backfilled past event (spec
+    section 9): it is recorded and asked about, but it never pushes. A
+    notification today about a January bill would be news about nothing.
+    """
+    from subscriptions.operations import latest_bill_before  # operations imports scheduling
+
+    return charge.charged_on == latest_bill_before(charge.subscription, today)
+
+
 def raise_for(charge, *, today: date) -> Reminder | None:
-    """Queue the alert for a charge that came in higher, if the rules want it."""
-    if not wanted(charge, today=today):
+    """Queue the alert for a charge that came in higher, if it is the latest
+    bill and the rules want it."""
+    if not is_latest_bill(charge, today=today) or not wanted(charge, today=today):
         return None
     reminder, _ = Reminder.objects.get_or_create(
         dedupe_key=dedupe_key(
@@ -57,14 +69,6 @@ def raise_for(charge, *, today: date) -> Reminder | None:
         },
     )
     return reminder
-
-
-def _label(amount: Decimal, currency: str) -> str:
-    from subscriptions.services.money import round_money
-
-    value = round_money(amount, currency)
-    symbol = _SYMBOLS.get(currency)
-    return f"{symbol}{value}" if symbol else f"{value} {currency}"
 
 
 def percent_change(old: Decimal, new: Decimal) -> Decimal:
@@ -91,6 +95,6 @@ def copy_for(reminder: Reminder) -> tuple[str, str]:
         return title, f"The price of {name} has gone up."
     old, new = charge.expected_amount, charge.amount
     return title, (
-        f"Charged {_label(new, charge.currency)} on {charged_on:%b} {charged_on.day}, "
-        f"up from {_label(old, charge.currency)} (+{percent_change(old, new)}%)."
+        f"Charged {label(new, charge.currency)} on {charged_on:%b} {charged_on.day}, "
+        f"up from {label(old, charge.currency)} (+{percent_change(old, new)}%)."
     )
