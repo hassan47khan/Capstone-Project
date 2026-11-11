@@ -217,6 +217,8 @@ export function toConfirmInput(values: ReviewValues): SubscriptionInputRequest {
     trial_ends_on: values.isTrial ? values.trialEndsOn : null,
     trial_length_days: values.isTrial ? trialLength(values) : null,
     trial_reminder_enabled: values.reminderEnabled,
+    // Review has no Private switch; it can be turned on later in Edit (10 §2).
+    is_private: false,
   };
 }
 

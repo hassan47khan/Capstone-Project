@@ -119,6 +119,13 @@ class SubscriptionInputSerializer(serializers.Serializer):
         min_value=1, max_value=366, required=False, allow_null=True
     )
     trial_reminder_enabled = serializers.BooleanField(required=False, default=True)
+    is_private = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "Hide the name from the rest of your family. It still counts in the family total."
+        ),
+    )
 
     def validate_name(self, value):
         value = value.strip()
@@ -223,6 +230,9 @@ class SubscriptionSerializer(CycleFieldsMixin):
     trial_length_days = serializers.IntegerField(allow_null=True)
     trial_reminder_enabled = serializers.BooleanField()
     trial_decision = serializers.ChoiceField(choices=TRIAL_DECISIONS)
+    is_private = serializers.BooleanField(
+        help_text="Hidden from the rest of the caller's family (10 §2); still in its total."
+    )
     counts_toward_totals = serializers.BooleanField(
         help_text="False for cancelled subscriptions and trials that have not converted."
     )
