@@ -63,6 +63,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // SDK 58 asks for both packages' config plugins to be declared.
     '@react-native-community/datetimepicker',
     'expo-status-bar',
+    // expo-web-browser and expo-crypto (Connect Gmail) need no entry: crypto
+    // ships no plugin, and web-browser's only changes Android when
+    // `experimentalLauncherActivity` is set. Its Custom Tabs <queries> and
+    // proxy activity come from the library's own AndroidManifest, merged at
+    // build time.
     // Biometric unlock on Log In (handoff 05 §5). iOS shows this string the
     // first time the app asks for Face ID.
     [
