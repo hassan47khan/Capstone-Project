@@ -83,6 +83,23 @@ describe('Shared plans screen', () => {
     expect(within(card).getByText('Sam still owes you for Netflix')).toBeOnTheScreen();
   });
 
+  it('shares with no exchange rate are said to be left out of Outstanding', async () => {
+    server.use(
+      http.get('*/shared-plans', () =>
+        HttpResponse.json({ ...alexSharedPlans, unconverted_count: 1 }),
+      ),
+    );
+    await renderPlans();
+    const card = await screen.findByTestId('shared-outstanding');
+    expect(within(card).getByText('1 not counted, no exchange rate')).toBeOnTheScreen();
+  });
+
+  it('nothing is said about exchange rates when every share is counted', async () => {
+    await renderPlans();
+    await screen.findByTestId('shared-outstanding');
+    expect(screen.queryByTestId('shared-not-counted')).toBeNull();
+  });
+
   it('only pending people get a Remind button, never the owner', async () => {
     await renderPlans();
     await screen.findByTestId('plan-plan-netflix');
