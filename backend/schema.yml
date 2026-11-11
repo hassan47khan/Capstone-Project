@@ -947,6 +947,153 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Not found, or not yours.
+  /api/v1/family/invitations:
+    post:
+      operationId: family_invitations_create
+      description: |-
+        Email an invitation that lasts 7 days. Admins only.
+
+        409 `already_member`, `already_invited` (resend it instead) or
+        `seat_limit_reached` (offer the upgrade).
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InviteInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InviteInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+  /api/v1/family/invitations/{invitation_id}:
+    delete:
+      operationId: family_invitations_revoke
+      description: 'Revoke: the link stops working and the seat is free again. Admins
+        only.'
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/family/invitations/{invitation_id}/resend:
+    post:
+      operationId: family_invitations_resend
+      description: |-
+        Send a new link with 7 more days; the old link stops working. Admins only.
+
+        409 `invitation_accepted` / `invitation_revoked` / `invitation_expired` (replaced
+        by a newer invite), or `seat_limit_reached`
+        for an expired one when no seat is free.
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
   /api/v1/family/members/{membership_id}:
     get:
       operationId: family_members_retrieve
@@ -1172,6 +1319,121 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+  /api/v1/invitations/accept:
+    post:
+      operationId: invitations_accept
+      description: |-
+        Join the family. Needs a verified email matching the invitation.
+
+        403 `wrong_account` / `email_unverified`; 404 `invitation_not_found`;
+        409 `invitation_accepted` / `already_in_family`; 410 `invitation_expired` /
+        `invitation_revoked`.
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Gone: it existed, but has expired or was cancelled.'
+  /api/v1/invitations/preview:
+    post:
+      operationId: invitations_preview
+      description: |-
+        What the accept screen shows. `problem` says why the signed-in user
+        can't accept it, if they can't. 404 `invitation_not_found`.
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationPreview'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
   /api/v1/me:
     get:
       operationId: me_retrieve
@@ -2310,6 +2572,19 @@ components:
           type: integer
         seats_used:
           type: integer
+        seats_taken:
+          type: integer
+          description: 'Members plus invitations still pending: what the seat limit
+            counts.'
+        can_invite:
+          type: boolean
+          description: False for non-admins and when every seat is taken (show the
+            upgrade prompt).
+        invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invitation'
+          description: Pending and expired invitations. Admins only; empty otherwise.
         display_currency:
           type: string
         shared_timezone:
@@ -2337,13 +2612,16 @@ components:
           items:
             $ref: '#/components/schemas/FamilyMember'
       required:
+      - can_invite
       - display_currency
       - fiscal_year_start
       - id
+      - invitations
       - members
       - name
       - plan
       - seat_limit
+      - seats_taken
       - seats_used
       - shared_timezone
       - total
@@ -2376,7 +2654,7 @@ components:
           type: string
           format: email
         role:
-          $ref: '#/components/schemas/RoleEnum'
+          $ref: '#/components/schemas/FamilyRoleEnum'
         is_you:
           type: boolean
         subscription_count:
@@ -2422,7 +2700,7 @@ components:
           type: string
           format: email
         role:
-          $ref: '#/components/schemas/RoleEnum'
+          $ref: '#/components/schemas/FamilyRoleEnum'
         is_you:
           type: boolean
         can_add_subscriptions:
@@ -2464,6 +2742,16 @@ components:
       - total
       - unconverted_count
       - user_id
+    FamilyRoleEnum:
+      enum:
+      - admin
+      - member
+      - viewer
+      type: string
+      description: |-
+        * `admin` - admin
+        * `member` - member
+        * `viewer` - viewer
     FamilySubscription:
       type: object
       description: |-
@@ -2661,6 +2949,104 @@ components:
           description: 'Null: there is nothing to say; hide the card.'
       required:
       - insight
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        status:
+          $ref: '#/components/schemas/InvitationStatusEnum'
+        expires_at:
+          type: string
+          format: date-time
+        sent_at:
+          type: string
+          format: date-time
+      required:
+      - email
+      - expires_at
+      - id
+      - role
+      - sent_at
+      - status
+    InvitationPreview:
+      type: object
+      properties:
+        family_name:
+          type: string
+        invited_by:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        status:
+          $ref: '#/components/schemas/InvitationStatusEnum'
+        expires_at:
+          type: string
+          format: date-time
+        problem:
+          description: |-
+            Why it can't be accepted by the signed-in user; null when it can.
+
+            * `expired` - expired
+            * `accepted` - accepted
+            * `revoked` - revoked
+            * `wrong_account` - wrong_account
+            * `already_member` - already_member
+            * `in_another_family` - in_another_family
+          oneOf:
+          - $ref: '#/components/schemas/ProblemEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - email
+      - expires_at
+      - family_name
+      - invited_by
+      - problem
+      - role
+      - status
+    InvitationStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - expired
+      - revoked
+      type: string
+      description: |-
+        * `pending` - pending
+        * `accepted` - accepted
+        * `expired` - expired
+        * `revoked` - revoked
+    InvitationTokenRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: From the invitation link.
+          maxLength: 200
+      required:
+      - token
+    InviteInputRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        role:
+          allOf:
+          - $ref: '#/components/schemas/FamilyRoleEnum'
+          default: member
+      required:
+      - email
     KindEnum:
       enum:
       - price_change
@@ -2928,7 +3314,7 @@ components:
       type: object
       properties:
         role:
-          $ref: '#/components/schemas/RoleEnum'
+          $ref: '#/components/schemas/FamilyRoleEnum'
         can_add_subscriptions:
           type: boolean
         can_edit_own_subs:
@@ -3240,6 +3626,22 @@ components:
       required:
       - display_currency
       - items
+    ProblemEnum:
+      enum:
+      - expired
+      - accepted
+      - revoked
+      - wrong_account
+      - already_member
+      - in_another_family
+      type: string
+      description: |-
+        * `expired` - expired
+        * `accepted` - accepted
+        * `revoked` - revoked
+        * `wrong_account` - wrong_account
+        * `already_member` - already_member
+        * `in_another_family` - in_another_family
     ProviderEnum:
       enum:
       - gmail
@@ -3319,16 +3721,6 @@ components:
       - message
       - next_reminder_available_at
       - payment_id
-    RoleEnum:
-      enum:
-      - admin
-      - member
-      - viewer
-      type: string
-      description: |-
-        * `admin` - admin
-        * `member` - member
-        * `viewer` - viewer
     Scan:
       type: object
       properties:
@@ -4173,7 +4565,7 @@ components:
         membership_id:
           type: string
         role:
-          $ref: '#/components/schemas/RoleEnum'
+          $ref: '#/components/schemas/FamilyRoleEnum'
         may_add_subscriptions:
           type: boolean
         may_edit_subscriptions:
