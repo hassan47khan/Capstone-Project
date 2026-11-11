@@ -9,6 +9,7 @@
  *   subtrak://verify-email?token=…      → EmailConfirmed      (Auth)
  *   subtrak://reset-password?token=…    → CreateNewPassword   (Auth)
  *   subtrak://subscription/:id          → SubscriptionDetail  (App)
+ *   subtrak://family-invite?token=…     → FamilyInvite        (App, 10 §3.5)
  *   The subscription path is singular, as 03 specifies; the Phase-0 plural
  *   `subscriptions/:id` is gone.
  *
@@ -55,6 +56,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
       App: {
         screens: {
           SubscriptionDetail: 'subscription/:id',
+          FamilyInvite: 'family-invite',
         },
       },
     },

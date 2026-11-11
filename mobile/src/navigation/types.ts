@@ -12,11 +12,13 @@
  *   └── App
  *       ├── MainTabs: Home · Calendar · Analytics · Settings  (+ the FAB)
  *       │     Calendar → stack: CalendarMain, TrialShield
- *       │     Settings → stack: SettingsMain, SharedPlans, ConnectEmail
- *       └── modal group, presented over the tabs
+ *       │     Settings → stack: SettingsMain, SharedPlans, ConnectEmail,
+ *       │                      Family, FamilyMember
+ *       └── modal group, presented over the tabs (incl. FamilyInvite)
  *
  * Deliberately absent (03 §7): Welcome/landing, the feature tour, Admin Log In,
- * the Paywall, and the Family tab (handoff 10, a stretch goal).
+ * the Paywall, and a Family tab. Family (handoff 10, a stretch goal) is pushed
+ * from Settings instead, so the four tabs stay as 03 specifies.
  */
 
 import type { NavigatorScreenParams } from '@react-navigation/native';
@@ -58,6 +60,10 @@ export type SettingsStackParamList = {
   SettingsMain: undefined;
   SharedPlans: undefined;
   ConnectEmail: undefined;
+  /** Handoff 10 §3.1, §3.3. */
+  Family: undefined;
+  /** `id` is the membership id (10 §3.4). */
+  FamilyMember: { id: string };
 };
 
 /** The four bottom tabs. The FAB between Calendar and Analytics is not a tab. */
@@ -83,6 +89,11 @@ export type AppStackParamList = {
   ProfileAccount: undefined;
   /** One pending extraction from a Gmail scan, by id (handoff 11 §2.4). */
   ReviewExtraction: { id: string };
+  /**
+   * subtrak://family-invite?token=… (10 §3.5). Optional for the same reason as
+   * EmailConfirmed's: a malformed link can omit it.
+   */
+  FamilyInvite: { token?: string } | undefined;
   /** Dev-only component gallery. Registered only when `__DEV__` is true. */
   DevGallery: undefined;
 };
