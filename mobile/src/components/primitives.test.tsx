@@ -112,6 +112,8 @@ describe('Badge', () => {
     ['success', 'successSurface', 'success'],
     ['neutral', 'surface2', 'text'],
     ['warning', 'warningSurface', 'text'],
+    // `10 §3.3`'s Admin badge: `accent` @ 10% fill with `accent` text.
+    ['accent', 'accentSurface', 'accent'],
   ] as const)('tone %s pairs its measured fill and text', async (tone, fill, text) => {
     // `neutral` and `warning` take `text`, not `textMuted`: muted grey is
     // 4.28:1 on surface2 and 4.22:1 on the warning tint — both AA failures.
