@@ -26,6 +26,10 @@ urlpatterns = [
         "shared-plans/<str:plan_id>/payments/<str:payment_id>/remind",
         ai_views.RemindView.as_view(),
     ),
+    path(
+        "shared-plans/<str:plan_id>/payments/<str:payment_id>/paid",
+        ai_views.MarkPaidView.as_view(),
+    ),
     path("integrations/gmail/connect", ai_views.GmailConnectView.as_view()),
     path("integrations/gmail", ai_views.GmailView.as_view()),
 ]
