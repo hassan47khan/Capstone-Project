@@ -11,7 +11,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from . import fx
-from .operations import convert_due_trials
+from .operations import convert_due_trials, roll_forward_bills
 
 
 @shared_task(name="subscriptions.tasks.convert_expired_trials")
@@ -24,6 +24,17 @@ def convert_expired_trials(today: str | None = None) -> int:
     """
     day = date.fromisoformat(today) if today else timezone.localdate()
     return convert_due_trials(today=day)
+
+
+@shared_task(name="subscriptions.tasks.roll_forward_renewals")
+def roll_forward_renewals(today: str | None = None) -> int:
+    """Move next_bill_date past bills that have gone by, and reschedule their
+    reminders. Without this each subscription gets only one renewal alert.
+
+    `today` is an ISO date string, because the only serializer is JSON. Unset,
+    each subscription uses its owner's local date.
+    """
+    return roll_forward_bills(today=date.fromisoformat(today) if today else None)
 
 
 @shared_task(
