@@ -20,13 +20,13 @@ Capstone project, CSC 325.
 
 ## Project Status
 
-The backend's stories are built and tested; the mobile screens are still placeholders.
+The backend's stories are built, tested and live on Render. On mobile, the auth screens, Home, Analytics, Subscriptions and the Settings root are built; the AI and family screens are in review.
 
 | Area | State |
 | --- | --- |
-| Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction and the AI insight card are built; shared plans still answer from `backend/mocks.py`. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
-| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. 419 tests. Every screen is still a placeholder. |
-| CI | `mobile-ci` and `backend-ci` both run on every push and pull request, both green on `main`. `verify` and `backend-verify` are required checks — see [Continuous Integration](#continuous-integration). |
+| Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction, shared plans and the AI insight card are built. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
+| Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. Built since: auth (05), Home (06), Analytics (08) and the Settings root (09). Calendar, Gmail extraction and shared plans are still placeholders on `main`. |
+| CI/CD | One pipeline (Setup, Dependencies, Test, Deploy) runs on every push and pull request to `main`; Deploy ships tested commits to Render. `Test` is the required check — see [CI/CD Pipeline](#cicd-pipeline). |
 | Docs | System design specification is done. Developer handoff specs `00`–`12` are in `docs/handoff/`. Team notes live in the `Capstone_CSC325/` Obsidian vault. |
 
 ## Repository Structure
@@ -50,7 +50,7 @@ The backend's stories are built and tested; the mobile screens are still placeho
 ├── docs/handoff/     # Developer handoff specs 00–12, one per task area
 ├── Capstone_CSC325/  # Obsidian vault: shared team notes (see Contributing)
 ├── docker-compose.yml  # Local MongoDB (single-node replica set); CI uses it too
-├── .github/workflows # CI pipelines
+├── .github/workflows # pipeline.yml: the CI/CD pipeline
 ├── CLAUDE.md         # Rules for AI coding sessions (Claude Code)
 └── AGENTS.md         # Same rules for other AI agents; points to CLAUDE.md
 ```
@@ -216,7 +216,8 @@ lives in `backend/schema.yml` and is also served at runtime.
 ### Deploying
 
 The backend deploys to Render from `render.yaml`: the API, one Celery worker with the scheduler
-inside it, and Redis. MongoDB stays on Atlas. Read [`docs/ops/backend-deploy.md`](docs/ops/backend-deploy.md)
+inside it, and Redis. Deploys run only from the pipeline's Deploy stage, after Test passes on `main`
+(see [CI/CD Pipeline](#cicd-pipeline)). MongoDB stays on Atlas. Read [`docs/ops/backend-deploy.md`](docs/ops/backend-deploy.md)
 before the first deploy; its rules section is what stops a deploy doing damage.
 
 ### Backend status
@@ -234,9 +235,14 @@ Built and tested (1,350 tests at 98% coverage, measured 2026-10-30):
   and computes its confidence, a review queue where nothing becomes a subscription until
   confirmed, and an eval on 25 hand-labelled emails (`docs/ai/extraction-eval.md`).
 - **AI insight card (`08 §2.0`):** one sentence about computed facts, with every number checked.
+- **Shared plans (`11 §2.6`):** split a bill equally to the cent, track who has paid each month,
+  and remind by email or share sheet (once a day). Totals still count the full bill.
+- **Family (`10`):** a family total and member totals the server works out, roles and
+  per-member permissions enforced on every subscription write, private subscriptions (counted,
+  never named), last-admin guards, and emailed invitations (7 days, resend, revoke, seat limit).
 - **Deployment:** `render.yaml` and the [runbook](docs/ops/backend-deploy.md).
 
-Still mocked: **shared plans** (`backend/mocks.py`).
+Nothing answers from a mock any more; `backend/mocks.py` is gone.
 
 ## Getting Started — Mobile
 
@@ -300,8 +306,9 @@ All run from `mobile/`.
 
 Phase 0 is complete: the Expo scaffold, design tokens, 20 UI primitives with
 tests, the API layer, the mock backend, session handling and the navigation
-shell, including the AI-epic routes from handoff 11. **Every screen is still a
-placeholder** — Epic A is Phase 1, Epic C is Phase 2, Epic B is Phase 3. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
+shell, including the AI-epic routes from handoff 11. On top of it, the auth
+screens (05), Home (06), Subscriptions (07), Analytics (08) and Settings (09) are
+built. The AI-epic screens (11) are still placeholders. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
 
 The tokens follow the Figma design: DM Serif Display and DM Sans, with light and
 dark themes that follow the phone's setting. Components read colours through
@@ -321,43 +328,114 @@ There is no device or simulator on the development machine. What is verified is
 scaling, the live light/dark switch and native modules are **not** verified. Run
 the app in Expo Go on a phone to check those.
 
-## Continuous Integration
+## CI/CD Pipeline
 
-Workflows live in `.github/workflows/`. Both run on every push to `main` and every pull request,
-with no path filters: a required check that a path filter skips never reports, and the pull request
-waits on it forever. Job ids become check names, so they are unique across the two workflows and
-each can be made a required check.
+One workflow, [`.github/workflows/pipeline.yml`](.github/workflows/pipeline.yml), runs on every push
+to `main` and every pull request to `main`. It has four stages, each a job that waits for the one
+before it:
 
-| Workflow | Job | What it runs |
-| --- | --- | --- |
-| `mobile-ci.yml` | `verify` | ESLint, Prettier, `tsc --noEmit`, Jest with coverage |
-| `backend-ci.yml` | `backend-verify` | ruff check and format, `makemigrations --check`, stale-schema check, pytest against the compose MongoDB with a 90% coverage floor |
-| `backend-ci.yml` | `backend-audit` | `pip-audit` on `requirements.txt`, reporting only — `continue-on-error`, so an advisory in an unrelated package never blocks a pull request. Do not make it a required check. |
+```
+Setup ──► Dependencies ──► Test ──► Deploy (push to main only)
+                      └──► Audit (reports only)
+```
 
-Both are green on `main`. The most recent backend run: ruff clean, no missing migrations, schema
-current, 26 tests passed, 94.41% coverage, no known vulnerabilities (run on `9df066b`, 2026-10-20).
+| Stage | What it does |
+| --- | --- |
+| **Setup** | Checks out the full history and scans every commit for secrets with gitleaks (version pinned, download checked against the release checksums). Works out the cache keys the next stages share, from the lock files. |
+| **Dependencies** | Installs the backend into `backend/.venv` (`pip install -r requirements-dev.txt`) and the mobile app (`npm ci`), and caches both. A run with unchanged lock files reuses the cache. |
+| **Test** | Restores both caches, starts MongoDB and Redis from `docker-compose.yml`, then runs every check. Backend: ruff check and format, `makemigrations --check`, the stale-schema check, and pytest against the real MongoDB with a 90% coverage floor. Mobile: the generated API client check, ESLint, Prettier, `tsc --noEmit` and Jest. Coverage reports are uploaded as an artifact. |
+| **Deploy** | Only on a push to `main`, and only when Test passed. Calls the Render deploy hook for the API (and the worker's, if its hook is set) with `ref` set to the commit that was just tested, waits until they're live, then checks `/api/v1/health/` on the live API. Pull requests stop after Test. |
+| Audit | `pip-audit` on `requirements.txt`, beside Test. It reports and never blocks: advisories land in unrelated packages on their own schedule. Not a required check. |
 
-`backend-ci` brings up MongoDB from the repository's `docker-compose.yml` rather than a service
-container, because the compose healthcheck is what initiates the replica set — so CI tests the same
-database a teammate gets locally.
+Details worth knowing:
 
-**Required checks.** The `main-protection` ruleset lists `verify` and `backend-verify` as
-required status checks (checked 2026-10-20), so a pull request with a red CI run cannot merge.
-`backend-audit` is deliberately not required.
+- **No path filters.** A required check that a path filter skips never reports, and the pull request
+  waits on it forever. Every stage always runs.
+- **Test can't be skipped into passing.** GitHub counts a skipped required check as passed, and a job
+  is skipped when a stage it needs fails. So Test always starts, and its first step fails when Setup
+  or Dependencies did not succeed.
+- **Render no longer deploys on its own.** `autoDeployTrigger` is `"off"` in `render.yaml`, so the
+  Deploy stage is the only way code reaches production, and only tested commits get there.
+- **The database in CI is the one you run locally.** `docker compose up -d --wait` starts a
+  single-node replica set; the compose healthcheck initiates it, which a service container can't do.
 
 ### Keeping the OpenAPI schema current
 
-`backend/schema.yml` is the generated contract the mobile client is built against. It is an OpenAPI
-document, not a workflow, so it stays in `backend/` beside the code that generates it. Regenerate
-and commit it with any API change:
+`backend/schema.yml` is the generated contract the mobile client is built against. Regenerate and
+commit it with any API change:
 
 ```bash
 cd backend
 python manage.py spectacular --file schema.yml --validate
 ```
 
-`backend-verify` enforces this: it regenerates the file and fails on `git diff --exit-code`, so a
-stale schema cannot reach `main`.
+The Test stage regenerates it and fails on `git diff --exit-code`, so a stale schema cannot reach
+`main`. The same goes for the mobile client: run `npm run api:generate` in `mobile/` after a schema
+change.
+
+## Branch Protection
+
+`main` is protected by the `main-protection` ruleset (Settings > Rules > Rulesets). It enforces:
+
+- **No direct pushes.** Every change reaches `main` through a pull request. Force pushes and deleting
+  the branch are blocked too.
+- **One approving review from a teammate.** A new push dismisses stale approvals, and every review
+  thread must be resolved before merge.
+- **The `Test` stage must pass** (required status check `Test`), so a pull request with a red
+  pipeline cannot merge.
+- **Squash merges only**, which keeps history linear.
+
+## Secrets
+
+No API key, token or password is in the code, the workflow file or the commit history. The Setup
+stage enforces that on every run by scanning the whole history.
+
+| Secret | Where it lives | Used by |
+| --- | --- | --- |
+| `RENDER_DEPLOY_HOOK_API` | GitHub Secrets (Settings > Secrets and variables > Actions) | Deploy stage: deploys the API |
+| `RENDER_DEPLOY_HOOK_WORKER` | GitHub Secrets (optional) | Deploy stage: deploys the Celery worker. Without this secret, Deploy ships the API alone and logs a warning. |
+| `RENDER_API_KEY` | GitHub Secrets | Deploy stage: waits for both deploys to go live |
+| `RENDER_API_URL` | GitHub Variables (not secret: it's the public URL) | Deploy stage: health check after the deploy |
+| `MONGODB_URI`, `RESEND_API_KEY`, `LLM_API_KEY`, Google OAuth, `GMAIL_TOKEN_ENCRYPTION_KEY`, `EXPO_ACCESS_TOKEN` | Render's environment (`sync: false` in `render.yaml`) | The running app. They never pass through GitHub. |
+
+CI itself needs no secrets. The Django secret key the tests need is generated fresh on every run
+and masked in the log. Locally, secrets go in `backend/.env` (gitignored); copy
+`backend/.env.example`, which holds placeholders only.
+
+### Setting up the Deploy stage
+
+Done once, by a repository admin:
+
+1. In Render, open **subtrak-api** > Settings > Deploy Hook and copy the URL. Add it in GitHub as
+   the secret `RENDER_DEPLOY_HOOK_API`. If **subtrak-worker** is deployed, do the same for it as
+   `RENDER_DEPLOY_HOOK_WORKER` (optional: without it, Deploy ships the API alone).
+2. In Render, Account Settings > API Keys, create a key and add it as `RENDER_API_KEY`. Without it
+   Deploy still ships, but stops once Render accepts the deploy instead of waiting for it to go live.
+3. Add the API's public URL (`https://<name>.onrender.com`) as the repository **variable**
+   `RENDER_API_URL`.
+4. In Render, sync the Blueprint so `autoDeployTrigger: "off"` takes effect; otherwise Render
+   deploys every commit a second time on its own.
+
+If a hook URL ever leaks, regenerate it in Render and update the secret: the old URL stops working.
+
+## Your First Change, Start to Finish
+
+A new teammate can ship a change without asking anyone:
+
+1. Clone the repository and follow [Getting Started — Backend](#getting-started--backend) and
+   [Getting Started — Mobile](#getting-started--mobile).
+2. Pick a story on the [Kanban board](https://github.com/users/hassan47khan/projects/2), assign it to
+   yourself and move it to In Progress.
+3. Branch from `main`, named for the story: `git checkout -b feature/US-7-manual-entry`.
+4. Make the change with at least one test that checks the story's acceptance criteria. Run the
+   checks locally first: `npm run verify` in `mobile/`, and `ruff check . && pytest` in `backend/`.
+5. Push and open a pull request to `main`. Write `Closes #<issue>` in the description so it links
+   to the Kanban card.
+6. The pipeline runs Setup, Dependencies and Test on the pull request. Fix anything red and push
+   again; the run restarts by itself.
+7. Ask a teammate for a review. Once it's approved and Test is green, squash-merge.
+8. The merge is a push to `main`, so the pipeline runs again, this time with Deploy, and ships the
+   commit to Render. Watch it under the repository's Actions tab.
 
 ## Screenshots
 
@@ -370,12 +448,7 @@ Branches are short-lived and named for the story, such as `feature/US-7-manual-e
 stay under about 400 changed lines, link their issue, and carry a Definition of Done checklist plus
 an AI-use note (tool, task, what you changed or verified) wherever AI wrote non-trivial code.
 
-`main` is protected by the `main-protection` ruleset. What it enforces today:
-
-- A pull request with **one approving review**. A push to the branch dismisses stale approvals.
-- All review threads resolved before merge.
-- **Squash merges only**, keeping history linear. Force-pushes and branch deletion are blocked.
-- `verify` (mobile) and `backend-verify` must pass.
+`main` is protected; see [Branch Protection](#branch-protection).
 
 Run the checks locally before pushing — `npm run verify` in `mobile/`, and `ruff check . && pytest`
 in `backend/` — rather than using CI as the first check.
@@ -576,6 +649,6 @@ Tool: Maestro (or Detox with an Expo development build); run manually at each sp
 
 ### Execution and exit criteria
 
-- Unit and integration tests run automatically in **GitHub Actions** on every pull request. `verify` and `backend-verify` are required checks (see [Continuous Integration](#continuous-integration)), so a PR cannot merge if they fail.
+- Unit and integration tests run automatically in **GitHub Actions** on every pull request. The pipeline's `Test` stage is the required check (see [CI/CD Pipeline](#cicd-pipeline)), so a PR cannot merge if it fails.
 - Each user story's acceptance criteria are checked against the matching E2E or manual test before the story moves to Done on the Kanban board.
 - **Exit criteria per sprint:** all tests pass, no open high-severity bugs, and the sprint demo flow (Maya's journey) works end to end.

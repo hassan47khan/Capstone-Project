@@ -674,6 +674,7 @@ paths:
       description: |-
         Create the subscription from the reviewed fields ("Confirm and track") and
         delete the pending record. The body is the same as POST /subscriptions.
+        403 `family_cannot_add`, as for POST /subscriptions.
       parameters:
       - in: path
         name: extraction_id
@@ -715,6 +716,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
         '404':
           content:
             application/json:
@@ -785,6 +792,453 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: A dependency is down.
+  /api/v1/family:
+    get:
+      operationId: family_retrieve
+      description: |-
+        The caller's family: the total, and each member's role, count and total.
+
+        404 `no_family`: not in one yet (show "Start a family").
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+    post:
+      operationId: family_create
+      description: |-
+        Start a family. The caller is its first admin.
+
+        409 `already_in_family`.
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FamilyCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FamilyCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+    patch:
+      operationId: family_update
+      description: 'Family settings (10 §3.2, §3.7). Admins only: 403 `family_admin_only`.'
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+    delete:
+      operationId: family_delete
+      description: End the family. Everyone keeps their subscriptions; none is deleted.
+        Admins only.
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/family/invitations:
+    post:
+      operationId: family_invitations_create
+      description: |-
+        Email an invitation that lasts 7 days. Admins only.
+
+        409 `already_member`, `already_invited` (resend it instead) or
+        `seat_limit_reached` (offer the upgrade).
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InviteInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InviteInputRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+  /api/v1/family/invitations/{invitation_id}:
+    delete:
+      operationId: family_invitations_revoke
+      description: 'Revoke: the link stops working and the seat is free again. Admins
+        only.'
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+  /api/v1/family/invitations/{invitation_id}/resend:
+    post:
+      operationId: family_invitations_resend
+      description: |-
+        Send a new link with 7 more days; the old link stops working. Admins only.
+
+        409 `invitation_accepted` / `invitation_revoked` / `invitation_expired` (replaced
+        by a newer invite), or `seat_limit_reached`
+        for an expired one when no seat is free.
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+  /api/v1/family/members/{membership_id}:
+    get:
+      operationId: family_members_retrieve
+      description: |-
+        One member: permissions, limit, total and subscriptions. Admins see
+        anyone, everyone else only themselves. Others' private subscriptions
+        come back with only their amount.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMemberDetail'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+    patch:
+      operationId: family_members_update
+      description: |-
+        Change a role, a permission or the spending limit. Admins only.
+
+        409 `last_admin`: the family's only admin can't stop being one.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMemberDetail'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+    delete:
+      operationId: family_members_remove
+      description: |-
+        Remove someone (admins), or leave (your own id). Their subscriptions stay
+        theirs and leave the family total; nothing is deleted.
+
+        409 `last_admin`: promote someone first. 409 `only_member`: alone in the
+        family, delete it instead.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - family
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Done; no body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
   /api/v1/health/:
     get:
       operationId: health_retrieve
@@ -865,6 +1319,121 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+  /api/v1/invitations/accept:
+    post:
+      operationId: invitations_accept
+      description: |-
+        Join the family. Needs a verified email matching the invitation.
+
+        403 `wrong_account` / `email_unverified`; 404 `invitation_not_found`;
+        409 `invitation_accepted` / `already_in_family`; 410 `invitation_expired` /
+        `invitation_revoked`.
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Gone: it existed, but has expired or was cancelled.'
+  /api/v1/invitations/preview:
+    post:
+      operationId: invitations_preview
+      description: |-
+        What the accept screen shows. `problem` says why the signed-in user
+        can't accept it, if they can't. 404 `invitation_not_found`.
+      tags:
+      - family
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationPreview'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
   /api/v1/me:
     get:
       operationId: me_retrieve
@@ -1106,6 +1675,71 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Conflicts with the current state.
+  /api/v1/shared-plans/{plan_id}/payments/{payment_id}/paid:
+    post:
+      operationId: shared_plans_mark_paid
+      description: |-
+        Record that a participant paid their share this period, or undo it with
+        `paid: false`. Returns the updated plan.
+
+        409 `owner_share`: the owner's own share is always paid.
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: plan_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - shared-plans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkPaidInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MarkPaidInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MarkPaidInputRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedPlan'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
   /api/v1/shared-plans/{plan_id}/payments/{payment_id}/remind:
     post:
       operationId: shared_plans_remind
@@ -1215,6 +1849,7 @@ paths:
         Add a subscription. next_bill_date is computed from start_date and the cycle.
 
         400 `price_invalid`: "Enter a valid price greater than $0."
+        403 `family_cannot_add`: the caller's family role or permissions don't allow it.
         409 `idempotency_key_reused`: the Idempotency-Key was already used with a
         different body. 409 `idempotency_key_in_use`: parallel requests with the
         key kept colliding; retrying with the same key is safe.
@@ -1260,6 +1895,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
         '409':
           content:
             application/json:
@@ -1301,8 +1942,10 @@ paths:
           description: Not found, or not yours.
     patch:
       operationId: subscriptions_update
-      description: Change any fields. A price, category or cycle change writes one
-        history event each.
+      description: |-
+        Change any fields. A price, category or cycle change writes one history event each.
+
+        403 `family_cannot_edit`: the caller's family role or permissions don't allow it.
       parameters:
       - in: path
         name: subscription_id
@@ -1343,6 +1986,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
         '404':
           content:
             application/json:
@@ -1353,7 +2002,7 @@ paths:
       operationId: subscriptions_delete
       description: |-
         Soft delete: it leaves every list and total, its history is kept, and
-        POST .../restore undoes it.
+        POST .../restore undoes it. 403 `family_cannot_edit`.
       parameters:
       - in: path
         name: subscription_id
@@ -1373,6 +2022,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
         '404':
           content:
             application/json:
@@ -1385,7 +2040,7 @@ paths:
       description: |-
         Mark as cancelled: out of totals, history kept, saved_per_year set.
 
-        409 `already_cancelled`.
+        403 `family_cannot_edit`. 409 `already_cancelled`.
       parameters:
       - in: path
         name: subscription_id
@@ -1409,6 +2064,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
         '404':
           content:
             application/json:
@@ -1459,8 +2120,9 @@ paths:
   /api/v1/subscriptions/{subscription_id}/restore:
     post:
       operationId: subscriptions_restore
-      description: 'Undo a delete: puts back the status it had before. Powers the
-        Undo toast.'
+      description: |-
+        Undo a delete: puts back the status it had before. Powers the Undo toast.
+        403 `family_cannot_edit`.
       parameters:
       - in: path
         name: subscription_id
@@ -1484,6 +2146,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
         '404':
           content:
             application/json:
@@ -1516,7 +2184,9 @@ paths:
   /api/v1/trials/{subscription_id}/decision:
     post:
       operationId: trials_decision
-      description: Keep it (stop nagging; it converts on its end date) or Remind me.
+      description: |-
+        Keep it (stop nagging; it converts on its end date) or Remind me.
+        403 `family_cannot_edit`.
       parameters:
       - in: path
         name: subscription_id
@@ -1558,6 +2228,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Missing, expired or invalid token.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not allowed.
         '404':
           content:
             application/json:
@@ -1883,6 +2559,248 @@ components:
       - sender
       - snippet
       - subject
+    Family:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        plan:
+          $ref: '#/components/schemas/PlanEnum'
+        seat_limit:
+          type: integer
+        seats_used:
+          type: integer
+        seats_taken:
+          type: integer
+          description: 'Members plus invitations still pending: what the seat limit
+            counts.'
+        can_invite:
+          type: boolean
+          description: False for non-admins and when every seat is taken (show the
+            upgrade prompt).
+        invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invitation'
+          description: Pending and expired invitations. Admins only; empty otherwise.
+        display_currency:
+          type: string
+        shared_timezone:
+          type: string
+        fiscal_year_start:
+          type: integer
+          maximum: 12
+          minimum: 1
+        you:
+          $ref: '#/components/schemas/You'
+        total:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Every member's monthly total, in the family's currency. Null
+            without permission.
+        unconverted_count:
+          type:
+          - integer
+          - 'null'
+          description: Subscriptions left out of the total because their currency
+            has no rate. Null without permission, like `total`.
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/FamilyMember'
+      required:
+      - can_invite
+      - display_currency
+      - fiscal_year_start
+      - id
+      - invitations
+      - members
+      - name
+      - plan
+      - seat_limit
+      - seats_taken
+      - seats_used
+      - shared_timezone
+      - total
+      - unconverted_count
+      - you
+    FamilyCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        display_currency:
+          type: string
+          minLength: 1
+          description: Defaults to yours.
+      required:
+      - name
+    FamilyMember:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The membership id.
+        user_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        is_you:
+          type: boolean
+        subscription_count:
+          type: integer
+          description: 'What counts toward their total: active, not a running trial.'
+        total:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Monthly, in the family's currency. Rows add up to the family
+            total. Null for other members when you can't see the family total.
+        spending_limit:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: Monthly. Null means no limit.
+        over_limit:
+          type:
+          - boolean
+          - 'null'
+      required:
+      - email
+      - id
+      - is_you
+      - name
+      - over_limit
+      - role
+      - spending_limit
+      - subscription_count
+      - total
+      - user_id
+    FamilyMemberDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The membership id.
+        user_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        is_you:
+          type: boolean
+        can_add_subscriptions:
+          type: boolean
+        can_edit_own_subs:
+          type: boolean
+        can_view_family_total:
+          type: boolean
+        joined_at:
+          type: string
+          format: date-time
+        spending_limit:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+        over_limit:
+          type: boolean
+        total:
+          $ref: '#/components/schemas/Money'
+        unconverted_count:
+          type: integer
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FamilySubscription'
+      required:
+      - can_add_subscriptions
+      - can_edit_own_subs
+      - can_view_family_total
+      - email
+      - id
+      - is_you
+      - joined_at
+      - name
+      - over_limit
+      - role
+      - spending_limit
+      - subscriptions
+      - total
+      - unconverted_count
+      - user_id
+    FamilyRoleEnum:
+      enum:
+      - admin
+      - member
+      - viewer
+      type: string
+      description: |-
+        * `admin` - admin
+        * `member` - member
+        * `viewer` - viewer
+    FamilySubscription:
+      type: object
+      description: |-
+        One of a member's subscriptions. A private one, seen by someone else,
+        keeps only its amount (10 §2 option A): show it as "Private subscription".
+      properties:
+        id:
+          type:
+          - string
+          - 'null'
+        name:
+          type:
+          - string
+          - 'null'
+        is_private:
+          type: boolean
+        service_mark:
+          oneOf:
+          - $ref: '#/components/schemas/ServiceMark'
+          - type: 'null'
+        category:
+          oneOf:
+          - $ref: '#/components/schemas/CategoryRef'
+          - type: 'null'
+        next_bill_date:
+          type:
+          - string
+          - 'null'
+          format: date
+        billing_price:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: As billed. Null when private.
+        monthly:
+          oneOf:
+          - $ref: '#/components/schemas/Money'
+          - type: 'null'
+          description: In the family's currency; rows add up to the member's total.
+            Null without a rate.
+      required:
+      - billing_price
+      - category
+      - id
+      - is_private
+      - monthly
+      - name
+      - next_bill_date
+      - service_mark
     GmailConnectInputRequest:
       type: object
       properties:
@@ -2031,6 +2949,104 @@ components:
           description: 'Null: there is nothing to say; hide the card.'
       required:
       - insight
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        status:
+          $ref: '#/components/schemas/InvitationStatusEnum'
+        expires_at:
+          type: string
+          format: date-time
+        sent_at:
+          type: string
+          format: date-time
+      required:
+      - email
+      - expires_at
+      - id
+      - role
+      - sent_at
+      - status
+    InvitationPreview:
+      type: object
+      properties:
+        family_name:
+          type: string
+        invited_by:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        status:
+          $ref: '#/components/schemas/InvitationStatusEnum'
+        expires_at:
+          type: string
+          format: date-time
+        problem:
+          description: |-
+            Why it can't be accepted by the signed-in user; null when it can.
+
+            * `expired` - expired
+            * `accepted` - accepted
+            * `revoked` - revoked
+            * `wrong_account` - wrong_account
+            * `already_member` - already_member
+            * `in_another_family` - in_another_family
+          oneOf:
+          - $ref: '#/components/schemas/ProblemEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - email
+      - expires_at
+      - family_name
+      - invited_by
+      - problem
+      - role
+      - status
+    InvitationStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - expired
+      - revoked
+      type: string
+      description: |-
+        * `pending` - pending
+        * `accepted` - accepted
+        * `expired` - expired
+        * `revoked` - revoked
+    InvitationTokenRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: From the invitation link.
+          maxLength: 200
+      required:
+      - token
+    InviteInputRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        role:
+          allOf:
+          - $ref: '#/components/schemas/FamilyRoleEnum'
+          default: member
+      required:
+      - email
     KindEnum:
       enum:
       - price_change
@@ -2052,6 +3068,13 @@ components:
       required:
       - email
       - password
+    MarkPaidInputRequest:
+      type: object
+      properties:
+        paid:
+          type: boolean
+          default: true
+          description: true marks this period's share paid; false undoes it.
     Money:
       type: object
       description: 'An amount always travels with its currency, e.g. {"amount": "129.20",
@@ -2268,6 +3291,43 @@ components:
       required:
       - password
       - token
+    PatchedFamilyUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        display_currency:
+          type: string
+          minLength: 1
+          description: Defaults to yours.
+        shared_timezone:
+          type: string
+          maxLength: 64
+        fiscal_year_start:
+          type: integer
+          maximum: 12
+          minimum: 1
+          description: Month, 1-12.
+    PatchedMemberUpdateRequest:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        can_add_subscriptions:
+          type: boolean
+        can_edit_own_subs:
+          type: boolean
+        can_view_family_total:
+          type: boolean
+        spending_limit:
+          type:
+          - string
+          - 'null'
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Monthly, in the family's currency. Null removes it.
     PatchedNotificationRuleUpdateRequest:
       type: object
       description: 'Every field optional: the screen saves one row at a time.'
@@ -2383,6 +3443,11 @@ components:
         trial_reminder_enabled:
           type: boolean
           default: true
+        is_private:
+          type: boolean
+          default: false
+          description: Hide the name from the rest of your family. It still counts
+            in the family total.
     PaymentStatusEnum:
       enum:
       - paid
@@ -2446,6 +3511,14 @@ components:
       - current_month
       type: string
       description: '* `current_month` - current_month'
+    PlanEnum:
+      enum:
+      - free
+      - premium
+      type: string
+      description: |-
+        * `free` - free
+        * `premium` - premium
     PlatformEnum:
       enum:
       - android
@@ -2553,6 +3626,22 @@ components:
       required:
       - display_currency
       - items
+    ProblemEnum:
+      enum:
+      - expired
+      - accepted
+      - revoked
+      - wrong_account
+      - already_member
+      - in_another_family
+      type: string
+      description: |-
+        * `expired` - expired
+        * `accepted` - accepted
+        * `revoked` - revoked
+        * `wrong_account` - wrong_account
+        * `already_member` - already_member
+        * `in_another_family` - in_another_family
     ProviderEnum:
       enum:
       - gmail
@@ -2624,7 +3713,8 @@ components:
         next_reminder_available_at:
           type: string
           format: date-time
-          description: One reminder per 24 hours.
+          description: One email per 24 hours. Now for the share sheet, which isn't
+            limited.
       required:
       - channel
       - last_reminded_at
@@ -2743,6 +3833,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/Money'
           description: Other participants' pending shares, owed to you. Display currency.
+        unconverted_count:
+          type: integer
+          description: Pending shares left out of `outstanding` because their currency
+            has no FX rate.
         results:
           type: array
           items:
@@ -2751,6 +3845,7 @@ components:
       - display_currency
       - outstanding
       - results
+      - unconverted_count
     SpendOverTime:
       type: object
       properties:
@@ -2865,6 +3960,10 @@ components:
           type: boolean
         trial_decision:
           $ref: '#/components/schemas/TrialDecisionEnum'
+        is_private:
+          type: boolean
+          description: Hidden from the rest of the caller's family (10 §2); still
+            in its total.
         counts_toward_totals:
           type: boolean
           description: False for cancelled subscriptions and trials that have not
@@ -2896,6 +3995,7 @@ components:
       - custom_cycle_count
       - custom_cycle_unit
       - id
+      - is_private
       - is_trial
       - name
       - next_bill_date
@@ -2972,6 +4072,10 @@ components:
           type: boolean
         trial_decision:
           $ref: '#/components/schemas/TrialDecisionEnum'
+        is_private:
+          type: boolean
+          description: Hidden from the rest of the caller's family (10 §2); still
+            in its total.
         counts_toward_totals:
           type: boolean
           description: False for cancelled subscriptions and trials that have not
@@ -3019,6 +4123,7 @@ components:
       - custom_cycle_unit
       - history
       - id
+      - is_private
       - is_trial
       - name
       - next_bill_date
@@ -3103,6 +4208,11 @@ components:
         trial_reminder_enabled:
           type: boolean
           default: true
+        is_private:
+          type: boolean
+          default: false
+          description: Hide the name from the rest of your family. It still counts
+            in the family total.
       required:
       - billing_price
       - category
@@ -3447,6 +4557,27 @@ components:
       - has_completed_first_run
       - id
       - name
+    You:
+      type: object
+      description: What the caller may do, with their role applied (a viewer may do
+        nothing).
+      properties:
+        membership_id:
+          type: string
+        role:
+          $ref: '#/components/schemas/FamilyRoleEnum'
+        may_add_subscriptions:
+          type: boolean
+        may_edit_subscriptions:
+          type: boolean
+        may_view_family_total:
+          type: boolean
+      required:
+      - may_add_subscriptions
+      - may_edit_subscriptions
+      - may_view_family_total
+      - membership_id
+      - role
   securitySchemes:
     jwtAuth:
       type: http

@@ -46,6 +46,16 @@ import { useDiscardGuard } from './useDiscardGuard';
 // Counts every render of the Log in screen, so "no flash of the Auth stack"
 // can be asserted rather than eyeballed.
 const mockLoginRenders = jest.fn();
+// Google's consent screen can't open in Jest: answer with the code the mock accepts.
+jest.mock('@/features/extraction/gmailAuth', () => ({
+  authorizeGmail: jest.fn(async () => ({
+    kind: 'code',
+    code: 'mock-gmail-code',
+    codeVerifier: 'verifier',
+    redirectUri: 'https://mock.subtrak.test/integrations/gmail/callback',
+  })),
+}));
+
 jest.mock('@/features/auth/LoginScreen', () => {
   const actual = jest.requireActual('@/features/auth/LoginScreen');
   return {
@@ -318,8 +328,9 @@ describe('tab stacks (03 §1)', () => {
 
   it.each([
     ['Calendar', 'calendar-trial-shield', 'Trial Shield'],
-    ['Settings', 'settings-shared-plans', 'Shared plans'],
+    ['Settings', 'settings-shared-plans', 'Shared Plans'],
     ['Settings', 'settings-connect-email', 'Connect email'],
+    ['Settings', 'settings-family', 'Family Members (3 of 5)'],
   ])(
     '%s pushes %s inside the tab, with back and the tab bar kept',
     async (tab, rowTestID, expectedTitle) => {
@@ -360,11 +371,9 @@ describe('tab stacks (03 §1)', () => {
     await waitFor(() => expect(screen.getByTestId('tab-Settings')).toBeOnTheScreen());
     await fireEvent.press(screen.getByTestId('tab-Settings'));
     await fireEvent.press(screen.getByTestId('settings-connect-email'));
-    await waitFor(() =>
-      expect(screen.getByTestId('connect-email-review')).toBeOnTheScreen(),
-    );
+    await fireEvent.press(await screen.findByTestId('connect-gmail'));
 
-    await fireEvent.press(screen.getByTestId('connect-email-review'));
+    await fireEvent.press(await screen.findByTestId('connect-result-ext-hulu'));
 
     await waitFor(() =>
       expect(screen.getByRole('header', { name: 'Review extraction' })).toBeOnTheScreen(),
@@ -384,7 +393,7 @@ describe('the full tree is navigable (03 §1)', () => {
     ['SelectTimeZone', undefined, 'Time zone'],
     ['NotificationRules', undefined, 'Notification rules'],
     ['ProfileAccount', undefined, 'Profile & account'],
-    ['ReviewExtraction', undefined, 'Review extraction'],
+    ['ReviewExtraction', { id: 'ext-hulu' }, 'Review extraction'],
   ];
 
   it.each(APP_ROUTES)('App: %s', async (route, params, expectedTitle) => {
@@ -632,6 +641,21 @@ describe('deep links (03 §6)', () => {
       expect(
         screen.getByRole('header', { name: 'Subscription detail' }),
       ).toBeOnTheScreen(),
+    );
+  });
+
+  it('backgrounded, signed out: a family invitation waits for sign-in, then opens', async () => {
+    const deliver = captureUrlListener();
+    await renderApp(<SignInForTest />);
+    await waitFor(() => expect(title()).toBe('Log In'));
+
+    await deliver('subtrak://family-invite?token=invite-kim');
+    expect(title()).toBe('Log In');
+
+    await fireEvent.press(screen.getByText('test-sign-in'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('header', { name: 'Family invitation' })).toBeOnTheScreen(),
     );
   });
 

@@ -1,9 +1,6 @@
 """Contract tests for the AI-epic endpoints (handoff 04 §6a, 11 §2): extractions,
-trials, shared plans and Gmail."""
+trials and Gmail. Shared plans are in test_shared_plans.py."""
 
-import pytest
-
-import mocks
 from subscriptions.models import Subscription
 
 
@@ -76,122 +73,6 @@ def test_decision_must_be_known(api, alex, contract):
     response = api.post(f"/api/v1/trials/{hulu.pk}/decision", {"decision": "maybe"}, format="json")
 
     assert contract(response, "/trials/{subscription_id}/decision")["error"]["fields"]["decision"]
-
-
-# Shared plans --------------------------------------------------------------------
-
-
-def test_shared_plans_split_netflix_three_ways_to_the_cent(api, contract):
-    body = contract(api.get("/api/v1/shared-plans"), "/shared-plans")
-
-    (plan,) = body["results"]
-    assert plan["price"] == usd("15.49")
-    assert plan["split_mode"] == "equal"
-    assert plan["period"] == "2026-10"
-    assert (plan["participant_count"], plan["paid_count"]) == (3, 2)
-    assert [
-        (p["display_name"], p["share"]["amount"], p["status"]) for p in plan["participants"]
-    ] == [
-        ("Alex Kim", "5.17", "paid"),
-        ("Jordan Doe", "5.16", "paid"),
-        ("Sam", "5.16", "pending"),
-    ]
-    assert plan["your_share"] == usd("5.17")
-    assert plan["participants"][0]["is_owner"] is True
-    # Sam still owes Alex for Netflix (11 §2.6).
-    assert body["outstanding"] == usd("5.16")
-
-
-def test_shared_plans_do_not_change_the_totals(api):
-    api.get("/api/v1/shared-plans")
-
-    assert api.get("/api/v1/analytics/summary").json()["monthly_total"] == usd("129.20")
-
-
-def test_create_a_shared_plan(api, alex, contract):
-    spotify = Subscription.objects.get(owner=alex, name="Spotify")
-
-    response = api.post(
-        "/api/v1/shared-plans",
-        {"subscription_id": str(spotify.pk), "participants": [{"display_name": "Jordan"}]},
-        format="json",
-    )
-    body = contract(response, "/shared-plans")
-
-    assert response.status_code == 201
-    assert [p["share"]["amount"] for p in body["participants"]] == ["5.50", "5.49"]
-    assert [p["status"] for p in body["participants"]] == ["paid", "pending"]
-    assert body["participants"][1]["email"] is None
-
-
-@pytest.mark.parametrize(
-    ("payload", "status", "code"),
-    [
-        (
-            {"subscription_id": "netflix", "participants": [{"display_name": "Jo"}]},
-            404,
-            "not_found",
-        ),
-        ({"subscription_id": "x", "participants": []}, 400, "validation_error"),
-    ],
-)
-def test_create_shared_plan_errors(api, contract, payload, status, code):
-    response = api.post("/api/v1/shared-plans", payload, format="json")
-
-    assert response.status_code == status
-    assert contract(response, "/shared-plans")["error"]["code"] == code
-
-
-def test_a_subscription_is_shared_once(api, alex, contract):
-    netflix = Subscription.objects.get(owner=alex, name="Netflix")
-
-    response = api.post(
-        "/api/v1/shared-plans",
-        {"subscription_id": str(netflix.pk), "participants": [{"display_name": "Jo"}]},
-        format="json",
-    )
-
-    assert contract(response, "/shared-plans")["error"]["code"] == "already_shared"
-
-
-REMIND = "/shared-plans/{plan_id}/payments/{payment_id}/remind"
-
-
-def test_remind_sam_opens_the_share_sheet(api, contract):
-    plan = api.get("/api/v1/shared-plans").json()["results"][0]
-    sam = plan["participants"][2]
-
-    response = api.post(f"/api/v1/shared-plans/{plan['id']}/payments/{sam['payment_id']}/remind")
-    body = contract(response, REMIND)
-
-    assert body["channel"] == "share_sheet"
-    assert body["message"] == "Hi Sam, your share of Netflix for October 2026 is 5.16 USD."
-
-
-def test_remind_by_email_when_there_is_an_address(api, monkeypatch):
-    owner, jordan, sam = mocks._NETFLIX_SPLIT
-    monkeypatch.setattr(mocks, "_NETFLIX_SPLIT", (owner, (*jordan[:4], False), sam))
-
-    body = api.post(
-        f"/api/v1/shared-plans/{mocks.SHARED_PLAN_ID}/payments/{jordan[1]}/remind"
-    ).json()
-
-    assert body["channel"] == "email"
-
-
-@pytest.mark.parametrize(
-    ("plan", "payment", "status"),
-    [
-        (mocks.SHARED_PLAN_ID, mocks._NETFLIX_SPLIT[1][1], 409),  # Jordan has paid
-        (mocks.SHARED_PLAN_ID, "6a0b00000000000000000099", 404),
-        ("6a0b00000000000000000999", mocks._NETFLIX_SPLIT[2][1], 404),
-    ],
-)
-def test_remind_errors(api, contract, plan, payment, status):
-    response = api.post(f"/api/v1/shared-plans/{plan}/payments/{payment}/remind")
-
-    assert response.status_code == status
-    contract(response, REMIND)
 
 
 # Extractions ------------------------------------------------------------------------

@@ -119,6 +119,13 @@ class SubscriptionInputSerializer(serializers.Serializer):
         min_value=1, max_value=366, required=False, allow_null=True
     )
     trial_reminder_enabled = serializers.BooleanField(required=False, default=True)
+    is_private = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "Hide the name from the rest of your family. It still counts in the family total."
+        ),
+    )
 
     def validate_name(self, value):
         value = value.strip()
@@ -223,6 +230,9 @@ class SubscriptionSerializer(CycleFieldsMixin):
     trial_length_days = serializers.IntegerField(allow_null=True)
     trial_reminder_enabled = serializers.BooleanField()
     trial_decision = serializers.ChoiceField(choices=TRIAL_DECISIONS)
+    is_private = serializers.BooleanField(
+        help_text="Hidden from the rest of the caller's family (10 §2); still in its total."
+    )
     counts_toward_totals = serializers.BooleanField(
         help_text="False for cancelled subscriptions and trials that have not converted."
     )
@@ -443,6 +453,9 @@ class SharedPlanListSerializer(serializers.Serializer):
     outstanding = MoneySerializer(
         help_text="Other participants' pending shares, owed to you. Display currency."
     )
+    unconverted_count = serializers.IntegerField(
+        help_text="Pending shares left out of `outstanding` because their currency has no FX rate."
+    )
     results = SharedPlanSerializer(many=True)
 
 
@@ -459,6 +472,12 @@ class SharedPlanInputSerializer(serializers.Serializer):
     )
 
 
+class MarkPaidInputSerializer(serializers.Serializer):
+    paid = serializers.BooleanField(
+        default=True, help_text="true marks this period's share paid; false undoes it."
+    )
+
+
 class ReminderSerializer(serializers.Serializer):
     payment_id = serializers.CharField()
     channel = serializers.ChoiceField(
@@ -467,7 +486,9 @@ class ReminderSerializer(serializers.Serializer):
     )
     message = serializers.CharField()
     last_reminded_at = serializers.DateTimeField()
-    next_reminder_available_at = serializers.DateTimeField(help_text="One reminder per 24 hours.")
+    next_reminder_available_at = serializers.DateTimeField(
+        help_text="One email per 24 hours. Now for the share sheet, which isn't limited."
+    )
 
 
 # Extractions (§6a) -----------------------------------------------------------

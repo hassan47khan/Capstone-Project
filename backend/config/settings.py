@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     # migrations have an app to land in.
     "notifications",
     "extraction",
+    "family",
 ]
 
 MIDDLEWARE = [
@@ -477,5 +478,7 @@ SPECTACULAR_SETTINGS = {
         "KindEnum": ["price_change", "trial_ending"],
         "NotificationKindEnum": ["trial_ending", "renewal", "price_increase"],
         "InsightKindEnum": ["price_increase", "trial_converting", "largest_category"],
+        "InvitationStatusEnum": ["pending", "accepted", "expired", "revoked"],
+        "FamilyRoleEnum": ["admin", "member", "viewer"],
     },
 }

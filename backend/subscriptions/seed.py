@@ -16,7 +16,15 @@ from django_mongodb_backend import transaction
 from accounts.models import User, rules_for, settings_for
 
 from . import operations
-from .models import Category, FxRate, ServiceCatalogEntry, Subscription
+from .models import (
+    Category,
+    FxRate,
+    ServiceCatalogEntry,
+    SharedPlan,
+    SharedPlanParticipant,
+    SharedPlanPayment,
+    Subscription,
+)
 from .services.cycles import Cycle, add_months
 
 SEED_TODAY = date(2026, 10, 1)
@@ -278,6 +286,52 @@ def _seed_netflix(owner, categories, *, today: date) -> Subscription:
     return netflix
 
 
+def _seed_shared_plan(owner, netflix: Subscription, *, today: date) -> SharedPlan:
+    """11 §2.6's frame: Alex splits Netflix with Jordan, who has paid this month,
+    and Sam, who has no email on file and hasn't. Contacts, not the demo users."""
+    plan = SharedPlan.objects.create(owner=owner, subscription=netflix)
+    paid_at = operations.at_start_of(today)
+    people = (
+        (owner.name, owner.email, True),
+        (JORDAN.name, JORDAN.email, True),
+        (SAM.name, None, False),
+    )
+    for position, (name, email, paid) in enumerate(people):
+        person = SharedPlanParticipant.objects.create(
+            plan=plan, display_name=name, email=email, position=position, is_owner=position == 0
+        )
+        SharedPlanPayment.objects.create(
+            participant=person,
+            period=f"{today:%Y-%m}",
+            status=SharedPlanPayment.Status.PAID if paid else SharedPlanPayment.Status.PENDING,
+            paid_at=paid_at if paid else None,
+        )
+    return plan
+
+
+def _seed_family(users: dict[str, User]) -> None:
+    """10 §4.5: Alex runs the family; Jordan is a member with a $100 limit (the
+    Member detail frame), Sam a viewer who can't see the family total."""
+    # Imported here: family depends on subscriptions, not the other way round.
+    from family.models import Family, Membership
+
+    alex = users[ALEX.email]
+    family = Family.objects.create(name="Kim family", owner=alex)
+    Membership.objects.create(family=family, user=alex, role=Membership.Role.ADMIN)
+    Membership.objects.create(
+        family=family,
+        user=users[JORDAN.email],
+        role=Membership.Role.MEMBER,
+        spending_limit=Decimal("100.00"),
+    )
+    Membership.objects.create(
+        family=family,
+        user=users[SAM.email],
+        role=Membership.Role.VIEWER,
+        can_view_family_total=False,
+    )
+
+
 @transaction.atomic
 def load_demo(*, today: date = SEED_TODAY, password: str | None = None) -> dict[str, User]:
     """Reset and load the whole demo dataset. Safe to run any number of times.
@@ -286,7 +340,7 @@ def load_demo(*, today: date = SEED_TODAY, password: str | None = None) -> dict[
     otherwise, so they cannot log in until `seed_demo` sets DEMO_PASSWORD.
 
     Removes only what it owns: the demo users (their subscriptions, history,
-    settings and rules go with them), the catalog and the seeded FX rates.
+    settings, rules and the demo family go with them), the catalog and the seeded FX rates.
     """
     User.objects.filter(email__in=[u.email for u in DEMO_USERS]).delete()
     categories = ensure_system_categories()
@@ -301,10 +355,12 @@ def load_demo(*, today: date = SEED_TODAY, password: str | None = None) -> dict[
         settings_for(user)
         rules_for(user)
         if demo is ALEX:
-            _seed_netflix(user, categories, today=today)
+            netflix = _seed_netflix(user, categories, today=today)
+            _seed_shared_plan(user, netflix, today=today)
         for sub in demo.subscriptions:
             _seed_subscription(user, sub, categories, today=today)
         for trial in demo.trials:
             _seed_trial(user, trial, categories, today=today)
         users[demo.email] = user
+    _seed_family(users)
     return users
