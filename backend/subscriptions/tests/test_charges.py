@@ -1,4 +1,4 @@
-"""Charges and the price-increase alert (US-16, US-19; spec section 8).
+"""Charges and the price-increase alert (US-19; spec sections 8 and 9).
 
 A bill that goes by is recorded at the price on file; confirming it with a
 higher amount is the only thing that raises a price-increase alert. Editing
@@ -20,7 +20,9 @@ from subscriptions import operations
 from subscriptions.models import Charge, FxRate, PriceHistoryEvent, Subscription
 
 START = date(2026, 1, 12)
-LATER = date(2026, 10, 1)
+LATER = date(2026, 10, 1)  # SEED_TODAY, the day every test runs on
+# Nine monthly bills have gone by between START and LATER; this is the last.
+LAST_BILL = date(2026, 9, 12)
 
 Kind = Reminder.Kind
 State = Reminder.State
@@ -53,7 +55,8 @@ def sub(owner, categories):
 
 @pytest.fixture
 def charge(sub):
-    """The January bill, recorded by the roll-forward job."""
+    """September's bill, the latest of the nine missed, recorded by the
+    roll-forward job."""
     operations.roll_forward_bills(today=LATER)
     return Charge.objects.get(subscription=sub)
 
@@ -69,8 +72,8 @@ def confirm(client, charge, **body):
 # Recording bills ----------------------------------------------------------------
 
 
-def test_us16_a_bill_that_goes_by_is_recorded_unconfirmed_at_the_price_on_file(charge, sub):
-    assert charge.charged_on == START
+def test_a_bill_that_goes_by_is_recorded_unconfirmed_at_the_price_on_file(charge, sub):
+    assert charge.charged_on == LAST_BILL
     assert charge.expected_amount == charge.amount == Decimal("13.99")
     assert charge.currency == "USD"
     assert charge.confirmed is False
@@ -78,9 +81,19 @@ def test_us16_a_bill_that_goes_by_is_recorded_unconfirmed_at_the_price_on_file(c
     assert charge.owner_id == sub.owner_id
 
 
+def test_when_several_bills_were_missed_only_the_latest_is_recorded(sub):
+    # Nine bills went by since January; the user can only check the last
+    # one against a statement, and only it is recent enough to alert about.
+    operations.roll_forward_bills(today=LATER)
+
+    assert list(Charge.objects.filter(subscription=sub).values_list("charged_on", flat=True)) == [
+        LAST_BILL
+    ]
+
+
 def test_rolling_forward_again_records_the_same_bill_once(sub):
     operations.roll_forward_bills(today=LATER)
-    # The bill is still the January one: put the date back and roll again.
+    # Put the date back and roll again: the latest bill is still September's.
     Subscription.objects.filter(pk=sub.pk).update(next_bill_date=START)
     operations.roll_forward_bills(today=LATER)
 
@@ -88,7 +101,7 @@ def test_rolling_forward_again_records_the_same_bill_once(sub):
 
 
 def test_a_charge_describes_itself_for_the_admin(charge):
-    assert str(charge) == "13.99 USD on 2026-01-12"
+    assert str(charge) == "13.99 USD on 2026-09-12"
 
 
 def test_unconfirmed_charges_are_listed_for_the_owner(client, charge, contract):
@@ -101,7 +114,7 @@ def test_unconfirmed_charges_are_listed_for_the_owner(client, charge, contract):
             "id": str(charge.pk),
             "subscription_id": str(charge.subscription_id),
             "name": "Netflix",
-            "charged_on": "2026-01-12",
+            "charged_on": "2026-09-12",
             "expected": {"amount": "13.99", "currency": "USD"},
             "amount": {"amount": "13.99", "currency": "USD"},
             "confirmed": False,
@@ -164,14 +177,14 @@ def test_us19_a_higher_charge_raises_the_alert_and_takes_the_new_price(client, c
     change = PriceHistoryEvent.objects.get(
         subscription=sub, event_type=PriceHistoryEvent.EventType.PRICE_CHANGE
     )
-    assert change.occurred_at == operations.at_start_of(START)
+    assert change.occurred_at == operations.at_start_of(LAST_BILL)
     assert change.old_value == {"price": "13.99", "currency": "USD"}
     assert change.new_value == {"price": "15.49", "currency": "USD"}
 
     alert = price_alerts(sub).get()
     assert alert.state == State.PENDING
     assert alert.due_at <= timezone.now()
-    assert alert.dedupe_key == f"{sub.pk}:price_increase:2026-01-12"
+    assert alert.dedupe_key == f"{sub.pk}:price_increase:2026-09-12"
 
 
 def test_us19_a_lower_charge_takes_the_new_price_silently(client, charge, sub):
@@ -201,13 +214,29 @@ def test_a_charge_can_only_be_confirmed_once(client, charge, sub):
 
 
 @pytest.mark.parametrize("amount", ["0", "-1.00", "abc"])
-def test_us16_an_impossible_amount_is_refused(client, charge, amount):
+def test_an_impossible_amount_is_refused(client, charge, amount):
     response = confirm(client, charge, amount=amount)
 
     assert response.status_code == 400
     assert "amount" in response.json()["error"]["fields"]
     charge.refresh_from_db()
     assert charge.confirmed is False
+
+
+def test_us19_an_older_bill_confirmed_higher_is_history_not_news(client, charge, sub, settings):
+    # October's bill has gone by too, so September's is a backfilled past
+    # event: it is recorded, but it neither alerts nor reprices from its date.
+    settings.SUBTRAK_TODAY = date(2026, 10, 20)
+
+    response = confirm(client, charge, amount="15.49")
+
+    assert response.json()["outcome"] == Outcome.HIGHER
+    assert not price_alerts(sub).exists()
+    sub.refresh_from_db()
+    assert sub.billing_price == Decimal("13.99")
+    assert not PriceHistoryEvent.objects.filter(
+        subscription=sub, event_type=PriceHistoryEvent.EventType.PRICE_CHANGE
+    ).exists()
 
 
 def test_a_price_edited_since_the_bill_is_not_overwritten(client, charge, sub):
@@ -342,7 +371,7 @@ def test_us19_the_alert_names_the_old_and_new_amounts_and_the_change(client, cha
     note = Notification.objects.get(subscription=sub)
     assert note.kind == Kind.PRICE_INCREASE
     assert note.title == "Netflix price increase"
-    assert note.body == "Charged $15.49 on Jan 12, up from $13.99 (+10.7%)."
+    assert note.body == "Charged $15.49 on Sep 12, up from $13.99 (+10.7%)."
     assert price_alerts(sub).get().state == State.SENT
 
 

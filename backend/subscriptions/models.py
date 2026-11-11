@@ -253,9 +253,11 @@ class PriceHistoryEvent(models.Model):
 class Charge(models.Model):
     """One bill that went by, waiting for the user to say what it really was.
 
-    The system design spec's billing events (US-16, US-19). When a renewal
-    date passes, the roll-forward job writes one here at the price on file,
-    unconfirmed, and the app asks "Was the charge different?". Confirming it,
+    The system design spec's `billing_events`, named `charges` here and
+    without `source` until manual entry exists (errata, 2026-11-11). Built
+    for US-19; US-16's history and backfill are not. When a renewal date
+    passes, the roll-forward job writes the latest bill here at the price on
+    file, unconfirmed, and the app asks "Was the charge different?". Confirming it,
     as is or with the real amount, is the only thing that can raise a
     price-increase alert: an edit to the price is the user's own change and
     never alerts (spec, billing events and price-change detection).
