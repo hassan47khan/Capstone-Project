@@ -6,12 +6,14 @@ here, so a price, category or cycle change always writes exactly one
 PriceHistoryEvent (handoff 04 §5, §6).
 """
 
+import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 
 from django.utils import timezone
 from django_mongodb_backend import transaction
 
+from core.clock import latest_today, today_for
 from notifications.scheduling import reschedule_for_subscription
 
 from .models import FxRate, PriceHistoryEvent, Subscription
@@ -19,6 +21,8 @@ from .services import money
 from .services.cycles import Cycle, CycleChange, next_bill_date
 
 Event = PriceHistoryEvent.EventType
+logger = logging.getLogger(__name__)
+
 Status = Subscription.Status
 
 CYCLE_FIELDS = ("billing_cycle", "custom_cycle_count", "custom_cycle_unit")
@@ -179,6 +183,65 @@ def convert_due_trials(*, today: date) -> int:
             sub.save(update_fields=["is_trial", "next_bill_date"])
             reschedule_for_subscription(sub, today=today)
     return len(due)
+
+
+def roll_forward_bills(*, today: date | None = None) -> int:
+    """Move next_bill_date past any bill that has gone by, and reschedule.
+
+    next_bill_date otherwise only changes on an edit, so a subscription would
+    get one renewal reminder and then none. The date is recomputed from the
+    cycle history rather than added to, so several missed bills land on the
+    next future one and a past cycle change is respected. A bill due today is
+    still upcoming, so running this twice changes nothing.
+
+    `today` applies to everyone when given; otherwise each owner's local date.
+    Each subscription stands alone, so one bad row or owner is logged rather
+    than stopping every other renewal behind it. Returns how many moved.
+    """
+    # Nothing billed on or after the latest date anywhere can have gone by
+    # yet, so the database skips those. The owner's own date decides the rest.
+    ids = list(
+        Subscription.objects.filter(
+            status=Status.ACTIVE, is_trial=False, next_bill_date__lt=today or latest_today()
+        ).values_list("pk", flat=True)
+    )
+    days: dict = {}
+    rolled = 0
+    for pk in ids:
+        try:
+            with transaction.atomic():
+                rolled += _roll_one(pk, today=today, days=days)
+        except Exception:
+            logger.exception("Could not roll subscription %s forward.", pk)
+    return rolled
+
+
+def _roll_one(pk, *, today: date | None, days: dict) -> bool:
+    # Read again inside the transaction: since the list was taken, the user
+    # may have cancelled, deleted or edited it.
+    sub = (
+        Subscription.objects.filter(pk=pk, status=Status.ACTIVE, is_trial=False)
+        .select_related("owner")
+        .first()
+    )
+    if sub is None or sub.next_bill_date is None:
+        return False
+    if today is None and sub.owner_id not in days:
+        days[sub.owner_id] = today_for(sub.owner)
+    day = today or days[sub.owner_id]
+    passed = sub.next_bill_date
+    if passed >= day:
+        return False
+    refresh_next_bill_date(sub, today=day)
+    # Conditional, so a cancel or edit that lands after the read above wins,
+    # and a cancelled subscription never gets a bill or a reminder back.
+    moved = Subscription.objects.filter(
+        pk=pk, status=Status.ACTIVE, is_trial=False, next_bill_date=passed
+    ).update(next_bill_date=sub.next_bill_date)
+    if not moved:
+        return False
+    reschedule_for_subscription(sub, today=day, defer_overdue=True)
+    return True
 
 
 # Reading -------------------------------------------------------------------

@@ -87,8 +87,8 @@ export type AppStackParamList = {
   SelectTimeZone: undefined;
   NotificationRules: undefined;
   ProfileAccount: undefined;
-  /** Opened from ConnectEmail or the scan list (handoff 11 §2.4). */
-  ReviewExtraction: undefined;
+  /** One pending extraction from a Gmail scan, by id (handoff 11 §2.4). */
+  ReviewExtraction: { id: string };
   /**
    * subtrak://family-invite?token=… (10 §3.5). Optional for the same reason as
    * EmailConfirmed's: a malformed link can omit it.

@@ -25,6 +25,7 @@ from core.tasks import queue_email
 
 from . import push
 from .models import DeviceToken, Notification, PushReceipt, Reminder
+from .scheduling import target_date_of
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,10 @@ def _target_date(reminder: Reminder):
     sub = reminder.subscription
     if reminder.kind == Kind.TRIAL_ENDING:
         return sub.trial_ends_on
-    return sub.next_bill_date
+    # From the reminder, not the subscription: next_bill_date rolls forward on
+    # its own, and an alert still being retried is about the bill it was for.
+    lead = rules_for(reminder.user).days_before_reminder
+    return target_date_of(reminder) + timedelta(days=lead)
 
 
 def copy_for(reminder: Reminder) -> tuple[str, str]:
