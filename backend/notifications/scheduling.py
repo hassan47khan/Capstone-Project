@@ -23,7 +23,7 @@ from django.utils import timezone
 from django_mongodb_backend import transaction
 
 from accounts.models import rules_for, settings_for
-from accounts.services.timezones import local_to_utc
+from accounts.services.timezones import local_to_utc, resolve_timezone
 from subscriptions.models import Subscription
 
 from .models import Reminder
@@ -52,18 +52,39 @@ def dedupe_key(subscription_id, kind: str, target_date: date) -> str:
     return f"{subscription_id}:{kind}:{target_date.isoformat()}"
 
 
-def _due_at(target_date: date, tz_name: str, send_time, *, now: datetime) -> tuple[datetime, bool]:
+def target_date_of(reminder: Reminder) -> date:
+    """The date this reminder was scheduled for, from its `dedupe_key`."""
+    return date.fromisoformat(reminder.dedupe_key.rsplit(":", 1)[1])
+
+
+def _due_at(
+    target_date: date, tz_name: str, send_time, *, now: datetime, defer_overdue: bool = False
+) -> tuple[datetime, bool]:
     """When to send, in UTC, never earlier than now.
 
     Clamping to `now` is the "Reminder due now" rule: a lead time longer than
     the time remaining would otherwise put `due_at` in the past, where the
     dispatcher's 48-hour window might never pick it up at all.
+
+    `defer_overdue` waits for the user's next `send_time` instead. A job that
+    runs on its own clock uses it, or the alert would go out at whatever hour
+    the job happens to run, which may be the middle of the night for them.
     """
     due_at, flagged = local_to_utc(target_date, tz_name, send_time)
-    return max(due_at, now), flagged
+    if due_at >= now:
+        return due_at, flagged
+    if not defer_overdue:
+        return now, flagged
+    local_today = now.astimezone(resolve_timezone(tz_name).zone).date()
+    due_at, _ = local_to_utc(local_today, tz_name, send_time)
+    if due_at < now:
+        due_at, _ = local_to_utc(local_today + timedelta(days=1), tz_name, send_time)
+    return due_at, flagged
 
 
-def wanted_for(sub: Subscription, *, today: date, now: datetime | None = None) -> list[Wanted]:
+def wanted_for(
+    sub: Subscription, *, today: date, now: datetime | None = None, defer_overdue: bool = False
+) -> list[Wanted]:
     """Every reminder this subscription should currently have.
 
     Pure apart from reading the owner's settings: it decides, and
@@ -83,20 +104,26 @@ def wanted_for(sub: Subscription, *, today: date, now: datetime | None = None) -
     if sub.is_trial and sub.trial_ends_on and sub.trial_reminder_enabled:
         target = sub.trial_ends_on - timedelta(days=rules.trial_alert_days_before)
         if sub.trial_ends_on >= today:
-            due_at, flagged = _due_at(target, tz_name, rules.reminder_time, now=now)
+            due_at, flagged = _due_at(
+                target, tz_name, rules.reminder_time, now=now, defer_overdue=defer_overdue
+            )
             wanted.append(Wanted(Kind.TRIAL_ENDING, target, due_at, flagged))
 
     # A trial is not a renewal: it has no bill until it converts (04 §6a).
     if not sub.is_trial and sub.next_bill_date:
         target = sub.next_bill_date - timedelta(days=rules.days_before_reminder)
         if sub.next_bill_date >= today:
-            due_at, flagged = _due_at(target, tz_name, rules.reminder_time, now=now)
+            due_at, flagged = _due_at(
+                target, tz_name, rules.reminder_time, now=now, defer_overdue=defer_overdue
+            )
             wanted.append(Wanted(Kind.RENEWAL, target, due_at, flagged))
 
     return wanted
 
 
-def reschedule_for_subscription(sub: Subscription, *, today: date, now: datetime | None = None):
+def reschedule_for_subscription(
+    sub: Subscription, *, today: date, now: datetime | None = None, defer_overdue: bool = False
+):
     """Bring this subscription's reminders in line with the rules.
 
     Upserts what is wanted and cancels any unsent row that is not, including
@@ -107,9 +134,11 @@ def reschedule_for_subscription(sub: Subscription, *, today: date, now: datetime
     A cancelled row comes back whenever it is wanted again (a restore). A
     failed or expired one comes back only if its time actually moved to the
     future; otherwise any edit, even to the notes, would re-send a dead alert.
+
+    `defer_overdue` is passed on to `_due_at`.
     """
     now = now or timezone.now()
-    wanted = wanted_for(sub, today=today, now=now)
+    wanted = wanted_for(sub, today=today, now=now, defer_overdue=defer_overdue)
     keep = set()
 
     with transaction.atomic():
