@@ -23,6 +23,7 @@
  * Phase 1 will add the screens that call `signIn`. The shape is settled now so
  * the navigation shell can be built and tested against it.
  */
+import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   useCallback,
@@ -100,30 +101,56 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    * read one version of the hooks and its retry another.
    */
   const endDeadSessionRef = useRef<() => Promise<void>>(async () => {});
+  const queryClient = useQueryClient();
+
+  /**
+   * Empties the server cache, or the next person to log in on this phone would
+   * see the last one's profile and figures.
+   *
+   * Fetches are cancelled first, so one still in flight cannot land in the
+   * cache after it is emptied. Every new session empties it too, whichever way
+   * the last one ended: a cold start that finds the refresh token rejected goes
+   * to the auth stack without passing through either sign-out path.
+   */
+  const emptyCache = useCallback(async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+  }, [queryClient]);
 
   // Both start by abandoning any in-flight refresh, synchronously and before
   // touching storage, so a refresh from the previous session cannot resolve
   // afterwards and write its tokens over the new state.
-  const signIn = useCallback(async (tokens: TokenPair) => {
-    invalidateRefresh();
-    await tokenStore.setTokens(tokens);
-    // Biometric unlock is offered once a session has existed here (05 §5).
-    await biometricStore.markEstablished();
-    setStatus('authenticated');
-  }, []);
+  const signIn = useCallback(
+    async (tokens: TokenPair) => {
+      invalidateRefresh();
+      await emptyCache();
+      await tokenStore.setTokens(tokens);
+      // Biometric unlock is offered once a session has existed here (05 §5).
+      await biometricStore.markEstablished();
+      setStatus('authenticated');
+    },
+    [emptyCache],
+  );
 
   // Signing out parks the refresh token for biometric unlock on Log In
   // (biometricStore). A dead session, below, discards it instead — and so does
   // an abandoned one (`park: false`), or biometric would resurrect the very
   // session the user backed out of (an unverified account leaving Verify Email
   // Sent), looping them straight back to it.
-  const signOut = useCallback(async (options?: { park?: boolean }) => {
-    invalidateRefresh();
-    const refresh = await tokenStore.getRefreshToken();
-    if (refresh && options?.park !== false) await biometricStore.park(refresh);
-    await tokenStore.clear();
-    setStatus('unauthenticated');
-  }, []);
+  //
+  // The cache goes first, before the token store is touched, so no fetch of
+  // this session is still running once the token is parked.
+  const signOut = useCallback(
+    async (options?: { park?: boolean }) => {
+      invalidateRefresh();
+      await emptyCache();
+      const refresh = await tokenStore.getRefreshToken();
+      if (refresh && options?.park !== false) await biometricStore.park(refresh);
+      await tokenStore.clear();
+      setStatus('unauthenticated');
+    },
+    [emptyCache],
+  );
 
   /** The refresh token was rejected: nothing is worth keeping for biometrics. */
   const restoreParked = useCallback(async () => {
@@ -137,6 +164,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const outcome = await refreshSession();
     if (outcome === 'refreshed') {
       // onTokensRefreshed has stored the rotated pair; the parked copy is stale.
+      await emptyCache();
       await biometricStore.markEstablished();
       setStatus('authenticated');
       return;
@@ -148,14 +176,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // Transient: take the token back out of the active slot, keep it parked.
     await tokenStore.clear();
     throw new ParkedSessionUnavailable();
-  }, []);
+  }, [emptyCache]);
 
+  // Called mid-request with Home still mounted, so the cache goes first: its
+  // fetches are cancelled rather than left to 401 into another call here.
   const endDeadSession = useCallback(async () => {
     invalidateRefresh();
+    await emptyCache();
     await tokenStore.clear();
     await biometricStore.forget();
     setStatus('unauthenticated');
-  }, []);
+  }, [emptyCache]);
 
   /**
    * Keeps the ref pointing at the current `endDeadSession`.
