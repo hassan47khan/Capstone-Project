@@ -714,7 +714,8 @@ export interface paths {
         put?: never;
         /**
          * @description Split one of the caller's subscriptions equally. The caller is added first
-         *     and absorbs any extra cent. 409 `already_shared`.
+         *     and absorbs any extra cent. 409 `already_shared`. 403 `family_cannot_edit`,
+         *     as for every other change to a subscription.
          */
         post: operations["shared_plans_create"];
         delete?: never;
@@ -3825,6 +3826,15 @@ export interface operations {
             };
             /** @description Missing, expired or invalid token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not allowed. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
