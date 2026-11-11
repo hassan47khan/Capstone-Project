@@ -1106,6 +1106,71 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Conflicts with the current state.
+  /api/v1/shared-plans/{plan_id}/payments/{payment_id}/paid:
+    post:
+      operationId: shared_plans_mark_paid
+      description: |-
+        Record that a participant paid their share this period, or undo it with
+        `paid: false`. Returns the updated plan.
+
+        409 `owner_share`: the owner's own share is always paid.
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: plan_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - shared-plans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkPaidInputRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MarkPaidInputRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MarkPaidInputRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedPlan'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation failed; `error.fields` names each problem.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid token.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found, or not yours.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicts with the current state.
   /api/v1/shared-plans/{plan_id}/payments/{payment_id}/remind:
     post:
       operationId: shared_plans_remind
@@ -2052,6 +2117,13 @@ components:
       required:
       - email
       - password
+    MarkPaidInputRequest:
+      type: object
+      properties:
+        paid:
+          type: boolean
+          default: true
+          description: true marks this period's share paid; false undoes it.
     Money:
       type: object
       description: 'An amount always travels with its currency, e.g. {"amount": "129.20",
@@ -2624,7 +2696,8 @@ components:
         next_reminder_available_at:
           type: string
           format: date-time
-          description: One reminder per 24 hours.
+          description: One email per 24 hours. Now for the share sheet, which isn't
+            limited.
       required:
       - channel
       - last_reminded_at
@@ -2743,6 +2816,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/Money'
           description: Other participants' pending shares, owed to you. Display currency.
+        unconverted_count:
+          type: integer
+          description: Pending shares left out of `outstanding` because their currency
+            has no FX rate.
         results:
           type: array
           items:
@@ -2751,6 +2828,7 @@ components:
       - display_currency
       - outstanding
       - results
+      - unconverted_count
     SpendOverTime:
       type: object
       properties:

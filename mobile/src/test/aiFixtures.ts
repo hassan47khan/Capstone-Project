@@ -98,6 +98,7 @@ export const SHARED_PLAN_ID = 'plan-netflix';
 export const alexSharedPlans: SharedPlanList = {
   display_currency: 'USD',
   outstanding: usd('5.16'),
+  unconverted_count: 0,
   results: [
     {
       ...monthly,
@@ -156,6 +157,7 @@ export const alexSharedPlans: SharedPlanList = {
 export const noSharedPlans: SharedPlanList = {
   display_currency: 'USD',
   outstanding: usd('0.00'),
+  unconverted_count: 0,
   results: [],
 };
 

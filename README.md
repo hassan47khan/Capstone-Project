@@ -24,7 +24,7 @@ The backend's stories are built, tested and live on Render. On mobile, the auth 
 
 | Area | State |
 | --- | --- |
-| Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction and the AI insight card are built; shared plans still answer from `backend/mocks.py`. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
+| Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction, shared plans and the AI insight card are built. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
 | Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. Built since: auth (05), Home (06), Analytics (08) and the Settings root (09). Calendar, Gmail extraction and shared plans are still placeholders on `main`. |
 | CI/CD | One pipeline (Setup, Dependencies, Test, Deploy) runs on every push and pull request to `main`; Deploy ships tested commits to Render. `Test` is the required check — see [CI/CD Pipeline](#cicd-pipeline). |
 | Docs | System design specification is done. Developer handoff specs `00`–`12` are in `docs/handoff/`. Team notes live in the `Capstone_CSC325/` Obsidian vault. |
@@ -235,9 +235,11 @@ Built and tested (1,350 tests at 98% coverage, measured 2026-10-30):
   and computes its confidence, a review queue where nothing becomes a subscription until
   confirmed, and an eval on 25 hand-labelled emails (`docs/ai/extraction-eval.md`).
 - **AI insight card (`08 §2.0`):** one sentence about computed facts, with every number checked.
+- **Shared plans (`11 §2.6`):** split a bill equally to the cent, track who has paid each month,
+  and remind by email or share sheet (once a day). Totals still count the full bill.
 - **Deployment:** `render.yaml` and the [runbook](docs/ops/backend-deploy.md).
 
-Still mocked: **shared plans** (`backend/mocks.py`).
+Nothing answers from a mock any more; `backend/mocks.py` is gone.
 
 ## Getting Started — Mobile
 
@@ -301,8 +303,9 @@ All run from `mobile/`.
 
 Phase 0 is complete: the Expo scaffold, design tokens, 20 UI primitives with
 tests, the API layer, the mock backend, session handling and the navigation
-shell, including the AI-epic routes from handoff 11. **Every screen is still a
-placeholder** — Epic A is Phase 1, Epic C is Phase 2, Epic B is Phase 3. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
+shell, including the AI-epic routes from handoff 11. On top of it, the auth
+screens (05), Home (06), Subscriptions (07), Analytics (08) and Settings (09) are
+built. The AI-epic screens (11) are still placeholders. See [mobile/CLAUDE.md](mobile/CLAUDE.md).
 
 The tokens follow the Figma design: DM Serif Display and DM Sans, with light and
 dark themes that follow the phone's setting. Components read colours through
