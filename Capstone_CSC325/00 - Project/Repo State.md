@@ -27,8 +27,10 @@ mergers update their parts, so rows and gaps that mention them may be stale.
 **Update 2026-11-07 (Chris, after merging #171 and #164), `main` at `2cf0a86`.**
 This update covers only those two. Figures are from each PR's last local run
 before the squash, not re-run on `main`: #171 reports 1457 backend tests at
-98.56% coverage, and #164 reports 846 Jest tests, with CI green on both heads
-(`7b3732d`, `0823250`). Also merged since `99d1b35` and not written up here
+98.56% coverage (in its PR body), and #164 reports 846 Jest tests (a local
+`npm run verify` on `0823250`, not recorded in the PR), with CI green on both
+heads (`7b3732d`, `0823250`). These supersede the bolded 889-test and 562-test
+figures in the rows below, which are the October runs they cite. Also merged since `99d1b35` and not written up here
 yet, by their mergers: Hassan's #132, #143, #151, #155, #156, #157, #158, #159,
 #160, #161 and #172 (the generated TS client, Celery and Redis, exchange rates,
 reminders and push, Gmail, the extraction pipeline, Render deploy, and the
