@@ -16,7 +16,7 @@
  *   gone        the charge isn't waiting any more (confirmed elsewhere): Go back
  *   idle        Save disabled until the amount is a price above zero
  *   saving      Save shows a spinner; the field is locked; closing is blocked
- *   failed      the server's field message, or a banner when it has no field
+ *   failed      the message under the amount field, field error or not
  *   saved       back to Home with a toast saying what was recorded
  */
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -42,7 +42,7 @@ import {
 } from '@/components';
 import type { AppStackParamList } from '@/navigation/types';
 import { useDiscardGuard } from '@/navigation/useDiscardGuard';
-import { makeStyles, radius, sizes, spacing } from '@/theme';
+import { makeStyles, sizes, spacing } from '@/theme';
 
 import { chargesKey, listCharges, type Charge } from './api';
 import { CHARGE_COPY, expectedLine } from './chargeCopy';
@@ -162,8 +162,11 @@ function AmountForm({ charge }: { charge: Charge }) {
     confirm.mutate(amount);
   };
 
+  // One error slot, the field's own, for every failure: the form has a single
+  // input, so a separate form-level box would show the same thing twice over.
   const shownError =
     serverError ??
+    formError ??
     (touched && amount !== '' && !valid ? invalidPriceMessage(currency) : undefined);
 
   return (
@@ -193,18 +196,6 @@ function AmountForm({ charge }: { charge: Charge }) {
       }
     >
       <Header title={CHARGE_COPY.screenTitle} onClose={() => navigation.goBack()} />
-
-      {formError ? (
-        <View
-          style={styles.formError}
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-        >
-          <Text style={styles.formErrorText} testID="charge-form-error">
-            {formError}
-          </Text>
-        </View>
-      ) : null}
 
       <View style={styles.summary}>
         <Text style={styles.name} accessibilityRole="header">
@@ -252,15 +243,5 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   detail: {
     ...typography.bodyMd,
     color: colors.textMuted,
-  },
-  formError: {
-    backgroundColor: colors.dangerSurface,
-    borderRadius: radius.card,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  formErrorText: {
-    ...typography.bodyMd,
-    color: colors.danger,
   },
 }));

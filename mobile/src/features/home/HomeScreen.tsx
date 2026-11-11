@@ -114,7 +114,9 @@ export function HomeScreen() {
   const charges = useQuery({ queryKey: chargesKey, queryFn: listCharges });
 
   const sections = [summary, spend, urgent, upcoming];
-  const refreshing = sections.some((q) => q.isRefetching);
+  // Charges aren't in `sections` (they never count toward the full-screen
+  // error), but pull to refresh waits for them like any other section.
+  const refreshing = [...sections, charges].some((q) => q.isRefetching);
   const refresh = () => {
     sections.forEach((q) => q.refetch());
     profile.refetch();

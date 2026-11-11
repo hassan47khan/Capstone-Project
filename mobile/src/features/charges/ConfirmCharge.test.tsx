@@ -240,16 +240,14 @@ describe('entering the real amount', () => {
     expect(screen.getByTestId('charge-screen')).toBeOnTheScreen();
   });
 
-  it('us19_offline_keeps_the_form_with_a_banner', async () => {
+  it('us19_offline_keeps_the_form_and_says_so_under_the_amount', async () => {
     server.use(http.post('*/charges/:id/confirm', () => HttpResponse.error()));
     await openDifferent();
 
     await fireEvent.changeText(screen.getByTestId('charge-amount'), '12.99');
     await fireEvent.press(screen.getByTestId('charge-save'));
 
-    expect(await screen.findByTestId('charge-form-error')).toHaveTextContent(
-      CHARGE_COPY.offline,
-    );
+    expect(await screen.findByText(CHARGE_COPY.offline)).toBeOnTheScreen();
     expect(screen.getByTestId('charge-amount').props.value).toBe('12.99');
   });
 
