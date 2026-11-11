@@ -159,6 +159,7 @@ _ERROR_DESCRIPTIONS = {
     403: "Not allowed.",
     404: "Not found, or not yours.",
     409: "Conflicts with the current state.",
+    410: "Gone: it existed, but has expired or was cancelled.",
     423: "Account temporarily locked.",
     429: "Throttled. Retry after the `Retry-After` header.",
     503: "A dependency is down.",
