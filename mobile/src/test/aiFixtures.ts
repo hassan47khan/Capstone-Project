@@ -7,13 +7,7 @@
  * Netflix split three ways is $5.17 + $5.16 + $5.16 with Sam still owing. Every
  * figure was copied from the server's answers, not worked out here.
  */
-import type {
-  components,
-  PendingExtraction,
-  SharedPlanList,
-  Trial,
-  TrialList,
-} from '@/api/contract';
+import type { PendingExtraction, SharedPlanList, Trial, TrialList } from '@/api/contract';
 
 import { CATEGORIES, MARKS } from './contractFixtures';
 
@@ -255,16 +249,3 @@ export const spotifyExtraction: PendingExtraction = {
 };
 
 export const mockScanResults: PendingExtraction[] = [huluExtraction, spotifyExtraction];
-
-export const mockNotificationRule: components['schemas']['NotificationRule'] = {
-  days_before_reminder: 3,
-  reminder_time: '09:00:00',
-  send_push: true,
-  send_email: false,
-  alert_on_any_price_change: true,
-  price_alert_threshold: null,
-  weekly_summary_enabled: false,
-  monthly_report_enabled: false,
-  report_delivery_day: 1,
-  trial_alert_days_before: 3,
-};

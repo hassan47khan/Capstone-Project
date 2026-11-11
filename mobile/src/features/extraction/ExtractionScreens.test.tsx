@@ -315,9 +315,10 @@ describe('Review extraction (11 §2.4)', () => {
     await renderScreen('ReviewExtraction');
 
     const reminder = await screen.findByTestId('review-reminder');
-    expect(reminder).toHaveTextContent(/^Remind me 3 days before/);
+    // The account's trial_alert_days_before (2, from notificationRulesFixtures).
+    expect(reminder).toHaveTextContent(/^Remind me 2 days before/);
     await waitFor(() =>
-      expect(reminder).toHaveTextContent(/Push notification on Oct 16$/),
+      expect(reminder).toHaveTextContent(/Push notification on Oct 17$/),
     );
     expect(reminder).toBeChecked();
   });

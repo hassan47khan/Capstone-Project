@@ -36,12 +36,16 @@ import type {
 import {
   alexSharedPlans,
   alexTrials,
-  mockNotificationRule,
   mockScanResults,
   noSharedPlans,
   noTrials,
 } from './aiFixtures';
 import { contractHomeFor, spendFor } from './contractFixtures';
+import {
+  notificationRulesFor,
+  resetNotificationRules,
+  updateMockNotificationRules,
+} from './notificationRulesFixtures';
 import {
   cancelMockSubscription,
   createMockSubscription,
@@ -181,6 +185,7 @@ export function resetMockState(): void {
   trialDecisions = {};
   remindedPayments = new Set();
   sharedPlans = {};
+  resetNotificationRules();
 }
 
 /** Only Alex has trials and a shared plan, like the seeded demo account. */
@@ -424,6 +429,29 @@ export const routes: Route[] = [
       const next = { ...account.settings, ...patch };
       if (patch.currency) next.currency = patch.currency;
       return ok(next);
+    }),
+  },
+
+  // Notification Rules (09 §5), as the real server does it; see
+  // notificationRulesFixtures.ts.
+  {
+    method: 'GET',
+    pattern: '/me/notification-rules',
+    handler: protectedRoute((_request, account) =>
+      ok(notificationRulesFor(account.profile.email)),
+    ),
+  },
+
+  {
+    method: 'PATCH',
+    pattern: '/me/notification-rules',
+    handler: protectedRoute((request, account) => {
+      const result = updateMockNotificationRules(account.profile.email, request.body);
+      if (result.error) {
+        const { code, message, fields } = result.error;
+        return fail(400, code, message, fields);
+      }
+      return ok(result.rules);
     }),
   },
 
@@ -700,11 +728,6 @@ export const routes: Route[] = [
       pendingExtractions[email] = list.filter((row) => row.id !== request.params.id);
       return ok(null, 204);
     }),
-  },
-  {
-    method: 'GET',
-    pattern: '/me/notification-rules',
-    handler: protectedRoute(() => ok(mockNotificationRule)),
   },
   {
     method: 'GET',
