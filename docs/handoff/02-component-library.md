@@ -395,8 +395,20 @@ Measured: radius 4, padding 8–10h / 4v, DM Sans Bold. **12px** (the prototype'
 | `success` | `color.success` @ 10% | `color.success` |
 | `neutral` | `color.surface2` | `color.textMuted` |
 | `warning` | `color.warningSurface` | `color.text` (not `warning` — 3.79:1 fails) |
+| `accent` | `color.accentSurface` (`accent` @ 10%) | `color.accent` (6.23:1 light, 5.09:1 dark) |
 
 Used for "12 active", "Active", "Cancelled", "Trial". Never a pill.
+
+**Amended 2026-11-11 (Hassan):** `accent` added for `10 §3.3`'s Admin role badge,
+which the frame sets as `accent` @ 10% with `accent` text. It is for a standing
+role or kind rather than a state that changes, so `success`/`warning` keep
+meaning "healthy" and "needs attention". `accent on accentSurface` is already
+one of the pairs `tokens.test.ts` asserts at 4.5:1. Member and Viewer use the
+existing `neutral` tone — `10 §3.3` asks for `textMuted` there, but `neutral`
+deliberately uses `text`, since muted grey on `surface2` is 4.28:1 and fails AA.
+`10 §3.3` also draws a 1px `border` on those two; `Badge` has no bordered tone
+and adding one would change every badge already shipped, so that part is not
+carried over.
 
 ---
 

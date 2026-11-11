@@ -85,7 +85,7 @@ const VARIANTS: readonly ButtonVariant[] = [
   'ghost',
 ];
 
-const BADGE_TONES: readonly BadgeTone[] = ['success', 'neutral', 'warning'];
+const BADGE_TONES: readonly BadgeTone[] = ['success', 'neutral', 'warning', 'accent'];
 
 const MARK_SIZES: readonly ServiceMarkSize[] = ['compact', 'row', 'medium', 'large'];
 
