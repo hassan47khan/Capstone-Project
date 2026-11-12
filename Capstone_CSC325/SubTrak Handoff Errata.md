@@ -78,3 +78,14 @@ These are code-read checks, not a re-run of the tests.
 - `Header` titles use `typography.displaySm` (20/28).
 
 The device pass for handoffs 01–03 was done on 2026-10-19 and passed.
+
+**2026-11-07. 11 §3.4 offline banner: two deliberate deviations (#176).**
+- **Position.** §3.4 says "below the header". The banner sits under each tab's
+  content, just above the tab bar. Every screen draws its own `Header`, so
+  "below the header" would mean adding the banner to every screen and working
+  around each one's safe area. Don't "fix" this back without that plumbing.
+- **Copy.** §3.4's "Showing data from {time}" can't be true app-wide: tabs stay
+  mounted, so the cache holds several screens' data from different times. The
+  banner says "You're offline. Some of what you see is from as early as
+  {time}.", using the oldest answer any mounted screen is reading. Home keeps
+  its own exact stale line (`home-stale`).

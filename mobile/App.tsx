@@ -30,8 +30,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { queryClient } from '@/api/queryClient';
 import { ToastProvider } from '@/components';
 import { RootNavigator } from '@/navigation/RootNavigator';
+import { watchConnectivity } from '@/offline/connectivity';
 import { SessionProvider } from '@/session/SessionContext';
 import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
+
+// Once, at startup: network state drives refetch-on-reconnect and the offline banner.
+watchConnectivity();
 
 /** Status-bar glyphs that contrast with the live theme's ground. */
 function ThemedStatusBar() {
