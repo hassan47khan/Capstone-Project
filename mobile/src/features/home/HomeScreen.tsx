@@ -9,6 +9,7 @@
  *   category donut      GET /analytics/summary
  *   urgent attention    GET /analytics/price-changes?since=-30d&include_upcoming=true
  *   upcoming renewals   GET /analytics/upcoming?days=30
+ *   charge prompt       GET /charges ("Was the charge different?", US-19)
  *
  * States (06 §5)
  *   loading      a skeleton per section, never a full-screen spinner
@@ -32,6 +33,9 @@ import { analyticsApi, meApi } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import { Button, EmptyState, ErrorState, Screen } from '@/components';
 import { FEATURE_EXTRACTION } from '@/config/features';
+import { chargesKey, listCharges } from '@/features/charges/api';
+import { ChargePromptList } from '@/features/charges/ChargePrompt';
+import { CHARGE_COPY } from '@/features/charges/chargeCopy';
 import type { AppStackParamList } from '@/navigation/types';
 import { makeStyles, spacing } from '@/theme';
 
@@ -107,11 +111,16 @@ export function HomeScreen() {
     queryFn: () => analyticsApi.getUpcoming(UPCOMING_DAYS),
   });
 
+  const charges = useQuery({ queryKey: chargesKey, queryFn: listCharges });
+
   const sections = [summary, spend, urgent, upcoming];
-  const refreshing = sections.some((q) => q.isRefetching);
+  // Charges aren't in `sections` (they never count toward the full-screen
+  // error), but pull to refresh waits for them like any other section.
+  const refreshing = [...sections, charges].some((q) => q.isRefetching);
   const refresh = () => {
     sections.forEach((q) => q.refetch());
     profile.refetch();
+    charges.refetch();
   };
 
   const openCalendar = () =>
@@ -186,6 +195,17 @@ export function HomeScreen() {
     ) : urgentItems.length > 0 ? (
       <UrgentList items={urgentItems} onOpen={openUrgent} />
     ) : null;
+  const chargeItems = charges.data?.results ?? [];
+  // Shown only when a bill is waiting; a failed load retries inline.
+  const chargeContent =
+    charges.isError && !charges.data ? (
+      <SectionError error={charges.error} onRetry={() => charges.refetch()} />
+    ) : chargeItems.length > 0 ? (
+      <ChargePromptList
+        charges={chargeItems}
+        onDifferent={(charge) => navigation.navigate('ConfirmCharge', { id: charge.id })}
+      />
+    ) : null;
   const converted = convertedFrom(upcoming.data);
 
   return (
@@ -232,6 +252,12 @@ export function HomeScreen() {
       {urgentContent ? (
         <Section title="Urgent attention" testID="home-urgent">
           {urgentContent}
+        </Section>
+      ) : null}
+
+      {chargeContent ? (
+        <Section title={CHARGE_COPY.section} testID="home-charges">
+          {chargeContent}
         </Section>
       ) : null}
 

@@ -94,3 +94,11 @@ The device pass for handoffs 01–03 was done on 2026-10-19 and passed.
   `charges`, without `source`, because only the roll-forward job writes one so far. Add
   `source` when manual entry (US-16 backfill, `GET, POST /subscriptions/{id}/billing-events`)
   is built. `expected_amount` and `outcome` are additions.
+
+**2026-11-11. 06 §8 focus order: the charge prompt (#186).** Home has a
+"Was the charge different?" section (US-19) between urgent and upcoming, so the
+focus order is greeting → spend figure → category legend → urgent rows →
+charge cards → upcoming rows → "View all". It sits above upcoming on purpose:
+it asks about a bill that already went by. Each card reads as one sentence
+("Spotify billed on September 4, 2026. We expected $10.99. Was the charge
+different?") and its two buttons stay separately focusable.
