@@ -12,7 +12,7 @@ from rest_framework import serializers
 
 from core.contract import MoneySerializer
 
-from .models import Category, Subscription
+from .models import Category, Charge, Subscription
 from .services.cycles import CUSTOM_UNITS, CYCLES, Cycle
 from .services.validation import (
     PAYMENT_LABEL_MAX,
@@ -568,3 +568,46 @@ class GmailConnectionSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=["gmail"])
     email = serializers.EmailField()
     connected_at = serializers.DateTimeField()
+
+
+# Charges (US-19) ------------------------------------------------------------
+
+
+class ChargeConfirmInputSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        error_messages=_PRICE_ERRORS,
+        help_text="What was actually charged, in the charge's currency. Leave it out "
+        "to confirm the expected amount.",
+    )
+
+    def validate_amount(self, value):
+        if not is_valid_price(value):
+            raise serializers.ValidationError(PRICE_MESSAGE)
+        return value
+
+
+class ChargeSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    subscription_id = serializers.CharField()
+    name = serializers.CharField(help_text="The subscription's name.")
+    charged_on = serializers.DateField()
+    expected = MoneySerializer(help_text="The price on file when the bill went by.")
+    amount = MoneySerializer(
+        help_text="What was charged: the expected amount until confirmed. "
+        "Both are in the billing currency of the day, never converted."
+    )
+    confirmed = serializers.BooleanField()
+    outcome = serializers.ChoiceField(
+        choices=Charge.Outcome.choices,
+        allow_null=True,
+        help_text="Null until confirmed. higher: the price went up and the alert was "
+        "raised if the rules want it. needs_review: the subscription changed currency "
+        "since, so nothing was compared.",
+    )
+
+
+class ChargeListSerializer(serializers.Serializer):
+    results = ChargeSerializer(many=True, help_text="Unconfirmed charges, newest first.")

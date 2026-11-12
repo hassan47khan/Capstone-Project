@@ -78,3 +78,19 @@ These are code-read checks, not a re-run of the tests.
 - `Header` titles use `typography.displaySm` (20/28).
 
 The device pass for handoffs 01–03 was done on 2026-10-19 and passed.
+
+**2026-11-11. Price-increase alerts (#185) depart from the design spec's §9 in three ways.**
+- **What a charge is compared with.** §9 says a confirmed amount is compared with "the previous
+  confirmed amount for that subscription". We compare it with the price on file when the bill
+  went by (`Charge.expected_amount`). §9 contradicts itself here: comparing with the last
+  confirmed charge would alert on a price the user typed in themselves between two bills, and
+  §9 says a direct edit never alerts. Don't "fix" `_outcome` in `subscriptions/charges.py`
+  back to the previous confirmed charge.
+- **Only the latest bill.** When several bills went by unrecorded, roll-forward records only
+  the last one before today. A charge older than that is history: confirming it records the
+  amount but neither alerts nor moves the price, because a revision dated months back would
+  reprice every figure since. This is §9's "backfilled past events never trigger alerts".
+- **Names.** §8 calls the collection `billing_events`, with a `source` field. Here it is
+  `charges`, without `source`, because only the roll-forward job writes one so far. Add
+  `source` when manual entry (US-16 backfill, `GET, POST /subscriptions/{id}/billing-events`)
+  is built. `expected_amount` and `outcome` are additions.

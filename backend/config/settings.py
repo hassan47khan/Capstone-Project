@@ -478,6 +478,7 @@ SPECTACULAR_SETTINGS = {
         "KindEnum": ["price_change", "trial_ending"],
         "NotificationKindEnum": ["trial_ending", "renewal", "price_increase"],
         "InsightKindEnum": ["price_increase", "trial_converting", "largest_category"],
+        "ChargeOutcomeEnum": "subscriptions.models.Charge.Outcome",
         "InvitationStatusEnum": ["pending", "accepted", "expired", "revoked"],
         "FamilyRoleEnum": ["admin", "member", "viewer"],
     },

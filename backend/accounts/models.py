@@ -101,7 +101,8 @@ class NotificationRule(models.Model):
     send_push = models.BooleanField(default=True)
     send_email = models.BooleanField(default=False)
     alert_on_any_price_change = models.BooleanField(default=True)
-    # Only alert when a price rises by at least this amount; null means any rise.
+    # Only alert when a price rises by more than this, in the display currency
+    # ("changes > $1.00", handoff 09 §5); null means any rise.
     price_alert_threshold = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )

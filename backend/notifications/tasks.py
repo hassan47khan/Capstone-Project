@@ -23,7 +23,7 @@ from kombu.exceptions import OperationalError
 from accounts.models import rules_for
 from core.tasks import queue_email
 
-from . import push
+from . import price_alerts, push
 from .models import DeviceToken, Notification, PushReceipt, Reminder
 from .scheduling import target_date_of
 
@@ -58,7 +58,6 @@ OVERDUE_INCIDENT_MINUTES = 30
 _COPY = {
     Kind.TRIAL_ENDING: ("Trial ending soon", "Your {name} free trial ends on {date}."),
     Kind.RENEWAL: ("Renewal coming up", "{name} renews on {date}."),
-    Kind.PRICE_INCREASE: ("Price went up", "The price of {name} has gone up."),
 }
 
 # Spec section 8: a user with no time zone is treated as UTC and told so.
@@ -91,6 +90,10 @@ def _target_date(reminder: Reminder):
 
 def copy_for(reminder: Reminder) -> tuple[str, str]:
     """The title and body for one reminder."""
+    if reminder.kind == Kind.PRICE_INCREASE:
+        # About a charge that has happened, not a date coming up, so it has
+        # no target date to name and copy of its own.
+        return price_alerts.copy_for(reminder)
     title, template = _COPY[reminder.kind]
     date = _target_date(reminder)
     body = template.format(name=reminder.subscription.name, date=date.isoformat() if date else "")

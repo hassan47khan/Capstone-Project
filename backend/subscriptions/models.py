@@ -253,6 +253,59 @@ class PriceHistoryEvent(models.Model):
         return f"{self.event_type} @ {self.occurred_at:%Y-%m-%d}"
 
 
+class Charge(models.Model):
+    """One bill that went by, waiting for the user to say what it really was.
+
+    The system design spec's `billing_events`, named `charges` here and
+    without `source` until manual entry exists (errata, 2026-11-11). Built
+    for US-19; US-16's history and backfill are not. When a renewal date
+    passes, the roll-forward job writes the latest bill here at the price on
+    file, unconfirmed, and the app asks "Was the charge different?". Confirming it,
+    as is or with the real amount, is the only thing that can raise a
+    price-increase alert: an edit to the price is the user's own change and
+    never alerts (spec, billing events and price-change detection).
+
+    `expected_amount` is the price on file when the bill went by, kept apart
+    from `amount` so the comparison survives the user's correction.
+    """
+
+    class Outcome(models.TextChoices):
+        HIGHER = "higher"
+        LOWER = "lower"
+        SAME = "same"
+        # The subscription changed currency since this bill, so the two
+        # amounts cannot be compared without an exchange rate faking a change.
+        NEEDS_REVIEW = "needs_review"
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="charges")
+    charged_on = models.DateField()
+    expected_amount = models.DecimalField(**PRICE_DIGITS)
+    amount = models.DecimalField(**PRICE_DIGITS)
+    # The billing currency on the day; amount and expected_amount are both in it.
+    currency = models.CharField(max_length=3)
+    confirmed = models.BooleanField(default=False)
+    outcome = models.CharField(  # noqa: DJ001 - null until confirmed
+        max_length=12, choices=Outcome.choices, null=True, blank=True
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "charges"
+        ordering = ["-charged_on"]
+        constraints = [
+            # One per bill, so the hourly job running twice writes nothing new.
+            models.UniqueConstraint(
+                fields=["subscription", "charged_on"], name="charge_unique_per_bill"
+            )
+        ]
+        indexes = [models.Index(fields=["owner", "confirmed"], name="charge_owner_confirmed")]
+
+    def __str__(self):
+        return f"{self.amount} {self.currency} on {self.charged_on}"
+
+
 class IdempotencyKey(models.Model):
     """An `Idempotency-Key` a client sent with POST /subscriptions, and what it
     created (system design spec, data integrity practices).
