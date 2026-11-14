@@ -48,7 +48,10 @@ class Wanted:
 
 
 def dedupe_key(subscription_id, kind: str, target_date: date) -> str:
-    """`subscription:kind:target_date` (spec section 8)."""
+    """`subscription:kind:target_date` (spec section 8).
+
+    `target_date_of` parses this back, so keep the date last and in ISO form.
+    """
     return f"{subscription_id}:{kind}:{target_date.isoformat()}"
 
 

@@ -202,6 +202,7 @@ do not draw them.
 | No renewals in 30 days | Section shows "No renewals in the next 30 days" + link to Calendar |
 | Very long service name | Truncate to one line; price never truncates |
 | Display currency ≠ billing currency | Figures converted; currency chip appears; `caption` notes "Converted at today's rate" |
+| A subscription has no exchange rate to the display currency | Left out of the total and the active count; `caption` notes "{N} not counted, no exchange rate" |
 | Spend is $0 (all cancelled) | Figure shows $0.00; delta hidden; prompt to reactivate or add |
 | Largest OS font size | Sections stack; figure may wrap; nothing clips or overlaps |
 
