@@ -33,6 +33,8 @@ export interface FormValues {
   startDate: string | null;
   notes: string;
   paymentLabel: string;
+  // Only offered to someone in a family (#184).
+  isPrivate: boolean;
 }
 
 /** 07 §3: an empty form starts on Monthly; category and date are unset. */
@@ -47,6 +49,7 @@ export const EMPTY_FORM: FormValues = {
   startDate: null,
   notes: '',
   paymentLabel: '',
+  isPrivate: false,
 };
 
 /** Character limits (07 §2, §8). */
@@ -158,6 +161,7 @@ export function toSubscriptionInput(values: FormValues): SubscriptionInput {
     category: values.category ?? '',
     notes: values.notes.trim(),
     payment_label: values.paymentLabel.trim(),
+    is_private: values.isPrivate,
   };
 }
 
@@ -226,6 +230,7 @@ export function formFromDetail(detail: SubscriptionDetail): FormValues {
     startDate: detail.start_date,
     notes: detail.notes,
     paymentLabel: detail.payment_label,
+    isPrivate: detail.is_private,
   };
 }
 
