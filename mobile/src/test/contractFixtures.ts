@@ -18,6 +18,8 @@ import type {
   UpcomingBill,
 } from '@/api/analyticsTypes';
 
+import type { InsightResponse } from '@/features/analytics/insight';
+
 import { MOCK_EMAILS } from './fixtures';
 
 const usd = (amount: string) => ({ amount, currency: 'USD' });
@@ -261,4 +263,27 @@ export function spendFor(email: string, months: number): SpendOverTime {
 
 export function contractHomeFor(email: string): ContractHome {
   return contractHome[email] ?? contractHome[MOCK_EMAILS.full]!;
+}
+
+/**
+ * GET /analytics/insight, as the real backend answered (scratch database,
+ * seed data, 2026-11-03, with no model key so the template words it): Alex's
+ * Netflix rise, and no insight at all for an account with nothing to say
+ * (Sam, empty; Rosa). `generated` is false because the template wrote it.
+ */
+export const alexInsight: InsightResponse = {
+  insight: {
+    kind: 'price_increase',
+    text: 'Netflix rose $1.50 on Oct 1 — $18.00 a year.',
+    subscription_id: 'sub-netflix',
+    generated: false,
+  },
+};
+
+export const noInsight: InsightResponse = { insight: null };
+
+const NO_INSIGHT: readonly string[] = [MOCK_EMAILS.empty, MOCK_EMAILS.missingRate];
+
+export function insightFor(email: string): InsightResponse {
+  return NO_INSIGHT.includes(email) ? noInsight : alexInsight;
 }

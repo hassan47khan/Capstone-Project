@@ -16,9 +16,12 @@ import { queryKeys } from '@/api/queryKeys';
 import { SessionProvider } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
 import {
+  alexInsight,
   alexSpend,
   alexSpendYear,
   emptySummary,
+  insightFor,
+  noInsight,
   spendFor,
 } from '@/test/contractFixtures';
 import { MOCK_EMAILS } from '@/test/fixtures';
@@ -32,6 +35,8 @@ import { lightCategoryColors, lightColors, opacity, type CategoryKey } from '@/t
 
 import { ANALYTICS_COPY, AnalyticsScreen } from './AnalyticsScreen';
 import { barFractions, CATEGORY_COPY } from './CategoryCard';
+import { insightKey, type InsightResponse } from './insight';
+import { INSIGHT_COPY } from './InsightCard';
 import { SPEND_COPY } from './SpendTrend';
 import { LIST_COPY } from './SubscriptionList';
 
@@ -116,7 +121,13 @@ const rosaReal: AnalyticsSummary = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const Stack = createNativeStackNavigator<any>();
 function Stub() {
-  return <Text testID="stub">{useRoute().name}</Text>;
+  const route = useRoute();
+  return (
+    <>
+      <Text testID="stub">{route.name}</Text>
+      <Text testID="stub-params">{JSON.stringify(route.params ?? {})}</Text>
+    </>
+  );
 }
 
 function serve(summary: AnalyticsSummary) {
@@ -774,5 +785,202 @@ describe('Subscription list (08 §2.4)', () => {
     fail = false;
     await fireEvent.press(screen.getByTestId('analytics-list-error-retry'));
     expect(await screen.findByTestId('analytics-list')).toBeOnTheScreen();
+  });
+});
+
+// 08 §2.0. The mock serves what the real backend sent Alex (scratch database,
+// 2026-11-03): the Netflix rise, worded by the template (`generated: false`).
+describe('AI insight card (08 §2.0)', () => {
+  const NETFLIX = 'Netflix rose $1.50 on Oct 1 — $18.00 a year.';
+
+  function serveInsight(body: InsightResponse) {
+    server.use(http.get('*/analytics/insight', () => HttpResponse.json(body)));
+  }
+
+  /** Holds GET /analytics/insight until the returned release is called. */
+  function holdInsight(body: InsightResponse | 'error') {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.get('*/analytics/insight', async () => {
+        await held;
+        return body === 'error' ? HttpResponse.error() : HttpResponse.json(body);
+      }),
+    );
+    return () => act(async () => release());
+  }
+
+  it("comes first, above the spend headline, with the server's sentence as sent", async () => {
+    serve(alexReal);
+    await renderAnalytics();
+
+    const card = await screen.findByTestId('analytics-insight');
+    expect(within(card).getByText(NETFLIX)).toBeOnTheScreen();
+    await screen.findByTestId('analytics-spend');
+    // Queries return matches in screen order.
+    const order = screen
+      .getAllByTestId(/^analytics-(insight|spend)$/)
+      .map((node) => node.props.testID);
+    expect(order).toEqual(['analytics-insight', 'analytics-spend']);
+  });
+
+  it('says "Insight", not "AI insight", when the template wrote it', async () => {
+    serve(alexReal);
+    await renderAnalytics();
+
+    const card = await screen.findByTestId('analytics-insight');
+    expect(within(card).getByText(INSIGHT_COPY.template)).toBeOnTheScreen();
+    expect(within(card).queryByText(INSIGHT_COPY.generated)).toBeNull();
+  });
+
+  it('says "AI insight" when the model worded it', async () => {
+    serve(alexReal);
+    serveInsight({ insight: { ...alexInsight.insight!, generated: true } });
+    await renderAnalytics();
+
+    const card = await screen.findByTestId('analytics-insight');
+    expect(within(card).getByText(INSIGHT_COPY.generated)).toBeOnTheScreen();
+  });
+
+  it('opens the subscription it is about, and reads as one button', async () => {
+    serve(alexReal);
+    await renderAnalytics();
+
+    const card = await screen.findByRole('button', {
+      name: `${INSIGHT_COPY.template}. ${NETFLIX}`,
+    });
+    expect(card.props.accessibilityHint).toBe(INSIGHT_COPY.opensHint);
+
+    await fireEvent.press(card);
+
+    expect(await screen.findByTestId('stub')).toHaveTextContent('SubscriptionDetail');
+    expect(screen.getByTestId('stub-params')).toHaveTextContent('{"id":"sub-netflix"}');
+  });
+
+  it('is plain text for a category insight: there is nothing to open', async () => {
+    serve(alexReal);
+    serveInsight({
+      insight: {
+        kind: 'largest_category',
+        text: 'Productivity is 43% of your spend.',
+        subscription_id: null,
+        generated: false,
+      },
+    });
+    await renderAnalytics();
+
+    const card = await screen.findByTestId('analytics-insight');
+    expect(card.props.accessibilityLabel).toBe(
+      `${INSIGHT_COPY.template}. Productivity is 43% of your spend.`,
+    );
+    expect(card.props.accessibilityRole).toBeUndefined();
+    expect(screen.queryByRole('button', { name: /Productivity is 43%/ })).toBeNull();
+  });
+
+  it('is hidden when the server has nothing to say', async () => {
+    serve(alexReal);
+    serveInsight(noInsight);
+    await renderAnalytics();
+
+    await screen.findByTestId('analytics-spend');
+    expect(screen.queryByTestId('analytics-insight')).toBeNull();
+  });
+
+  it('shows nothing while loading: no skeleton, and the rest of the screen is there', async () => {
+    serve(alexReal);
+    const release = holdInsight(alexInsight);
+    await renderAnalytics(createTestQueryClient(), { settle: false });
+
+    await screen.findByTestId('analytics-category-card');
+    expect(screen.queryByTestId('analytics-insight')).toBeNull();
+    expect(screen.queryByLabelText(/insight/i)).toBeNull();
+
+    await release();
+    expect(await screen.findByTestId('analytics-insight')).toBeOnTheScreen();
+  });
+
+  it('shows nothing when it fails: no error, no Try again, no stale note', async () => {
+    serve(alexReal);
+    const release = holdInsight('error');
+    const queryClient = await renderAnalytics(createTestQueryClient(), { settle: false });
+    await screen.findByTestId('analytics-category-card');
+    await release();
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(screen.queryByTestId('analytics-insight')).toBeNull();
+    expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+    expect(screen.queryByTestId('analytics-stale')).toBeNull();
+  });
+
+  it('keeps the saved insight when a refresh fails, without a stale note', async () => {
+    serve(alexReal);
+    const queryClient = await renderAnalytics();
+    await screen.findByTestId('analytics-insight');
+
+    server.use(http.get('*/analytics/insight', () => HttpResponse.error()));
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: insightKey() });
+    });
+
+    expect(screen.getByTestId('analytics-insight')).toBeOnTheScreen();
+    expect(screen.queryByTestId('analytics-stale')).toBeNull();
+  });
+
+  it('refreshes with the other figures after a subscription changes', async () => {
+    serve(alexReal);
+    let requests = 0;
+    server.use(
+      http.get('*/analytics/insight', () => {
+        requests += 1;
+        return HttpResponse.json(alexInsight);
+      }),
+    );
+    const queryClient = await renderAnalytics();
+    await screen.findByTestId('analytics-insight');
+    expect(requests).toBe(1);
+
+    // What every subscription write invalidates (subscriptionWriteInvalidations).
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+    });
+
+    await waitFor(() => expect(requests).toBe(2));
+  });
+
+  it('reloads with the rest of the screen on pull-to-refresh', async () => {
+    serve(alexReal);
+    let requests = 0;
+    server.use(
+      http.get('*/analytics/insight', () => {
+        requests += 1;
+        return HttpResponse.json(alexInsight);
+      }),
+    );
+    await renderAnalytics();
+    await screen.findByTestId('analytics-insight');
+    expect(requests).toBe(1);
+
+    await act(async () => {
+      screen.getByTestId('analytics-screen').props.refreshControl.props.onRefresh();
+    });
+
+    await waitFor(() => expect(requests).toBe(2));
+  });
+
+  it('is not shown on the empty screen', async () => {
+    serve(emptySummary);
+    serveInsight(noInsight);
+    await renderAnalytics();
+
+    expect(await screen.findByText(ANALYTICS_COPY.emptyTitle)).toBeOnTheScreen();
+    expect(screen.queryByTestId('analytics-insight')).toBeNull();
+  });
+});
+
+describe('the insight mock answers like the real server', () => {
+  it('gives Alex the Netflix rise, and Sam and Rosa nothing', () => {
+    expect(insightFor(MOCK_EMAILS.full)).toEqual(alexInsight);
+    expect(insightFor(MOCK_EMAILS.empty)).toEqual(noInsight);
+    expect(insightFor(MOCK_EMAILS.missingRate)).toEqual(noInsight);
   });
 });
