@@ -32,6 +32,12 @@ function TwoTabs() {
 const at = (hour: number, minute: number) => new Date(2026, 9, 1, hour, minute).getTime();
 
 describe('OfflineBanner (11 §3.4)', () => {
+  // End every test online: reconnecting also clears a dismissal, so no test
+  // inherits an outage or a hidden banner from the one before it.
+  afterEach(async () => {
+    await goOnline();
+  });
+
   it('is hidden while online', async () => {
     await renderWithProviders(<OfflineBanner />);
 

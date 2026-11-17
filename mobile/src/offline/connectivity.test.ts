@@ -8,6 +8,11 @@ import { createTestQueryClient } from '@/test/render';
 import { isOnlineState, watchConnectivity } from './connectivity';
 
 describe('connectivity (11 §3.4)', () => {
+  // Some tests leave the shared onlineManager offline; don't let the next inherit it.
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
   it('counts a connection with no route to the internet as offline', () => {
     expect(isOnlineState({ isConnected: true, isInternetReachable: true })).toBe(true);
     // Unknown reachability isn't evidence of an outage: no banner.
