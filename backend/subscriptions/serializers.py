@@ -12,7 +12,7 @@ from rest_framework import serializers
 
 from core.contract import MoneySerializer
 
-from .models import Category, Subscription
+from .models import Category, Charge, Subscription
 from .services.cycles import CUSTOM_UNITS, CYCLES, Cycle
 from .services.validation import (
     PAYMENT_LABEL_MAX,
@@ -119,6 +119,13 @@ class SubscriptionInputSerializer(serializers.Serializer):
         min_value=1, max_value=366, required=False, allow_null=True
     )
     trial_reminder_enabled = serializers.BooleanField(required=False, default=True)
+    is_private = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "Hide the name from the rest of your family. It still counts in the family total."
+        ),
+    )
 
     def validate_name(self, value):
         value = value.strip()
@@ -223,6 +230,9 @@ class SubscriptionSerializer(CycleFieldsMixin):
     trial_length_days = serializers.IntegerField(allow_null=True)
     trial_reminder_enabled = serializers.BooleanField()
     trial_decision = serializers.ChoiceField(choices=TRIAL_DECISIONS)
+    is_private = serializers.BooleanField(
+        help_text="Hidden from the rest of the caller's family (10 §2); still in its total."
+    )
     counts_toward_totals = serializers.BooleanField(
         help_text="False for cancelled subscriptions and trials that have not converted."
     )
@@ -443,6 +453,9 @@ class SharedPlanListSerializer(serializers.Serializer):
     outstanding = MoneySerializer(
         help_text="Other participants' pending shares, owed to you. Display currency."
     )
+    unconverted_count = serializers.IntegerField(
+        help_text="Pending shares left out of `outstanding` because their currency has no FX rate."
+    )
     results = SharedPlanSerializer(many=True)
 
 
@@ -459,6 +472,12 @@ class SharedPlanInputSerializer(serializers.Serializer):
     )
 
 
+class MarkPaidInputSerializer(serializers.Serializer):
+    paid = serializers.BooleanField(
+        default=True, help_text="true marks this period's share paid; false undoes it."
+    )
+
+
 class ReminderSerializer(serializers.Serializer):
     payment_id = serializers.CharField()
     channel = serializers.ChoiceField(
@@ -467,7 +486,9 @@ class ReminderSerializer(serializers.Serializer):
     )
     message = serializers.CharField()
     last_reminded_at = serializers.DateTimeField()
-    next_reminder_available_at = serializers.DateTimeField(help_text="One reminder per 24 hours.")
+    next_reminder_available_at = serializers.DateTimeField(
+        help_text="One email per 24 hours. Now for the share sheet, which isn't limited."
+    )
 
 
 # Extractions (§6a) -----------------------------------------------------------
@@ -547,3 +568,46 @@ class GmailConnectionSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=["gmail"])
     email = serializers.EmailField()
     connected_at = serializers.DateTimeField()
+
+
+# Charges (US-19) ------------------------------------------------------------
+
+
+class ChargeConfirmInputSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        error_messages=_PRICE_ERRORS,
+        help_text="What was actually charged, in the charge's currency. Leave it out "
+        "to confirm the expected amount.",
+    )
+
+    def validate_amount(self, value):
+        if not is_valid_price(value):
+            raise serializers.ValidationError(PRICE_MESSAGE)
+        return value
+
+
+class ChargeSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    subscription_id = serializers.CharField()
+    name = serializers.CharField(help_text="The subscription's name.")
+    charged_on = serializers.DateField()
+    expected = MoneySerializer(help_text="The price on file when the bill went by.")
+    amount = MoneySerializer(
+        help_text="What was charged: the expected amount until confirmed. "
+        "Both are in the billing currency of the day, never converted."
+    )
+    confirmed = serializers.BooleanField()
+    outcome = serializers.ChoiceField(
+        choices=Charge.Outcome.choices,
+        allow_null=True,
+        help_text="Null until confirmed. higher: the price went up and the alert was "
+        "raised if the rules want it. needs_review: the subscription changed currency "
+        "since, so nothing was compared.",
+    )
+
+
+class ChargeListSerializer(serializers.Serializer):
+    results = ChargeSerializer(many=True, help_text="Unconfirmed charges, newest first.")

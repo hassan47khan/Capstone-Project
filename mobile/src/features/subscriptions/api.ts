@@ -83,6 +83,7 @@ export interface SubscriptionRow {
   trial_length_days: number | null;
   trial_reminder_enabled: boolean;
   trial_decision: TrialDecision;
+  is_private: boolean; // hidden from the rest of the family (10 §2)
   counts_toward_totals: boolean;
   normalized_monthly: ContractMoney | null; // monthly cost, computed by the server
   service_mark: ServiceMarkRef | null; // logo letter + brand colours, if known

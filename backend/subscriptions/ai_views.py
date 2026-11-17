@@ -1,23 +1,24 @@
 """AI-epic endpoints (handoff 04 §6a, 11 §2): extractions, trials, shared plans
-and Gmail. The 04 owner freezes their shapes here so mobile can build against
-mocks; the real logic and models are the 11 owner's."""
+and Gmail. The shapes were frozen first so mobile could build against mocks;
+every one is now backed by real models."""
 
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-import mocks
 from accounts.models import rules_for
 from core.clock import today_for
 from core.contract import errors
 from extraction import reviews
 from extraction import service as gmail_service
+from family.permissions import require_add, require_edit
 
-from . import trials
+from . import sharing, trials
 from .serializers import (
     GmailConnectInputSerializer,
     GmailConnectionSerializer,
+    MarkPaidInputSerializer,
     PendingExtractionListSerializer,
     ReminderSerializer,
     ScanSerializer,
@@ -78,11 +79,13 @@ class ConfirmExtractionView(APIView):
         operation_id="extractions_confirm",
         tags=["extractions"],
         request=SubscriptionInputSerializer,
-        responses={201: SubscriptionDetailSerializer, **errors(400, 401, 404)},
+        responses={201: SubscriptionDetailSerializer, **errors(400, 401, 403, 404)},
     )
     def post(self, request, extraction_id):
         """Create the subscription from the reviewed fields ("Confirm and track") and
-        delete the pending record. The body is the same as POST /subscriptions."""
+        delete the pending record. The body is the same as POST /subscriptions.
+        403 `family_cannot_add`, as for POST /subscriptions."""
+        require_add(request.user)
         fields = body(SubscriptionInputSerializer, request)
         sub = reviews.confirm(request.user, extraction_id, fields)
         sub.refresh_from_db()  # as stored, like POST /subscriptions
@@ -121,10 +124,12 @@ class TrialDecisionView(APIView):
         operation_id="trials_decision",
         tags=["trials"],
         request=TrialDecisionInputSerializer,
-        responses={200: TrialSerializer, **errors(400, 401, 404)},
+        responses={200: TrialSerializer, **errors(400, 401, 403, 404)},
     )
     def post(self, request, subscription_id):
-        """Keep it (stop nagging; it converts on its end date) or Remind me."""
+        """Keep it (stop nagging; it converts on its end date) or Remind me.
+        403 `family_cannot_edit`."""
+        require_edit(request.user)
         data = body(TrialDecisionInputSerializer, request)
         decided = trials.decide(
             request.user,
@@ -147,7 +152,11 @@ class SharedPlansView(APIView):
     )
     def get(self, request):
         """The caller's shared plans and what others still owe them. Never changes totals."""
-        return Response(SharedPlanListSerializer(mocks.shared_plans(request.user)).data)
+        return Response(
+            SharedPlanListSerializer(
+                sharing.shared_plans(request.user, today=today_for(request.user))
+            ).data
+        )
 
     @extend_schema(
         operation_id="shared_plans_create",
@@ -159,7 +168,12 @@ class SharedPlansView(APIView):
         """Split one of the caller's subscriptions equally. The caller is added first
         and absorbs any extra cent. 409 `already_shared`."""
         data = body(SharedPlanInputSerializer, request)
-        plan = mocks.create_shared_plan(request.user, data["subscription_id"], data["participants"])
+        plan = sharing.create_shared_plan(
+            request.user,
+            data["subscription_id"],
+            data["participants"],
+            today=today_for(request.user),
+        )
         return Response(SharedPlanSerializer(plan).data, status=status.HTTP_201_CREATED)
 
 
@@ -176,7 +190,28 @@ class RemindView(APIView):
 
         409 `already_paid`. 429 `throttled`: one reminder per 24 hours.
         """
-        return Response(ReminderSerializer(mocks.remind(request.user, plan_id, payment_id)).data)
+        reminder = sharing.remind(request.user, plan_id, payment_id, today=today_for(request.user))
+        return Response(ReminderSerializer(reminder).data)
+
+
+class MarkPaidView(APIView):
+    @extend_schema(
+        operation_id="shared_plans_mark_paid",
+        tags=["shared-plans"],
+        request=MarkPaidInputSerializer,
+        responses={200: SharedPlanSerializer, **errors(400, 401, 404, 409)},
+    )
+    def post(self, request, plan_id, payment_id):
+        """Record that a participant paid their share this period, or undo it with
+        `paid: false`. Returns the updated plan.
+
+        409 `owner_share`: the owner's own share is always paid.
+        """
+        data = body(MarkPaidInputSerializer, request)
+        plan = sharing.mark_paid(
+            request.user, plan_id, payment_id, today=today_for(request.user), paid=data["paid"]
+        )
+        return Response(SharedPlanSerializer(plan).data)
 
 
 # Gmail ------------------------------------------------------------------------------

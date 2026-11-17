@@ -51,6 +51,15 @@ export function deltaFor(spend: SpendOverTime): DeltaWords | null {
   };
 }
 
+/**
+ * Under the spend card when some subscriptions were left out of the total for
+ * having no exchange rate (US-4), or null when none were.
+ */
+export function notCountedFor(unconvertedCount: number): string | null {
+  if (unconvertedCount <= 0) return null;
+  return `${unconvertedCount} not counted, no exchange rate`;
+}
+
 /** "+$18.00" / "-$12.00", from a signed server amount. */
 export function signedMoney(amount: string, currency: string): string {
   const { display } = formatMoney(unsigned(amount), currency);

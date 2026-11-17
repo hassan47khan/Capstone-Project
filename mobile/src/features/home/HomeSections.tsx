@@ -33,7 +33,7 @@ import {
 import { makeStyles, opacity, radius, sizes, spacing, useTheme } from '@/theme';
 
 import { CategoryDonut, colorKeyFor } from './CategoryDonut';
-import { alertFor, deltaFor, greetingFor, initialsFor } from './homeCopy';
+import { alertFor, deltaFor, greetingFor, initialsFor, notCountedFor } from './homeCopy';
 
 /** 06 §2.4 and §2.5: how many cards and rows Home shows. */
 export const MAX_URGENT = 3;
@@ -151,6 +151,8 @@ export function SpendCard({
       ? `${delta.direction} ${delta.percent} ${delta.rest}`
       : delta.rest
     : null;
+  // Otherwise a user whose only subscription has no rate reads "0 active".
+  const notCounted = notCountedFor(summary.unconverted_count);
 
   return (
     <Card style={styles.spendCard}>
@@ -160,6 +162,7 @@ export function SpendCard({
           `Monthly recurring spend, ${figure}`,
           deltaSpoken,
           `${summary.active_count} active subscriptions`,
+          notCounted,
         ]
           .filter(Boolean)
           .join(', ')}
@@ -205,6 +208,12 @@ export function SpendCard({
 
         {converted ? (
           <Text style={styles.caption}>Converted at today&apos;s rate</Text>
+        ) : null}
+
+        {notCounted ? (
+          <Text style={styles.caption} testID="spend-not-counted">
+            {notCounted}
+          </Text>
         ) : null}
       </View>
     </Card>

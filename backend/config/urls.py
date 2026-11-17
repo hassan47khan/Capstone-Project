@@ -20,6 +20,7 @@ api_v1 = [
     path("", include("subscriptions.urls")),
     path("", include("notifications.urls")),
     path("", include("extraction.urls")),
+    path("", include("family.urls")),
 ]
 
 urlpatterns = [

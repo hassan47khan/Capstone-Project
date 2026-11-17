@@ -12,12 +12,15 @@
  *   mounted is parked here instead of being handed to the navigator. When the
  *   user signs in and the App stack mounts, RootNavigator takes it and opens it.
  *
+ * A family invitation is parked too: someone without an account registers,
+ * confirms their email, and then lands on the invitation (10 §5).
+ *
  * Auth links (verify-email, reset-password) never need parking: the Auth stack
  * is exactly where they belong when the user is signed out.
  */
 
 /** App-stack URL paths that need a signed-in session to open. */
-const APP_ONLY = /^subtrak:\/\/subscription\//;
+const APP_ONLY = /^subtrak:\/\/(subscription\/|family-invite\b)/;
 
 let pending: string | null = null;
 let appMounted = false;

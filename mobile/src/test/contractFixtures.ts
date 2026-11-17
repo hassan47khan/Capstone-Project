@@ -48,7 +48,7 @@ const mark = (m: string, brand_hex: string, tint_hex: string): ServiceMarkRef =>
   tint_hex,
 });
 
-const MARKS = {
+export const MARKS = {
   Netflix: mark('N', '#e50914', '#ffecee'),
   Spotify: mark('S', '#1db954', '#e3f9ed'),
   'Adobe CC': mark('A', '#b38b35', '#fff7cc'),

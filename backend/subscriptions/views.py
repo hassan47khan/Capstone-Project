@@ -18,11 +18,15 @@ from rest_framework.views import APIView
 
 from core.clock import today_for
 from core.contract import ApiError, errors, not_found
+from family.permissions import require_add, require_edit
 
-from . import analytics, idempotency, operations, presenters
+from . import analytics, charges, idempotency, operations, presenters
 from .models import Category, Subscription
 from .serializers import (
     STATUSES,
+    ChargeConfirmInputSerializer,
+    ChargeListSerializer,
+    ChargeSerializer,
     HistoryEventSerializer,
     PriceChangesSerializer,
     SpendOverTimeSerializer,
@@ -121,16 +125,18 @@ class SubscriptionsView(APIView):
                 ),
             )
         ],
-        responses={201: SubscriptionDetailSerializer, **errors(400, 401, 409)},
+        responses={201: SubscriptionDetailSerializer, **errors(400, 401, 403, 409)},
     )
     def post(self, request):
         """Add a subscription. next_bill_date is computed from start_date and the cycle.
 
         400 `price_invalid`: "Enter a valid price greater than $0."
+        403 `family_cannot_add`: the caller's family role or permissions don't allow it.
         409 `idempotency_key_reused`: the Idempotency-Key was already used with a
         different body. 409 `idempotency_key_in_use`: parallel requests with the
         key kept colliding; retrying with the same key is safe.
         """
+        require_add(request.user)
         key = idempotency.key_from(request)
         if key is None:
             return self._created(self._create(request), request)
@@ -180,11 +186,15 @@ class SubscriptionDetailView(APIView):
         operation_id="subscriptions_update",
         tags=["subscriptions"],
         request=SubscriptionInputSerializer,
-        responses={200: SubscriptionDetailSerializer, **errors(400, 401, 404)},
+        responses={200: SubscriptionDetailSerializer, **errors(400, 401, 403, 404)},
     )
     def patch(self, request, subscription_id):
-        """Change any fields. A price, category or cycle change writes one history event each."""
+        """Change any fields. A price, category or cycle change writes one history event each.
+
+        403 `family_cannot_edit`: the caller's family role or permissions don't allow it.
+        """
         sub = owned(request, subscription_id)
+        require_edit(request.user)
         changes = body(SubscriptionInputSerializer, request, partial=True)
         operations.update_subscription(sub, today=today_for(request.user), **changes)
         return Response(detail(sub, request))
@@ -192,12 +202,14 @@ class SubscriptionDetailView(APIView):
     @extend_schema(
         operation_id="subscriptions_delete",
         tags=["subscriptions"],
-        responses={204: NO_CONTENT, **errors(401, 404)},
+        responses={204: NO_CONTENT, **errors(401, 403, 404)},
     )
     def delete(self, request, subscription_id):
         """Soft delete: it leaves every list and total, its history is kept, and
-        POST .../restore undoes it."""
-        operations.soft_delete(owned(request, subscription_id))
+        POST .../restore undoes it. 403 `family_cannot_edit`."""
+        sub = owned(request, subscription_id)
+        require_edit(request.user)
+        operations.soft_delete(sub)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -206,14 +218,15 @@ class CancelView(APIView):
         operation_id="subscriptions_cancel",
         tags=["subscriptions"],
         request=None,
-        responses={200: SubscriptionDetailSerializer, **errors(401, 404, 409)},
+        responses={200: SubscriptionDetailSerializer, **errors(401, 403, 404, 409)},
     )
     def post(self, request, subscription_id):
         """Mark as cancelled: out of totals, history kept, saved_per_year set.
 
-        409 `already_cancelled`.
+        403 `family_cannot_edit`. 409 `already_cancelled`.
         """
         sub = owned(request, subscription_id)
+        require_edit(request.user)
         if sub.status == Subscription.Status.CANCELLED:
             raise ApiError(409, "already_cancelled", "This subscription is already cancelled.")
         operations.cancel_subscription(sub, today=today_for(request.user))
@@ -225,11 +238,13 @@ class RestoreView(APIView):
         operation_id="subscriptions_restore",
         tags=["subscriptions"],
         request=None,
-        responses={200: SubscriptionDetailSerializer, **errors(401, 404)},
+        responses={200: SubscriptionDetailSerializer, **errors(401, 403, 404)},
     )
     def post(self, request, subscription_id):
-        """Undo a delete: puts back the status it had before. Powers the Undo toast."""
+        """Undo a delete: puts back the status it had before. Powers the Undo toast.
+        403 `family_cannot_edit`."""
         sub = owned(request, subscription_id, include_deleted=True)
+        require_edit(request.user)
         operations.restore(sub, today=today_for(request.user))
         return Response(detail(sub, request))
 
@@ -368,3 +383,38 @@ class PriceChangesView(APIView):
             subscription=owned(request, subscription) if subscription else None,
         )
         return Response(PriceChangesSerializer(result).data)
+
+
+# Charges (US-19) ------------------------------------------------------------
+
+
+class ChargesView(APIView):
+    @extend_schema(
+        operation_id="charges_list",
+        tags=["charges"],
+        responses={200: ChargeListSerializer, **errors(401)},
+    )
+    def get(self, request):
+        """Bills that went by and are waiting for "Was the charge different?"."""
+        rows = charges.unconfirmed(request.user)
+        return Response({"results": [presenters.charge(row) for row in rows]})
+
+
+class ChargeConfirmView(APIView):
+    @extend_schema(
+        operation_id="charges_confirm",
+        tags=["charges"],
+        request=ChargeConfirmInputSerializer,
+        responses={200: ChargeSerializer, **errors(400, 401, 404, 409)},
+    )
+    def post(self, request, charge_id):
+        """Confirm a charge as expected, or with the amount actually charged.
+
+        Higher than expected: the subscription takes the new price and, if the
+        notification rules want it, a price-increase alert goes out. Lower: the
+        new price, silently. Editing the price directly never alerts.
+        409 `charge_already_confirmed`."""
+        row = charges.owned(request.user, charge_id)
+        amount = body(ChargeConfirmInputSerializer, request).get("amount")
+        row = charges.confirm(row, amount=amount, today=today_for(request.user))
+        return Response(presenters.charge(row))

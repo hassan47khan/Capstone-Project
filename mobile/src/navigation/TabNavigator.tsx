@@ -39,6 +39,8 @@ import { CalendarScreen } from '@/features/calendar/CalendarScreen';
 import { TrialShieldScreen } from '@/features/calendar/TrialShieldScreen';
 import { ConnectEmailScreen } from '@/features/extraction/ConnectEmailScreen';
 import { HomeScreen } from '@/features/home/HomeScreen';
+import { FamilyMemberScreen } from '@/features/family/FamilyMemberScreen';
+import { FamilyScreen } from '@/features/family/FamilyScreen';
 import { SettingsScreen } from '@/features/settings/SettingsScreen';
 import { SharedPlansScreen } from '@/features/sharing/SharedPlansScreen';
 import { OfflineBanner } from '@/offline/OfflineBanner';
@@ -69,6 +71,8 @@ function SettingsNavigator() {
       <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} />
       <SettingsStack.Screen name="SharedPlans" component={SharedPlansScreen} />
       <SettingsStack.Screen name="ConnectEmail" component={ConnectEmailScreen} />
+      <SettingsStack.Screen name="Family" component={FamilyScreen} />
+      <SettingsStack.Screen name="FamilyMember" component={FamilyMemberScreen} />
     </SettingsStack.Navigator>
   );
 }

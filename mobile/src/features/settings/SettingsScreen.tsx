@@ -5,7 +5,8 @@
  *   Display        Currency ("USD ($)"), Time Zone
  *   Notifications  one row into Notification Rules: no inline toggles
  *   Account        Profile ({display name}), Sign Out (confirm sheet)
- *   Connections    Shared plans, Connected email (11 §2.3, §2.6; Rafi's screens)
+ *   Connections    Shared plans, Connected email (11 §2.3, §2.6; Rafi's screens),
+ *                  Family (handoff 10)
  *   Developer      the component gallery, dev builds only
  *
  * The "Regular User Account" subtitle is gone (09 §1): it leaked a role name.
@@ -46,6 +47,7 @@ export const SETTINGS_COPY = {
   profile: 'Profile',
   signOut: 'Sign Out',
   sharedPlans: 'Shared plans',
+  family: 'Family',
   connectedEmail: 'Connected email',
   gallery: 'Component gallery',
   signOutTitle: 'Sign out?',
@@ -141,6 +143,11 @@ export function SettingsScreen() {
           label={SETTINGS_COPY.connectedEmail}
           onPress={() => stack.navigate('ConnectEmail')}
           testID="settings-connect-email"
+        />
+        <SettingsRow
+          label={SETTINGS_COPY.family}
+          onPress={() => stack.navigate('Family')}
+          testID="settings-family"
         />
       </GroupedList>
 

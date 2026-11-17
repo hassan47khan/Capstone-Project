@@ -36,6 +36,16 @@ const rawApiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/api/
  */
 const rawUseMocks = process.env.EXPO_PUBLIC_USE_MOCKS ?? 'false';
 
+/**
+ * Gmail OAuth (handoff 11 §2.1). Both are public: a client id is not a secret,
+ * and the redirect is the backend's HTTPS callback page
+ * (`{SUBTRAK_PUBLIC_BASE_URL}/integrations/gmail/callback`), which must also be
+ * listed in the backend's GOOGLE_OAUTH_REDIRECT_URIS. Unset means Connect Gmail
+ * shows the "Couldn't connect" card instead of opening a browser.
+ */
+const rawGoogleClientId = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID ?? '';
+const rawGmailRedirectUri = process.env.EXPO_PUBLIC_GMAIL_REDIRECT_URI ?? '';
+
 export const env = {
   /** API base URL, with any trailing slashes removed so paths concatenate cleanly. */
   apiUrl: rawApiUrl.replace(/\/+$/, ''),
@@ -45,6 +55,12 @@ export const env = {
    * transport instead of the network. See src/test/routes.ts for the table.
    */
   useMocks: rawUseMocks === 'true',
+
+  /** Google OAuth Web-application client id, for Connect Gmail. Empty when unset. */
+  googleClientId: rawGoogleClientId.trim(),
+
+  /** The backend's Gmail callback URL, registered with Google. Empty when unset. */
+  gmailRedirectUri: rawGmailRedirectUri.trim(),
 
   /** True in a Metro dev build. Gates developer-only warnings. */
   isDev: __DEV__,

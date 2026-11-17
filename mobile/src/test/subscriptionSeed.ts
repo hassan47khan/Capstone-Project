@@ -41,6 +41,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '2.99',
@@ -100,6 +101,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: 31,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: false,
     normalized_monthly: {
       amount: '17.99',
@@ -159,6 +161,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '10.99',
@@ -218,6 +221,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '4.25',
@@ -277,6 +281,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: 30,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: false,
     normalized_monthly: {
       amount: '10.00',
@@ -332,6 +337,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '13.99',
@@ -391,6 +397,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '54.99',
@@ -450,6 +457,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '20.00',
@@ -509,6 +517,7 @@ export const alexSeedDetails: SubscriptionDetail[] = [
     trial_length_days: 30,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: false,
     normalized_monthly: {
       amount: '13.99',
@@ -575,6 +584,7 @@ export const rosaSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '6.00',
@@ -630,6 +640,7 @@ export const rosaSeedDetails: SubscriptionDetail[] = [
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: null,
     service_mark: null,
@@ -687,6 +698,7 @@ export const capturedAddResponses = {
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: {
       amount: '13.08',
@@ -741,6 +753,7 @@ export const capturedAddResponses = {
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: null,
     service_mark: null,
@@ -789,6 +802,7 @@ export const capturedAddResponses = {
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
+    is_private: false,
     counts_toward_totals: true,
     normalized_monthly: null,
     service_mark: null,
