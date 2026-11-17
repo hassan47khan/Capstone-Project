@@ -27,6 +27,14 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
 const BG_LIGHT = '#f6f4ee';
 const BG_DARK = '#121a1c';
 
+/**
+ * The EAS project id. Expo needs it to issue push tokens (expo-notifications),
+ * so without one the app skips push registration and keeps alerts in the
+ * inbox. It is not a secret: it ends up in every build. Set EAS_PROJECT_ID in
+ * mobile/.env.local after `eas init`, or let `eas init` write it here.
+ */
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID;
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'SubTrak',
@@ -46,6 +54,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: 'edu.csc325.subtrak',
+    // Android push goes through Firebase (FCM). The file comes from the
+    // Firebase console; locally it's a path, on EAS a file environment
+    // variable. Without it the build still works, just without Android push.
+    ...(process.env.GOOGLE_SERVICES_JSON
+      ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON }
+      : {}),
     adaptiveIcon: {
       // The launcher icon is not themed by the OS; it keeps the brand cream.
       backgroundColor: BG_LIGHT,
@@ -57,12 +71,25 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: './assets/favicon.png',
   },
+  extra: {
+    ...config.extra,
+    ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}),
+  },
   plugins: [
     'expo-secure-store',
     'expo-font',
     // SDK 58 asks for both packages' config plugins to be declared.
     '@react-native-community/datetimepicker',
     'expo-status-bar',
+    // Push (US-13). Android draws the small notification icon from the
+    // monochrome launcher layer; the channel itself is created in push.ts.
+    [
+      'expo-notifications',
+      {
+        icon: './assets/android-icon-monochrome.png',
+        color: BG_DARK,
+      },
+    ],
     // expo-web-browser and expo-crypto (Connect Gmail) need no entry: crypto
     // ships no plugin, and web-browser's only changes Android when
     // `experimentalLauncherActivity` is set. Its Custom Tabs <queries> and
