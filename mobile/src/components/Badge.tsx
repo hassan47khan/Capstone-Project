@@ -25,19 +25,24 @@
  *   success     colors.successSurface background, colors.success text (4.79:1)
  *   neutral     colors.surface2 background, colors.text text
  *   warning     colors.warningSurface background, colors.text text
+ *   accent      colors.accentSurface background, colors.accent text (6.23:1
+ *               light, 5.09:1 dark). `10 §3.3` writes the fill as
+ *               `accent` @ 10%; `accentSurface` is that token, the same
+ *               substitution `success` already makes for `success` @ 10%.
  *
  * Deviations from 02 §19
  *   `neutral` text is `text`, not `textMuted`: muted grey on `surface2` is
  *   4.28:1, an AA failure (CONTRAST.md). `warning` text is `text` for the same
  *   reason — 02 §19 already notes `warning` on its own tint is 3.79:1.
  *
- * Used by: Subscription detail, Subscriptions list rows, Insights counts.
+ * Used by: Subscription detail, Subscriptions list rows, Insights counts,
+ * and the Family members list's role badges (`10 §3.3`).
  */
 import { Text, View } from 'react-native';
 
 import { fontFamily, makeStyles, radius, spacing } from '@/theme';
 
-export type BadgeTone = 'success' | 'neutral' | 'warning';
+export type BadgeTone = 'success' | 'neutral' | 'warning' | 'accent';
 
 export interface BadgeProps {
   /** The word shown. Short — one or two words at most. */
@@ -47,6 +52,7 @@ export interface BadgeProps {
    * success — "Active", "12 active": the healthy state
    * neutral — "Cancelled", or any inert state
    * warning — "Trial", or anything needing attention before a date
+   * accent  — "Admin": a standing role or kind, not a state that will change
    */
   tone?: BadgeTone;
 
@@ -88,4 +94,8 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   warning: { backgroundColor: colors.warningSurface },
   // Text on the warning tint is `text`, never muted grey (01 §1).
   warningText: { color: colors.text },
+  accent: { backgroundColor: colors.accentSurface },
+  // `accent on accentSurface` is one of the pairs tokens.test.ts asserts at
+  // 4.5:1, so this tone inherits that guarantee rather than restating it.
+  accentText: { color: colors.accent },
 }));

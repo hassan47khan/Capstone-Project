@@ -33,7 +33,7 @@ services:
     # gunicorn reads WEB_CONCURRENCY, which Render sets per plan.
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --timeout 30
     healthCheckPath: /api/v1/health/
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: "off"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.12
@@ -81,7 +81,7 @@ services:
     plan: 0.5c-512mb
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A config worker --beat --loglevel INFO --concurrency 2
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: "off"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.12

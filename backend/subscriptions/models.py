@@ -146,6 +146,9 @@ class Subscription(models.Model):
     trial_decision = models.CharField(
         max_length=10, choices=TrialDecision.choices, default=TrialDecision.NONE
     )
+    # Family privacy (10 §2, option A): still counted in the family total, but
+    # shown to everyone else in the family as "Private subscription", no name.
+    is_private = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     # Embedded: participants are always read with their plan and are bounded.
@@ -250,6 +253,59 @@ class PriceHistoryEvent(models.Model):
         return f"{self.event_type} @ {self.occurred_at:%Y-%m-%d}"
 
 
+class Charge(models.Model):
+    """One bill that went by, waiting for the user to say what it really was.
+
+    The system design spec's `billing_events`, named `charges` here and
+    without `source` until manual entry exists (errata, 2026-11-11). Built
+    for US-19; US-16's history and backfill are not. When a renewal date
+    passes, the roll-forward job writes the latest bill here at the price on
+    file, unconfirmed, and the app asks "Was the charge different?". Confirming it,
+    as is or with the real amount, is the only thing that can raise a
+    price-increase alert: an edit to the price is the user's own change and
+    never alerts (spec, billing events and price-change detection).
+
+    `expected_amount` is the price on file when the bill went by, kept apart
+    from `amount` so the comparison survives the user's correction.
+    """
+
+    class Outcome(models.TextChoices):
+        HIGHER = "higher"
+        LOWER = "lower"
+        SAME = "same"
+        # The subscription changed currency since this bill, so the two
+        # amounts cannot be compared without an exchange rate faking a change.
+        NEEDS_REVIEW = "needs_review"
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="charges")
+    charged_on = models.DateField()
+    expected_amount = models.DecimalField(**PRICE_DIGITS)
+    amount = models.DecimalField(**PRICE_DIGITS)
+    # The billing currency on the day; amount and expected_amount are both in it.
+    currency = models.CharField(max_length=3)
+    confirmed = models.BooleanField(default=False)
+    outcome = models.CharField(  # noqa: DJ001 - null until confirmed
+        max_length=12, choices=Outcome.choices, null=True, blank=True
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "charges"
+        ordering = ["-charged_on"]
+        constraints = [
+            # One per bill, so the hourly job running twice writes nothing new.
+            models.UniqueConstraint(
+                fields=["subscription", "charged_on"], name="charge_unique_per_bill"
+            )
+        ]
+        indexes = [models.Index(fields=["owner", "confirmed"], name="charge_owner_confirmed")]
+
+    def __str__(self):
+        return f"{self.amount} {self.currency} on {self.charged_on}"
+
+
 class IdempotencyKey(models.Model):
     """An `Idempotency-Key` a client sent with POST /subscriptions, and what it
     created (system design spec, data integrity practices).
@@ -275,3 +331,82 @@ class IdempotencyKey(models.Model):
 
     def __str__(self):
         return self.key
+
+
+# Shared plans (handoff 04 §6a, 11 §2.6) ------------------------------------------------
+#
+# Three collections, as 04 §6a names them. Separate from the embedded
+# `Subscription.sharing` above, which is the spec's invitation model for
+# SubTrak users; these participants are named contacts who may never sign up.
+# Nothing here is ever read by the totals: a shared bill still counts in full
+# for its owner (11 §2.6).
+
+
+class SharedPlan(models.Model):
+    class SplitMode(models.TextChoices):
+        EQUAL = "equal"
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shared_plans"
+    )
+    subscription = models.ForeignKey(
+        Subscription, on_delete=models.CASCADE, related_name="shared_plans"
+    )
+    split_mode = models.CharField(max_length=10, choices=SplitMode.choices, default=SplitMode.EQUAL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "shared_plans"
+        constraints = [
+            # One plan per subscription: a second POST is 409 `already_shared`.
+            models.UniqueConstraint(fields=["subscription"], name="shared_plan_per_subscription")
+        ]
+        indexes = [models.Index(fields=["owner", "created_at"], name="shared_plan_owner")]
+
+    def __str__(self):
+        return f"shared plan {self.pk}"
+
+
+class SharedPlanParticipant(models.Model):
+    plan = models.ForeignKey(SharedPlan, on_delete=models.CASCADE, related_name="participants")
+    display_name = models.CharField(max_length=60)
+    email = models.EmailField(null=True, blank=True)  # noqa: DJ001 - null means "no address"
+    # 0 is the owner, who absorbs any extra cent of the split.
+    position = models.PositiveSmallIntegerField()
+    is_owner = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "shared_plan_participants"
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "position"], name="participant_position")
+        ]
+
+    def __str__(self):
+        return self.display_name
+
+
+class SharedPlanPayment(models.Model):
+    """One participant's share for one billing period (YYYY-MM)."""
+
+    class Status(models.TextChoices):
+        PAID = "paid"
+        PENDING = "pending"
+
+    participant = models.ForeignKey(
+        SharedPlanParticipant, on_delete=models.CASCADE, related_name="payments"
+    )
+    period = models.CharField(max_length=7)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    last_reminded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "shared_plan_payments"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["participant", "period"], name="payment_per_participant_period"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.participant_id} {self.period} {self.status}"

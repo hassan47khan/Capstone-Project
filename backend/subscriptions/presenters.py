@@ -13,7 +13,7 @@ from accounts.models import settings_for
 from core.contract import money
 
 from . import operations
-from .models import Category, PriceHistoryEvent, ServiceCatalogEntry, Subscription
+from .models import Category, Charge, PriceHistoryEvent, ServiceCatalogEntry, Subscription
 from .services import money as engine
 
 
@@ -98,6 +98,7 @@ def subscription(sub: Subscription, ctx: Context) -> dict:
         "trial_length_days": sub.trial_length_days,
         "trial_reminder_enabled": sub.trial_reminder_enabled,
         "trial_decision": sub.trial_decision,
+        "is_private": sub.is_private,
         "counts_toward_totals": counts(sub, ctx.today),
         "normalized_monthly": ctx.display(monthly, sub.billing_currency),
         "service_mark": ctx.marks.get(sub.name),
@@ -141,4 +142,19 @@ def subscription_detail(sub: Subscription, ctx: Context) -> dict:
         "total_spent_to_date": _spent(sub, ctx),
         "saved_per_year": saved,
         "history": history(sub),
+    }
+
+
+def charge(row: Charge) -> dict:
+    """One bill that went by, in its own currency: never converted, because
+    the comparison it feeds must not move with exchange rates (US-19)."""
+    return {
+        "id": str(row.pk),
+        "subscription_id": str(row.subscription_id),
+        "name": row.subscription.name,
+        "charged_on": row.charged_on,
+        "expected": money(row.expected_amount, row.currency),
+        "amount": money(row.amount, row.currency),
+        "confirmed": row.confirmed,
+        "outcome": row.outcome,
     }

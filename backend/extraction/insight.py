@@ -25,7 +25,7 @@ from decimal import Decimal
 from django.core.cache import cache
 
 from subscriptions import analytics
-from subscriptions.services.money import round_money
+from subscriptions.services.money import label
 
 from . import circuit, llm
 
@@ -42,8 +42,6 @@ RECENT = timedelta(days=30)
 CACHE_SECONDS = 6 * 60 * 60
 # A card holds one short sentence.
 MAX_CHARS = 160
-
-_SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "INR": "₹"}
 
 SCHEMA = {
     "type": "object",
@@ -71,9 +69,7 @@ class Facts:
 
 
 def _money(amount: Decimal, currency: str) -> str:
-    value = round_money(amount, currency)
-    symbol = _SYMBOLS.get(currency)
-    return f"{symbol}{value}" if symbol else f"{value} {currency}"
+    return label(amount, currency)
 
 
 def _day(on: date) -> str:

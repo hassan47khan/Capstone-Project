@@ -36,6 +36,17 @@ def round_money(amount: Decimal, currency: str = BASE_CURRENCY) -> Decimal:
     return amount.quantize(minor_unit(currency), rounding=ROUND_HALF_UP)
 
 
+# For copy a person reads ("$15.49"). Anything without a symbol keeps its code.
+SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "INR": "₹"}
+
+
+def label(amount: Decimal, currency: str) -> str:
+    """One amount as text for user-facing copy, rounded by `round_money`."""
+    value = round_money(amount, currency)
+    symbol = SYMBOLS.get(currency)
+    return f"{symbol}{value}" if symbol else f"{value} {currency}"
+
+
 def _largest_remainder(amounts: Sequence[Decimal], unit: Decimal) -> list[Decimal]:
     """Round each amount to `unit` so they sum to their total rounded half-up to `unit`.
 

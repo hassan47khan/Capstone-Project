@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     # migrations have an app to land in.
     "notifications",
     "extraction",
+    "family",
 ]
 
 MIDDLEWARE = [
@@ -379,6 +380,13 @@ CELERY_BEAT_SCHEDULE = {
         "task": "notifications.tasks.check_push_receipts",
         "schedule": crontab(minute="*/15"),
     },
+    # Hourly, like convert-expired-trials and for the same reason: a bill only
+    # counts as gone once the owner's local date has passed it, so each zone
+    # rolls within an hour of its own midnight.
+    "roll-forward-renewals": {
+        "task": "subscriptions.tasks.roll_forward_renewals",
+        "schedule": crontab(minute=0),
+    },
 }
 
 
@@ -470,5 +478,8 @@ SPECTACULAR_SETTINGS = {
         "KindEnum": ["price_change", "trial_ending"],
         "NotificationKindEnum": ["trial_ending", "renewal", "price_increase"],
         "InsightKindEnum": ["price_increase", "trial_converting", "largest_category"],
+        "ChargeOutcomeEnum": "subscriptions.models.Charge.Outcome",
+        "InvitationStatusEnum": ["pending", "accepted", "expired", "revoked"],
+        "FamilyRoleEnum": ["admin", "member", "viewer"],
     },
 }
