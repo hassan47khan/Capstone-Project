@@ -143,6 +143,29 @@ describe('what Confirm and track sends', () => {
     );
   });
 
+  it.each(['2026-09-30', '2026-10-01'])(
+    'us12_trial_end_in_the_past_is_blocked (%s)',
+    (trialEndsOn) => {
+      const values = {
+        ...valuesFromExtraction(huluExtraction),
+        startDate: '2026-09-01',
+        trialEndsOn,
+      };
+      expect(validateReview(values, TODAY).trialEndsOn).toBe(
+        'Trial end date must be in the future.',
+      );
+    },
+  );
+
+  it('us12_trial_ending_tomorrow_is_fine', () => {
+    const values = {
+      ...valuesFromExtraction(huluExtraction),
+      startDate: '2026-09-01',
+      trialEndsOn: '2026-10-02',
+    };
+    expect(validateReview(values, TODAY).trialEndsOn).toBeUndefined();
+  });
+
   it('a trial needs an end date', () => {
     const values = { ...valuesFromExtraction(huluExtraction), trialEndsOn: null };
     expect(validateReview(values, TODAY).trialEndsOn).toBe(

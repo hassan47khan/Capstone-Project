@@ -272,6 +272,57 @@ def test_create_a_trial(api, contract):
     assert body["total_spent_to_date"] == usd("0.00")
 
 
+@pytest.mark.parametrize("ends_on", ["2026-09-30", "2026-10-01"])
+def test_us12_trial_end_in_the_past_is_blocked(api, contract, ends_on):
+    """US-12: a trial ending today or earlier (SEED_TODAY is 2026-10-01)."""
+    before = Subscription.all_objects.count()
+    response = api.post(
+        "/api/v1/subscriptions",
+        new_subscription(
+            is_trial=True, trial_ends_on=ends_on, trial_length_days=30, start_date="2026-09-01"
+        ),
+        format="json",
+    )
+    body = contract(response, "/subscriptions")
+
+    assert response.status_code == 400
+    assert body["error"]["code"] == "validation_error"
+    assert body["error"]["fields"] == {"trial_ends_on": ["Trial end date must be in the future."]}
+    assert Subscription.all_objects.count() == before
+
+
+def test_us12_trial_ending_tomorrow_is_accepted(api):
+    response = api.post(
+        "/api/v1/subscriptions",
+        new_subscription(
+            is_trial=True, trial_ends_on="2026-10-02", trial_length_days=30, start_date="2026-09-02"
+        ),
+        format="json",
+    )
+    assert response.status_code == 201
+
+
+def test_us12_a_paid_subscription_ignores_a_stale_trial_date(api):
+    """Only a trial's end date has to be in the future."""
+    response = api.post(
+        "/api/v1/subscriptions",
+        new_subscription(is_trial=False, trial_ends_on="2026-09-01"),
+        format="json",
+    )
+    assert response.status_code == 201
+
+
+def test_us12_editing_a_trial_end_into_the_past_is_blocked(api, alex):
+    hulu = sub_id(alex, "Hulu")
+    response = api.patch(
+        f"/api/v1/subscriptions/{hulu}", {"trial_ends_on": "2026-09-20"}, format="json"
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["fields"] == {
+        "trial_ends_on": ["Trial end date must be in the future."]
+    }
+
+
 @pytest.mark.parametrize("price", ["0", "-1", "abc", "1.234", None])
 def test_create_rejects_a_bad_price_with_the_spec_message(api, contract, price):
     response = api.post(
