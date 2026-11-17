@@ -116,7 +116,7 @@ export function AddSubscriptionScreen() {
   // True from pressing Save until the server answers.
   const saving = useRef(false);
 
-  const errors = validateForm(values, localToday());
+  const errors = validateForm(values, localToday(), { trial: true });
   const valid = Object.keys(errors).length === 0;
   const nameWarning = useDuplicateNameWarning(values.name);
   const hint = saveHint(errors);
@@ -289,6 +289,7 @@ export function AddSubscriptionScreen() {
         onBlur={blur}
         disabled={create.isPending}
         nameWarning={nameWarning}
+        showTrial
       />
 
       {sheet}

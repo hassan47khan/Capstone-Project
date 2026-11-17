@@ -178,7 +178,51 @@ describe('formFromDetail', () => {
       startDate: '2024-03-12',
       notes: '',
       paymentLabel: 'Visa ••4242',
+      isTrial: false,
+      trialEndsOn: null,
     });
+  });
+});
+
+describe('free trial (US-12)', () => {
+  const trial = { ...headspace, isTrial: true, startDate: '2026-09-01' };
+
+  it('us12_trial_needs_an_end_date', () => {
+    expect(validateForm(trial, TODAY, { trial: true }).trialEndsOn).toBe(
+      'Add the date the trial ends.',
+    );
+  });
+
+  it.each([TODAY, '2026-09-30'])('us12_trial_end_in_the_past_is_blocked (%s)', (end) => {
+    expect(
+      validateForm({ ...trial, trialEndsOn: end }, TODAY, { trial: true }).trialEndsOn,
+    ).toBe('Trial end date must be in the future.');
+  });
+
+  it('us12_future_trial_end_is_valid', () => {
+    expect(
+      validateForm({ ...trial, trialEndsOn: '2026-10-31' }, TODAY, { trial: true }),
+    ).toEqual({});
+  });
+
+  it('is not checked unless asked (Edit hides the trial)', () => {
+    expect(validateForm({ ...trial, trialEndsOn: '2020-01-01' }, TODAY)).toEqual({});
+  });
+
+  it('us12_trial_is_sent_with_its_length', () => {
+    expect(toSubscriptionInput({ ...trial, trialEndsOn: '2026-10-31' })).toMatchObject({
+      is_trial: true,
+      trial_ends_on: '2026-10-31',
+      trial_length_days: 60,
+    });
+  });
+
+  it('a paid subscription sends no trial fields', () => {
+    expect(toSubscriptionInput(headspace)).not.toHaveProperty('is_trial');
+  });
+
+  it('names the trial date in the save hint', () => {
+    expect(saveHint({ trialEndsOn: 'x' })).toBe('To save, check: trial end date.');
   });
 });
 
