@@ -184,10 +184,40 @@ const bill = (
   is_trial,
 });
 
+type UpcomingDay = Upcoming['days'][number];
+
+const day = (date: string, count: number, total: string): UpcomingDay => ({
+  date,
+  count,
+  total: usd(total),
+});
+
+/** Alex's earliest start date in the seed (04 §4). */
+export const ALEX_TRACKING_SINCE = '2023-10-01';
+
+/**
+ * GET /analytics/upcoming for October, as the backend answers at SEED_TODAY.
+ * Trials converting are listed but not in the totals (04 §6a), so October is
+ * $135.69: every charge that month, unlike Home's $129.20 monthly run rate.
+ */
 export const alexUpcoming: Upcoming = {
   display_currency: 'USD',
   start: SEED_TODAY,
   end: '2026-10-31',
+  total: usd('135.69'),
+  days: [
+    day('2026-10-01', 1, '2.99'),
+    day('2026-10-03', 1, '0.00'),
+    day('2026-10-04', 1, '10.99'),
+    day('2026-10-08', 1, '4.25'),
+    day('2026-10-10', 1, '0.00'),
+    day('2026-10-12', 1, '15.49'),
+    day('2026-10-15', 2, '26.98'),
+    day('2026-10-18', 1, '54.99'),
+    day('2026-10-20', 1, '20.00'),
+    day('2026-10-22', 1, '0.00'),
+  ],
+  tracking_since: ALEX_TRACKING_SINCE,
   items: [
     bill('iCloud+', '2026-10-01', 0, '2.99', CATEGORIES.cloudStorage),
     bill('Hulu', '2026-10-03', 2, '17.99', CATEGORIES.entertainment, true),
@@ -202,6 +232,116 @@ export const alexUpcoming: Upcoming = {
     bill('Duolingo Max', '2026-10-22', 21, '13.99', CATEGORIES.other, true),
   ],
 };
+
+/** September, as charged: Netflix was still $13.99 and no trial had converted. */
+const alexSeptember: Upcoming = {
+  display_currency: 'USD',
+  start: '2026-09-01',
+  end: '2026-09-30',
+  total: usd('121.20'),
+  days: [
+    day('2026-09-01', 1, '2.99'),
+    day('2026-09-04', 1, '10.99'),
+    day('2026-09-08', 1, '4.25'),
+    day('2026-09-12', 1, '13.99'),
+    day('2026-09-15', 1, '13.99'),
+    day('2026-09-18', 1, '54.99'),
+    day('2026-09-20', 1, '20.00'),
+  ],
+  tracking_since: ALEX_TRACKING_SINCE,
+  items: [
+    bill('iCloud+', '2026-09-01', -30, '2.99', CATEGORIES.cloudStorage),
+    bill('Spotify', '2026-09-04', -27, '10.99', CATEGORIES.entertainment),
+    bill('New York Times', '2026-09-08', -23, '4.25', CATEGORIES.newsMedia),
+    bill('Netflix', '2026-09-12', -19, '13.99', CATEGORIES.entertainment),
+    bill('YouTube Premium', '2026-09-15', -16, '13.99', CATEGORIES.entertainment),
+    bill('Adobe CC', '2026-09-18', -13, '54.99', CATEGORIES.productivity),
+    bill('ChatGPT Plus', '2026-09-20', -11, '20.00', CATEGORIES.aiTools),
+  ],
+};
+
+/** November, projected: the three trials have converted; Headspace bills every 2 months. */
+const alexNovember: Upcoming = {
+  display_currency: 'USD',
+  start: '2026-11-01',
+  end: '2026-11-30',
+  total: usd('164.68'),
+  days: [
+    day('2026-11-01', 1, '2.99'),
+    day('2026-11-03', 1, '17.99'),
+    day('2026-11-04', 1, '10.99'),
+    day('2026-11-08', 1, '4.25'),
+    day('2026-11-10', 1, '10.00'),
+    day('2026-11-12', 1, '15.49'),
+    day('2026-11-15', 1, '13.99'),
+    day('2026-11-18', 1, '54.99'),
+    day('2026-11-20', 1, '20.00'),
+    day('2026-11-22', 1, '13.99'),
+  ],
+  tracking_since: ALEX_TRACKING_SINCE,
+  items: [
+    bill('iCloud+', '2026-11-01', 31, '2.99', CATEGORIES.cloudStorage),
+    bill('Hulu', '2026-11-03', 33, '17.99', CATEGORIES.entertainment),
+    bill('Spotify', '2026-11-04', 34, '10.99', CATEGORIES.entertainment),
+    bill('New York Times', '2026-11-08', 38, '4.25', CATEGORIES.newsMedia),
+    bill('Notion AI', '2026-11-10', 40, '10.00', CATEGORIES.productivity),
+    bill('Netflix', '2026-11-12', 42, '15.49', CATEGORIES.entertainment),
+    bill('YouTube Premium', '2026-11-15', 45, '13.99', CATEGORIES.entertainment),
+    bill('Adobe CC', '2026-11-18', 48, '54.99', CATEGORIES.productivity),
+    bill('ChatGPT Plus', '2026-11-20', 50, '20.00', CATEGORIES.aiTools),
+    bill('Duolingo Max', '2026-11-22', 52, '13.99', CATEGORIES.other),
+  ],
+};
+
+const lastDayOf = (month: string): string => {
+  const [y, m] = month.split('-').map(Number) as [number, number];
+  return `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+};
+
+/** A month's payload moved to another month: same days, same figures. */
+function retemplate(template: Upcoming, month: string): Upcoming {
+  const move = (date: string) => `${month}${date.slice(7)}`;
+  const offset = (date: string) =>
+    Math.round((Date.parse(move(date)) - Date.parse(SEED_TODAY)) / 86_400_000);
+  return {
+    ...template,
+    start: `${month}-01`,
+    end: lastDayOf(month),
+    days: template.days.map((d) => ({ ...d, date: move(d.date) })),
+    items: template.items.map((i) => ({
+      ...i,
+      bill_date: move(i.bill_date),
+      days_until: offset(i.bill_date),
+    })),
+  };
+}
+
+/**
+ * GET /analytics/upcoming?start&end for one calendar month, as the mock
+ * server answers it. September to November are the backend's own figures;
+ * later months repeat November (everything is monthly by then, Headspace
+ * aside), earlier ones repeat September back to Alex's first subscription.
+ * Nothing here is computed from the items: the totals come with the template.
+ */
+export function upcomingMonthFor(email: string, start: string): Upcoming {
+  const month = start.slice(0, 7);
+  const empty: Upcoming = {
+    display_currency: 'USD',
+    start: `${month}-01`,
+    end: lastDayOf(month),
+    total: usd('0.00'),
+    days: [],
+    tracking_since: null,
+    items: [],
+  };
+  if (email !== MOCK_EMAILS.full) return empty;
+  if (month === '2026-10') return { ...alexUpcoming, start: '2026-10-01' };
+  if (month === '2026-09') return alexSeptember;
+  if (month === '2026-11') return alexNovember;
+  if (month > '2026-11') return retemplate(alexNovember, month);
+  if (month >= ALEX_TRACKING_SINCE.slice(0, 7)) return retemplate(alexSeptember, month);
+  return { ...empty, tracking_since: ALEX_TRACKING_SINCE };
+}
 
 /** A user with no subscriptions: zero totals, nothing listed. */
 export const emptySummary: AnalyticsSummary = {
@@ -245,7 +385,13 @@ export const contractHome: Record<string, ContractHome> = {
     summary: emptySummary,
     spend: emptySpend,
     urgent: { display_currency: 'USD', items: [] },
-    upcoming: { ...alexUpcoming, items: [] },
+    upcoming: {
+      ...alexUpcoming,
+      total: usd('0.00'),
+      days: [],
+      tracking_since: null,
+      items: [],
+    },
   },
 };
 
