@@ -50,6 +50,7 @@ import {
 } from '@/components';
 import { makeStyles, radius, serviceTint, sizes, spacing, useTheme } from '@/theme';
 
+import { notCountedFor } from '../home/homeCopy';
 import { describeCycle } from '../subscriptions/formRules';
 import { listSharedPlans, markPaid, remindParticipant, sharedPlanKeys } from './api';
 import { NewSharedPlanSheet } from './NewSharedPlanSheet';
@@ -128,7 +129,9 @@ export function SharedPlansScreen() {
     );
   }
 
-  const { results, outstanding } = plans.data;
+  const { results, outstanding, unconverted_count } = plans.data;
+  // Shares in a currency with no rate are left out of Outstanding, never guessed.
+  const notCounted = notCountedFor(unconverted_count);
   const someoneOwes = results.some((plan) =>
     plan.participants.some((p) => !p.is_owner && p.status === 'pending'),
   );
@@ -156,12 +159,17 @@ export function SharedPlansScreen() {
         <View
           style={styles.owed}
           accessible
-          accessibilityLabel={`${SHARED_COPY.outstanding}: ${owed}. ${outstandingCaption(results)}.`}
+          accessibilityLabel={`${SHARED_COPY.outstanding}: ${owed}. ${outstandingCaption(results)}.${notCounted ? ` ${notCounted}.` : ''}`}
           testID="shared-outstanding"
         >
           <Text style={styles.owedLabel}>{SHARED_COPY.outstanding}</Text>
           <Text style={styles.owedFigure}>{owed}</Text>
           <Text style={styles.owedCaption}>{outstandingCaption(results)}</Text>
+          {notCounted ? (
+            <Text style={styles.owedCaption} testID="shared-not-counted">
+              {notCounted}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
