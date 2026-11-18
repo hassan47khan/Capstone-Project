@@ -113,3 +113,12 @@ charge cards → upcoming rows → "View all". It sits above upcoming on purpose
 it asks about a bill that already went by. Each card reads as one sentence
 ("Spotify billed on September 4, 2026. We expected $10.99. Was the charge
 different?") and its two buttons stay separately focusable.
+
+**2026-11-18. 11 §3.5 dark theme: catalog brand marks get a dark pair (#104).** The
+catalog's service marks (`service_mark.tint_hex` / `brand_hex`) are drawn for the
+cream theme, so in dark a pale tint like Netflix's `#ffecee` was the brightest
+thing in a list row. `brandColorsFor` (`src/theme/tokens.ts`) leaves light alone;
+in dark it mixes the brand colour 20% over `surface` for the tile and lifts the
+ink towards `text` until it reads 3:1 on that tile. A pair that is already dark
+(Family passes the dark service palette) is untouched. The API still sends one
+pair; nothing server-side changed.

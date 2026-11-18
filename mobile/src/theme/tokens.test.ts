@@ -24,6 +24,7 @@ import {
   relativeLuminance,
 } from './contrast';
 import {
+  brandColorsFor,
   CATEGORY_KEYS,
   CATEGORY_SLUGS,
   categorySlugToKey,
@@ -392,5 +393,38 @@ describe('convention: no muted text on a tint', () => {
     expect(contrastRatio(lightColors.textMuted, lightColors.surface2)).toBeLessThan(
       CONTRAST_TEXT,
     );
+  });
+});
+
+describe('brandColorsFor (11 §3.5)', () => {
+  // The catalog pairs the seed and the mock API send (04 §4).
+  const CATALOG: ServiceColors[] = [
+    { tint: '#ffecee', ink: '#e50914' }, // Netflix
+    { tint: '#e3f9ed', ink: '#1db954' }, // Spotify
+    { tint: '#fff7cc', ink: '#b38b35' }, // Adobe CC
+    { tint: '#e6f0fa', ink: '#007aff' }, // iCloud+
+    { tint: '#e0e0e0', ink: '#000000' }, // New York Times
+    { tint: '#f4ecff', ink: '#a259ff' }, // Headspace
+  ];
+
+  it('keeps the catalog pair as drawn in light', () => {
+    for (const brand of CATALOG) expect(brandColorsFor(brand, 'light')).toBe(brand);
+  });
+
+  it.each(CATALOG.map((b) => [b.ink, b] as const))(
+    'in dark, %s sits quietly on surface and its ink reads at 3:1 on the tile',
+    (_ink, brand) => {
+      const { tint, ink } = brandColorsFor(brand, 'dark');
+      // No brighter than the dark service palette's tiles, which are all under 1.6:1.
+      expect(contrastRatio(tint, darkColors.surface)).toBeLessThan(1.6);
+      expect(contrastRatio(ink, tint)).toBeGreaterThanOrEqual(
+        CONTRAST_LARGE_TEXT_AND_GRAPHICS,
+      );
+    },
+  );
+
+  it('leaves a pair that is already dark alone', () => {
+    const own = darkServicePalette[0] as ServiceColors;
+    expect(brandColorsFor(own, 'dark')).toBe(own);
   });
 });
