@@ -72,10 +72,7 @@ beforeEach(async () => {
 
 describe('the server cache', () => {
   it('signing out leaves nothing of the last user for the next one', async () => {
-    // The test client drops unused data at once; the real one keeps it 5 minutes.
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { gcTime: Infinity } },
-    });
+    const queryClient = keepingClient();
     await tokenStore.setRefreshToken(VALID_REFRESH);
     await renderSession(queryClient);
     await expectStatus('authenticated');

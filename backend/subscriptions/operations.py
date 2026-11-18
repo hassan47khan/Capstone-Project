@@ -10,6 +10,7 @@ import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 
+from bson import ObjectId
 from django.utils import timezone
 from django_mongodb_backend import transaction
 
@@ -230,12 +231,18 @@ def roll_forward_bills(*, today: date | None = None) -> int:
     """
     # Nothing billed on or after the latest date anywhere can have gone by
     # yet, so the database skips those. The owner's own date decides the rest.
+    #
+    # No index serves this query on purpose. `subs_owner_status_bill` starts
+    # with owner, and this scan has no owner, so it reads the collection. That
+    # is fine at our size: it runs hourly and only matches active, non-trial
+    # subscriptions whose bill has already gone by. If it ever gets slow, add
+    # an index on (status, is_trial, next_bill_date); that needs a migration.
     ids = list(
         Subscription.objects.filter(
             status=Status.ACTIVE, is_trial=False, next_bill_date__lt=today or latest_today()
         ).values_list("pk", flat=True)
     )
-    days: dict = {}
+    days: dict[ObjectId, date] = {}
     rolled = 0
     for pk in ids:
         try:
@@ -246,7 +253,7 @@ def roll_forward_bills(*, today: date | None = None) -> int:
     return rolled
 
 
-def _roll_one(pk, *, today: date | None, days: dict) -> bool:
+def _roll_one(pk, *, today: date | None, days: dict[ObjectId, date]) -> bool:
     # Read again inside the transaction: since the list was taken, the user
     # may have cancelled, deleted or edited it.
     sub = (

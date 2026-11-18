@@ -323,7 +323,11 @@ function MemberRow({ member, onPress }: { member: FamilyMember; onPress?: () => 
           <Text style={styles.name} numberOfLines={1}>
             {member.is_you ? `${member.name} (you)` : member.name}
           </Text>
-          <Badge label={ROLE_LABELS[member.role]} tone="neutral" />
+          <Badge
+            label={ROLE_LABELS[member.role]}
+            tone={member.role === 'admin' ? 'accent' : 'neutral'}
+            testID={`family-role-${member.id}`}
+          />
         </View>
         <Text style={styles.caption}>{memberCaption(member)}</Text>
       </View>
