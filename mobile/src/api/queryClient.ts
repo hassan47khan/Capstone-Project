@@ -58,8 +58,21 @@ export function createQueryClient(): QueryClient {
          */
         refetchOnReconnect: true,
         refetchOnMount: true,
+
+        /**
+         * Run requests even when `onlineManager` says the phone is offline
+         * (src/offline/connectivity.ts feeds it NetInfo). The default,
+         * 'online', pauses an offline query instead, so a screen would sit on
+         * its spinner for as long as the outage lasts. With 'always' the
+         * request fails fast with the offline ApiError and the screen shows
+         * its offline error, or keeps its cached data under the banner.
+         */
+        networkMode: 'always',
       },
       mutations: {
+        // Same reason: an offline save fails with the offline error rather
+        // than hanging on a pending button.
+        networkMode: 'always',
         // Never retry a mutation automatically. A retried create could produce a
         // duplicate subscription; the Idempotency-Key in client.ts protects
         // against a retry the user asks for, which is the only kind we want.

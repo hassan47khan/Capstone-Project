@@ -10,7 +10,8 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react-nativ
 import { SessionProvider } from '@/session/SessionContext';
 import { tokenStore } from '@/session/tokenStore';
 import { MOCK_EMAILS } from '@/test/fixtures';
-import { renderWithProviders } from '@/test/render';
+import { flattenStyle, renderWithProviders } from '@/test/render';
+import { lightColors } from '@/theme';
 
 import { ACCEPT_COPY, FamilyInviteScreen, problemCopy } from './FamilyInviteScreen';
 import { FamilyMemberScreen, nextLabel } from './FamilyMemberScreen';
@@ -158,6 +159,17 @@ describe('Family', () => {
     expect(screen.getByTestId('family-member-mem-alex')).toHaveTextContent(
       part('Alex Kim (you)'),
     );
+  });
+
+  it('the admin badge is accent; member and viewer stay neutral (10 §3.3)', async () => {
+    await renderFamily();
+
+    const fill = (id: string) =>
+      flattenStyle(screen.getByTestId(`family-role-${id}`).props.style).backgroundColor;
+    expect(await screen.findByTestId('family-role-mem-alex')).toHaveTextContent('Admin');
+    expect(fill('mem-alex')).toBe(lightColors.accentSurface);
+    expect(fill('mem-jordan')).toBe(lightColors.surface2);
+    expect(fill('mem-sam')).toBe(lightColors.surface2);
   });
 
   it('someone in no family can start one', async () => {

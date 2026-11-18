@@ -4,17 +4,17 @@
  * Kept in this folder so src/api isn't touched. The server splits every bill
  * (largest remainder, owner first) and totals what's owed; the client only
  * shows the figures it gets back.
- *
- * Mark paid (`.../paid`) is newer than the generated client (#174), so its
- * body is typed here; it answers with the same `SharedPlan` as the list.
  */
 import { request } from '@/api/client';
 import type {
+  components,
   NewParticipantRequest,
   Reminder,
   SharedPlan,
   SharedPlanList,
 } from '@/api/contract';
+
+type MarkPaidInput = components['schemas']['MarkPaidInputRequest'];
 
 export const sharedPlanKeys = {
   all: ['shared-plans'] as const,
@@ -40,7 +40,7 @@ export function createSharedPlan(
 /**
  * Reminds someone about their share. `channel: 'email'` means the server sent
  * it; `share_sheet` means open the OS share sheet with `message`.
- * 409 `already_paid`, 429 `throttled` (one a day).
+ * 409 `already_paid`, 429 `throttled` (email only, one a day).
  */
 export function remindParticipant(planId: string, paymentId: string): Promise<Reminder> {
   return request<Reminder>(
@@ -61,6 +61,6 @@ export function markPaid(
 ): Promise<SharedPlan> {
   return request<SharedPlan>(
     `/shared-plans/${encodeURIComponent(planId)}/payments/${encodeURIComponent(paymentId)}/paid`,
-    { method: 'POST', body: { paid } },
+    { method: 'POST', body: { paid } satisfies MarkPaidInput },
   );
 }

@@ -49,7 +49,7 @@ import {
   registerMockDevice,
   resetNotifications,
 } from './notificationFixtures';
-import { contractHomeFor, spendFor } from './contractFixtures';
+import { contractHomeFor, spendFor, upcomingMonthFor } from './contractFixtures';
 import * as family from './familyMock';
 import {
   notificationRulesFor,
@@ -615,8 +615,11 @@ export const routes: Route[] = [
   {
     method: 'GET',
     pattern: '/analytics/upcoming',
-    handler: protectedRoute((_request, account) =>
-      ok(contractHomeFor(account.profile.email).upcoming),
+    // A start/end range is the Calendar's month (11 §1); `days` is Home's window.
+    handler: protectedRoute((request, account) =>
+      request.query.start
+        ? ok(upcomingMonthFor(account.profile.email, request.query.start))
+        : ok(contractHomeFor(account.profile.email).upcoming),
     ),
   },
 

@@ -222,6 +222,57 @@ def test_upcoming_stops_at_cancellation(api, alex):
     assert [i["bill_date"] for i in body["items"] if i["name"] == "Spotify"] == ["2026-08-04"]
 
 
+def test_upcoming_totals_the_month_and_each_day_on_the_server(api, contract):
+    body = contract(
+        api.get("/api/v1/analytics/upcoming?start=2026-10-01&end=2026-10-31"),
+        "/analytics/upcoming",
+    )
+
+    # Trials converting are listed but not added in (04 §6a).
+    assert body["total"] == usd("135.69")
+    days = {d["date"]: (d["count"], d["total"] and d["total"]["amount"]) for d in body["days"]}
+    assert days["2026-10-03"] == (1, "0.00")  # Hulu, a trial
+    assert days["2026-10-15"] == (2, "26.98")  # Headspace + YouTube Premium
+    assert days["2026-10-12"] == (1, "15.49")
+    assert [d["date"] for d in body["days"]] == sorted({i["bill_date"] for i in body["items"]})
+    assert sum(Decimal(d["total"]["amount"]) for d in body["days"]) == Decimal("135.69")
+    assert sum(d["count"] for d in body["days"]) == len(body["items"])
+
+
+def test_upcoming_says_when_tracking_began(api, alex, contract):
+    body = contract(
+        api.get("/api/v1/analytics/upcoming?start=2020-01-01&end=2020-01-31"),
+        "/analytics/upcoming",
+    )
+    first = min(s.start_date for s in Subscription.objects.filter(owner=alex))
+
+    assert body["tracking_since"] == first.isoformat()
+    assert (body["items"], body["days"]) == ([], [])
+    assert body["total"] == usd("0.00")
+
+
+def test_upcoming_with_nothing_tracked_has_no_start(categories):
+    user = User.objects.create_user(email="new@example.org", password="longenough1")
+    client = APIClient()
+    client.force_authenticate(user)
+
+    body = client.get("/api/v1/analytics/upcoming").json()
+
+    assert body["tracking_since"] is None
+    assert body["total"] == usd("0.00")
+
+
+def test_upcoming_total_is_null_without_a_rate(api, alex):
+    Subscription.objects.filter(owner=alex, name="Spotify").update(billing_currency="GBP")
+
+    body = api.get("/api/v1/analytics/upcoming?start=2026-10-01&end=2026-10-31").json()
+
+    assert body["total"] is None
+    day = next(d for d in body["days"] if d["date"] == "2026-10-04")
+    assert day["total"] is None
+    assert next(d for d in body["days"] if d["date"] == "2026-10-12")["total"] == usd("15.49")
+
+
 @pytest.mark.parametrize(
     "params",
     ["start=2026-10-01", "start=2026-10-10&end=2026-10-01", "start=2026-01-01&end=2027-06-01"],

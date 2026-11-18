@@ -162,11 +162,13 @@ class SharedPlansView(APIView):
         operation_id="shared_plans_create",
         tags=["shared-plans"],
         request=SharedPlanInputSerializer,
-        responses={201: SharedPlanSerializer, **errors(400, 401, 404, 409)},
+        responses={201: SharedPlanSerializer, **errors(400, 401, 403, 404, 409)},
     )
     def post(self, request):
         """Split one of the caller's subscriptions equally. The caller is added first
-        and absorbs any extra cent. 409 `already_shared`."""
+        and absorbs any extra cent. 409 `already_shared`. 403 `family_cannot_edit`,
+        as for every other change to a subscription."""
+        require_edit(request.user)
         data = body(SharedPlanInputSerializer, request)
         plan = sharing.create_shared_plan(
             request.user,

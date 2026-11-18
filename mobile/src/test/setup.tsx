@@ -15,6 +15,8 @@
 // toHaveAccessibilityState, toHaveStyle, ...) automatically on import. The
 // separate '/extend-expect' entry point that older guides mention was removed
 // in v12.4 — importing it now fails with "Cannot find module".
+import { onlineManager } from '@tanstack/react-query';
+
 import { resetPushMock } from './pushMock';
 import { server } from './server';
 import { resetMockState } from './routes';
@@ -117,6 +119,12 @@ jest.mock('expo-constants', () => ({
   },
 }));
 
+// NetInfo has native code; its own mock reports a connected phone.
+jest.mock('@react-native-community/netinfo', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('@react-native-community/netinfo/jest/netinfo-mock.js'),
+);
+
 jest.mock('lucide-react-native', () => {
   // `require` rather than an import: a jest.mock factory is hoisted above every
   // import in the file, so anything it references must be loaded inside it.
@@ -167,6 +175,8 @@ afterEach(() => {
   server.resetHandlers();
   resetMockState();
   resetPushMock();
+  // A test that went offline must not leave the next one offline.
+  onlineManager.setOnline(true);
 });
 
 afterAll(() => {
