@@ -4,7 +4,12 @@ from decimal import Decimal
 import pytest
 
 from subscriptions.services.trials import trial_progress, trial_started_on
-from subscriptions.services.validation import is_valid_price, looks_like_card_number
+from subscriptions.services.validation import (
+    currency_precision_message,
+    fits_currency,
+    is_valid_price,
+    looks_like_card_number,
+)
 
 
 def test_trial_progress_is_elapsed_over_length():
@@ -51,3 +56,25 @@ def test_display_labels_are_allowed(label):
 )
 def test_price_must_be_a_positive_finite_decimal(price, valid):
     assert is_valid_price(price) is valid
+
+
+@pytest.mark.parametrize(
+    ("price", "currency", "fits"),
+    [
+        (Decimal("1000"), "JPY", True),
+        (Decimal("1000.00"), "JPY", True),
+        (Decimal("1000.50"), "JPY", False),
+        (Decimal("9900.1"), "KRW", False),
+        (Decimal("9.99"), "USD", True),
+        (Decimal("9.999"), "USD", False),
+        (Decimal("4.20"), "EUR", True),
+        (Decimal("1.234"), "BHD", True),
+    ],
+)
+def test_a_price_is_whole_minor_units_of_its_currency(price, currency, fits):
+    assert fits_currency(price, currency) is fits
+
+
+def test_the_precision_message_names_the_currency():
+    assert currency_precision_message("JPY") == "Enter a whole number. JPY prices have no cents."
+    assert currency_precision_message("USD") == "Use at most 2 decimal places for USD."

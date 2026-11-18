@@ -223,6 +223,32 @@ def test_an_impossible_amount_is_refused(client, charge, amount):
     assert charge.confirmed is False
 
 
+def test_an_amount_finer_than_the_charges_currency_is_refused(client, owner, categories):
+    yen = operations.create_subscription(
+        today=START,
+        owner=owner,
+        name="Nintendo",
+        billing_price=Decimal("1500"),
+        billing_currency="JPY",
+        start_date=START,
+        category=categories["entertainment"],
+    )
+    operations.roll_forward_bills(today=LATER)
+    charge = Charge.objects.get(subscription=yen)
+
+    response = confirm(client, charge, amount="1600.50")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["fields"] == {
+        "amount": ["Enter a whole number. JPY prices have no cents."]
+    }
+    charge.refresh_from_db()
+    assert charge.confirmed is False
+    yen.refresh_from_db()
+    assert yen.billing_price == Decimal("1500")
+    assert confirm(client, charge, amount="1600").status_code == 200
+
+
 def test_us19_an_older_bill_confirmed_higher_is_history_not_news(client, charge, sub, settings):
     # October's bill has gone by too, so September's is a backfilled past
     # event: it is recorded, but it neither alerts nor reprices from its date.
