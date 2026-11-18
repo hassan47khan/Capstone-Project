@@ -316,7 +316,8 @@ describe('Review extraction (11 §2.4)', () => {
 
     const reminder = await screen.findByTestId('review-reminder');
     // The account's trial_alert_days_before (2, from notificationRulesFixtures).
-    expect(reminder).toHaveTextContent(/^Remind me 2 days before/);
+    // The row renders with the default before the rules load, so wait for it.
+    await waitFor(() => expect(reminder).toHaveTextContent(/^Remind me 2 days before/));
     await waitFor(() =>
       expect(reminder).toHaveTextContent(/Push notification on Oct 17$/),
     );
