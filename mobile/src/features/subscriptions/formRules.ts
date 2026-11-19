@@ -36,6 +36,8 @@ export interface FormValues {
   // A free trial (US-12): the price is what it costs once the trial ends.
   isTrial: boolean;
   trialEndsOn: string | null;
+  // Only offered to someone in a family (#184).
+  isPrivate: boolean;
 }
 
 /** 07 §3: an empty form starts on Monthly; category and date are unset. */
@@ -52,6 +54,7 @@ export const EMPTY_FORM: FormValues = {
   paymentLabel: '',
   isTrial: false,
   trialEndsOn: null,
+  isPrivate: false,
 };
 
 /** Character limits (07 §2, §8). */
@@ -188,6 +191,7 @@ export function toSubscriptionInput(values: FormValues): SubscriptionInput {
             : null,
         }
       : {}),
+    is_private: values.isPrivate,
   };
 }
 
@@ -260,6 +264,7 @@ export function formFromDetail(detail: SubscriptionDetail): FormValues {
     paymentLabel: detail.payment_label,
     isTrial: detail.is_trial,
     trialEndsOn: detail.trial_ends_on,
+    isPrivate: detail.is_private,
   };
 }
 

@@ -72,6 +72,7 @@ import {
 } from './formRules';
 import { localToday } from './today';
 import { useDuplicateNameWarning } from './useDuplicateNameWarning';
+import { useInFamily } from './useInFamily';
 
 export const ADD_COPY = {
   title: 'Add subscription',
@@ -119,6 +120,7 @@ export function AddSubscriptionScreen() {
   const errors = validateForm(values, localToday(), { trial: true });
   const valid = Object.keys(errors).length === 0;
   const nameWarning = useDuplicateNameWarning(values.name);
+  const inFamily = useInFamily();
   const hint = saveHint(errors);
 
   // While saving, block every way of closing (X, swipe, Android back).
@@ -290,6 +292,7 @@ export function AddSubscriptionScreen() {
         disabled={create.isPending}
         nameWarning={nameWarning}
         showTrial
+        showPrivate={inFamily}
       />
 
       {sheet}

@@ -55,6 +55,7 @@ import {
 } from './formRules';
 import { localToday } from './today';
 import { useDuplicateNameWarning } from './useDuplicateNameWarning';
+import { useInFamily } from './useInFamily';
 
 export const EDIT_COPY = {
   title: 'Edit subscription',
@@ -148,6 +149,7 @@ function EditForm({ saved }: { saved: SubscriptionDetail }) {
   const shown = visibleErrors(errors, serverErrors, touched, submitted);
   // Its own name never counts as a duplicate.
   const nameWarning = useDuplicateNameWarning(values.name, saved.id);
+  const inFamily = useInFamily();
 
   // While saving, block every way of closing (X, swipe, Android back).
   useEffect(
@@ -264,6 +266,7 @@ function EditForm({ saved }: { saved: SubscriptionDetail }) {
         disabled={isSaving}
         onHistory={() => navigation.navigate('EditHistory', { id: saved.id })}
         nameWarning={nameWarning}
+        showPrivate={inFamily}
       />
 
       {sheet}

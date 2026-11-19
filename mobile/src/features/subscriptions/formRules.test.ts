@@ -95,7 +95,12 @@ describe('toSubscriptionInput', () => {
       category: 'health-wellness',
       notes: '',
       payment_label: '',
+      is_private: false,
     });
+  });
+
+  it('sends is_private when the Private toggle is on (#184)', () => {
+    expect(toSubscriptionInput({ ...headspace, isPrivate: true }).is_private).toBe(true);
   });
 
   it('a non-custom cycle sends no count or unit', () => {
@@ -180,7 +185,9 @@ describe('formFromDetail', () => {
       paymentLabel: 'Visa ••4242',
       isTrial: false,
       trialEndsOn: null,
+      isPrivate: false,
     });
+    expect(formFromDetail({ ...netflixDetail, is_private: true }).isPrivate).toBe(true);
   });
 });
 
@@ -327,5 +334,19 @@ describe('duplicateNameWarning', () => {
   it('says nothing for an empty name or an empty list', () => {
     expect(duplicateNameWarning('   ', alex)).toBeNull();
     expect(duplicateNameWarning('Netflix', [])).toBeNull();
+  });
+});
+
+describe('privacy (#184)', () => {
+  it('Edit sends only is_private when only the toggle changed', () => {
+    const start = formFromDetail(netflixDetail);
+    expect(changedInput({ ...start, isPrivate: true }, start)).toEqual({
+      is_private: true,
+    });
+    expect(changedInput({ ...start, isPrivate: false }, start)).toEqual({});
+  });
+
+  it('switching it is a change worth guarding', () => {
+    expect(isFormDirty({ ...EMPTY_FORM, isPrivate: true }, EMPTY_FORM)).toBe(true);
   });
 });

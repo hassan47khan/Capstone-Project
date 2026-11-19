@@ -114,6 +114,8 @@ export interface SubscriptionInput {
   is_trial?: boolean;
   trial_ends_on?: DateOnly;
   trial_length_days?: number | null;
+  // Hidden from the rest of the family; still counts in the family total (10 §2).
+  is_private: boolean;
 }
 
 // Adds a subscription. A 400 carries per-field messages in error.fields.
