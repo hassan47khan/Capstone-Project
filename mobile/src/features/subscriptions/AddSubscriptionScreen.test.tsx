@@ -18,6 +18,7 @@ import { deleteMockSubscription, subscriptionListFor } from '@/test/subscription
 import { ADD_COPY, AddSubscriptionScreen } from './AddSubscriptionScreen';
 import { SUCCESS_COPY } from './AddSuccess';
 import { FORM_COPY } from './formRules';
+import { PRIVATE_COPY } from './SubscriptionForm';
 
 // A fixed "today" for the start-date rule.
 jest.mock('./today', () => ({ localToday: () => '2026-10-23' }));
@@ -42,7 +43,7 @@ function Home({ navigation }: { navigation: { navigate: (name: string) => void }
   );
 }
 
-async function renderAdd(queryClient = createTestQueryClient()) {
+async function renderAdd(queryClient = createTestQueryClient(), { settle = true } = {}) {
   await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
   await renderWithProviders(
     <SessionProvider>
@@ -58,6 +59,8 @@ async function renderAdd(queryClient = createTestQueryClient()) {
   );
   await fireEvent.press(screen.getByText('Open add'));
   await screen.findByTestId('add-screen');
+  // Let the family check (GET /family, #184) land inside the test.
+  if (settle) await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 }
 
 /** Picks an option in one of the form's Select fields. */
@@ -781,5 +784,96 @@ describe('duplicate name warning (07 §8)', () => {
     expect(warning()).not.toHaveTextContent(/already track/);
     await fireEvent.press(screen.getByTestId('add-save'));
     expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
+  });
+});
+
+// #184 (10 §2). Alex is in the mock Kim family; outside a family is a 404.
+describe('Private (#184)', () => {
+  /** Captures each POST /subscriptions body; the normal mock route answers. */
+  function capturePosts() {
+    const bodies: Record<string, unknown>[] = [];
+    server.use(
+      http.post('*/subscriptions', async ({ request }) => {
+        bodies.push((await request.clone().json()) as Record<string, unknown>);
+        return undefined;
+      }),
+    );
+    return bodies;
+  }
+
+  it('is offered in a family: off, last on the form, saying what it does', async () => {
+    await renderAdd();
+
+    const toggle = await screen.findByTestId('form-private');
+    expect(toggle).toHaveAccessibleName(PRIVATE_COPY.label);
+    expect(toggle.props.accessibilityRole).toBe('switch');
+    expect(toggle.props.accessibilityState.checked).toBe(false);
+    expect(toggle.props.accessibilityHint).toBe(PRIVATE_COPY.helper);
+    expect(screen.getByText(PRIVATE_COPY.helper)).toBeOnTheScreen();
+  });
+
+  it('saves the subscription as private when switched on', async () => {
+    const bodies = capturePosts();
+    await renderAdd();
+    await fillHeadspace();
+
+    await fireEvent.press(await screen.findByTestId('form-private'));
+    expect(screen.getByTestId('form-private').props.accessibilityState.checked).toBe(
+      true,
+    );
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByText(SUCCESS_COPY.title)).toBeOnTheScreen();
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]!.is_private).toBe(true);
+    // Alex already tracks a Headspace (not private); the new one is.
+    const headspaces = subscriptionListFor(MOCK_EMAILS.full, {}).results.filter(
+      (s) => s.name === 'Headspace',
+    );
+    expect(headspaces.map((s) => s.is_private).sort()).toEqual([false, true]);
+  });
+
+  it('saves it as not private when left off', async () => {
+    const bodies = capturePosts();
+    await renderAdd();
+    await screen.findByTestId('form-private');
+    await fillHeadspace();
+
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByText(SUCCESS_COPY.title)).toBeOnTheScreen();
+    expect(bodies[0]!.is_private).toBe(false);
+  });
+
+  it('is not offered outside a family, and the subscription saves as not private', async () => {
+    server.use(
+      http.get('*/family', () =>
+        HttpResponse.json(
+          { error: { code: 'no_family', message: "You're not in a family yet." } },
+          { status: 404 },
+        ),
+      ),
+    );
+    const bodies = capturePosts();
+    await renderAdd();
+
+    expect(screen.queryByTestId('form-private')).toBeNull();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('add-save'));
+    expect(await screen.findByText(SUCCESS_COPY.title)).toBeOnTheScreen();
+    expect(bodies[0]!.is_private).toBe(false);
+  });
+
+  it("doesn't hold up the form while it finds out, then appears", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server.use(http.get('*/family', () => held.then(() => undefined)));
+    await renderAdd(createTestQueryClient(), { settle: false });
+
+    expect(screen.getByTestId('form-name')).toBeOnTheScreen();
+    expect(screen.queryByTestId('form-private')).toBeNull();
+
+    await act(async () => release());
+    expect(await screen.findByTestId('form-private')).toBeOnTheScreen();
   });
 });

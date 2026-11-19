@@ -19,6 +19,7 @@ import {
 } from '@/test/subscriptionFixtures';
 
 import { EDIT_COPY, EditSubscriptionScreen } from './EditSubscriptionScreen';
+import { PRIVATE_COPY } from './SubscriptionForm';
 import { SubscriptionDetailScreen } from './SubscriptionDetailScreen';
 
 // Fixed dates, so the chart's 12-month window and the start-date rule are stable.
@@ -331,5 +332,56 @@ describe('duplicate name warning (07 §8)', () => {
         'spotify',
       ),
     );
+  });
+});
+
+// #184 (10 §2). Alex is in the mock Kim family; Netflix starts not private.
+describe('Private (#184)', () => {
+  const isOn = () => screen.getByTestId('form-private').props.accessibilityState.checked;
+
+  it('shows whether it is private, and saving sends only that', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch('*/subscriptions/:id', async ({ request }) => {
+        bodies.push(await request.clone().json());
+        return undefined; // the normal mock route answers
+      }),
+    );
+    await renderFromDetail();
+
+    expect(await screen.findByTestId('form-private')).toHaveAccessibleName(
+      PRIVATE_COPY.label,
+    );
+    expect(isOn()).toBe(false);
+    await fireEvent.press(screen.getByTestId('form-private'));
+    expect(screen.getByTestId('edit-save')).toBeEnabled();
+    await fireEvent.press(screen.getByTestId('edit-save'));
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({ is_private: true });
+    await waitFor(() =>
+      expect(subscriptionDetailFor(MOCK_EMAILS.full, 'sub-netflix')?.is_private).toBe(
+        true,
+      ),
+    );
+  });
+
+  it('opens a private subscription switched on', async () => {
+    updateMockSubscription(MOCK_EMAILS.full, 'sub-netflix', { is_private: true });
+    await renderFromDetail();
+
+    await screen.findByTestId('form-private');
+    expect(isOn()).toBe(true);
+  });
+
+  it('switching it on and off again is no change', async () => {
+    await renderFromDetail();
+    await screen.findByTestId('form-private');
+
+    await fireEvent.press(screen.getByTestId('form-private'));
+    await fireEvent.press(screen.getByTestId('form-private'));
+
+    expect(isOn()).toBe(false);
+    expect(screen.getByTestId('edit-save')).toBeDisabled();
   });
 });

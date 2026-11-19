@@ -110,6 +110,8 @@ export interface SubscriptionInput {
   category: string; // category slug, e.g. "entertainment"
   notes: string;
   payment_label: string;
+  // Hidden from the rest of the family; still counts in the family total (10 §2).
+  is_private: boolean;
 }
 
 // Adds a subscription. A 400 carries per-field messages in error.fields.
