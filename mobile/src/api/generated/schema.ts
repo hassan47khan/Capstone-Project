@@ -755,7 +755,8 @@ export interface paths {
         put?: never;
         /**
          * @description Split one of the caller's subscriptions equally. The caller is added first
-         *     and absorbs any extra cent. 409 `already_shared`.
+         *     and absorbs any extra cent. 409 `already_shared`. 403 `family_cannot_edit`,
+         *     as for every other change to a subscription.
          */
         post: operations["shared_plans_create"];
         delete?: never;
@@ -1975,6 +1976,15 @@ export interface components {
              * @description Inclusive.
              */
             end: string;
+            /** @description Every bill in the window in the display currency, trials converting left out (Calendar's month total). Null when one has no exchange rate. */
+            total: components["schemas"]["Money"] | null;
+            /** @description Dates that have a bill, soonest first. */
+            days: components["schemas"]["UpcomingDay"][];
+            /**
+             * Format: date
+             * @description Start date of the user's earliest subscription; null when they have none.
+             */
+            tracking_since: string | null;
             /** @description By date, soonest first. */
             items: components["schemas"]["UpcomingBill"][];
         };
@@ -2005,6 +2015,14 @@ export interface components {
             custom_cycle_unit?: components["schemas"]["CustomCycleUnitEnum"] | components["schemas"]["NullEnum"];
             /** @description True when this bill is a trial converting. */
             is_trial: boolean;
+        };
+        UpcomingDay: {
+            /** Format: date */
+            date: string;
+            /** @description Bills on this date, trials converting included. */
+            count: number;
+            /** @description This date's bills in the display currency, trials converting left out. Null when one has no exchange rate. Day totals add up to `total` exactly. */
+            total: components["schemas"]["Money"] | null;
         };
         /**
          * @description * `soon` - soon
@@ -3998,6 +4016,15 @@ export interface operations {
             };
             /** @description Missing, expired or invalid token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not allowed. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

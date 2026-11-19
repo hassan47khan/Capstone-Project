@@ -19,6 +19,13 @@ class Reminder(models.Model):
     `dedupe_key` is `subscription:kind:target_date`, and it is unique. That is
     what makes rescheduling an upsert: editing a subscription five times
     leaves one row per alert, not five.
+
+    The key is also parsed, not just compared: `scheduling.target_date_of`
+    reads the bill or trial date back out of it for the alert copy and for
+    price-increase alerts. So its format is load-bearing, and a key that does
+    not end in an ISO date breaks delivery. A real `target_date` field would be
+    the cleaner home for that date; it needs a migration, so it is left for
+    later.
     """
 
     class Kind(models.TextChoices):

@@ -79,6 +79,17 @@ These are code-read checks, not a re-run of the tests.
 
 The device pass for handoffs 01–03 was done on 2026-10-19 and passed.
 
+**2026-11-07. 11 §3.4 offline banner: two deliberate deviations (#176).**
+- **Position.** §3.4 says "below the header". The banner sits under each tab's
+  content, just above the tab bar. Every screen draws its own `Header`, so
+  "below the header" would mean adding the banner to every screen and working
+  around each one's safe area. Don't "fix" this back without that plumbing.
+- **Copy.** §3.4's "Showing data from {time}" can't be true app-wide: tabs stay
+  mounted, so the cache holds several screens' data from different times. The
+  banner says "You're offline. Some of what you see is from as early as
+  {time}.", using the oldest answer any mounted screen is reading. Home keeps
+  its own exact stale line (`home-stale`).
+
 **2026-11-11. Price-increase alerts (#185) depart from the design spec's §9 in three ways.**
 - **What a charge is compared with.** §9 says a confirmed amount is compared with "the previous
   confirmed amount for that subscription". We compare it with the price on file when the bill
@@ -102,3 +113,10 @@ charge cards → upcoming rows → "View all". It sits above upcoming on purpose
 it asks about a bill that already went by. Each card reads as one sentence
 ("Spotify billed on September 4, 2026. We expected $10.99. Was the charge
 different?") and its two buttons stay separately focusable.
+
+**2026-11-19. 08 §2.0 AI insight card (#195): the label isn't always "AI insight".**
+§2.0 labels the card "AI insight". It says that only when the model wrote the
+sentence (`generated: true`). For the template fallback (`generated: false`: no
+model key, the model is unavailable, or its sentence failed the number check)
+it says "Insight". Labelling a template sentence "AI insight" would claim an AI
+wrote something it didn't. Don't "fix" `InsightCard.tsx` back to one label.

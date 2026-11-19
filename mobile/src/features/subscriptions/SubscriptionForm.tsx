@@ -3,7 +3,8 @@
  * screens; it only draws fields and reports changes. Saving lives in the screen.
  *
  * Order follows 07 §11's focus order: name → price → currency → category →
- * cycle → custom fields (if shown) → start date → notes → paid with.
+ * cycle → custom fields (if shown) → start date → notes → paid with, then
+ * Private for someone in a family (#184, 10 §2).
  */
 import { History } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
@@ -11,11 +12,13 @@ import { Pressable, Text, View } from 'react-native';
 import { currencySymbol } from '@/api/format';
 import {
   BillingCycleField,
+  Card,
   CategoryBadge,
   CurrencyField,
   DateField,
   normalizePriceInput,
   Select,
+  SettingsRow,
   Stepper,
   TextField,
 } from '@/components';
@@ -45,6 +48,12 @@ const CATEGORY_OPTIONS = CATEGORY_SLUGS.map((slug) => ({
   label: CATEGORY_LABELS[slug],
 }));
 
+export const PRIVATE_COPY = {
+  label: 'Private',
+  helper:
+    'It still counts in the family total, but other family members only see the amount.',
+} as const;
+
 // Extra touch area on each side of the History link, so it reaches 44pt.
 export const HISTORY_HIT_SLOP = (sizes.minTouch - sizes.iconSmall) / 2;
 
@@ -69,6 +78,8 @@ export interface SubscriptionFormProps {
   onHistory?: () => void;
   /** "You already track a Netflix." under the name; never an error (07 §8). */
   nameWarning?: string | null;
+  /** Shows the Private toggle: only for someone in a family (#184). */
+  showPrivate?: boolean;
 }
 
 export function SubscriptionForm({
@@ -79,6 +90,7 @@ export function SubscriptionForm({
   disabled = false,
   onHistory,
   nameWarning,
+  showPrivate = false,
 }: SubscriptionFormProps) {
   const styles = useStyles();
   // While saving, ignore every change, however it arrives. The Stepper and the
@@ -239,6 +251,21 @@ export function SubscriptionForm({
         editable={!disabled}
         testID="form-paid-with"
       />
+
+      {/* 10 §2: the row is the switch; the helper says what it does. */}
+      {showPrivate ? (
+        <Card style={styles.private}>
+          <SettingsRow
+            variant="toggle"
+            label={PRIVATE_COPY.label}
+            description={PRIVATE_COPY.helper}
+            value={values.isPrivate}
+            onValueChange={(isPrivate) => onChange({ isPrivate })}
+            disabled={disabled}
+            testID="form-private"
+          />
+        </Card>
+      ) : null}
     </View>
   );
 }
@@ -272,5 +299,10 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   },
   customUnit: {
     flex: 1,
+  },
+  // The row brings its own padding, like the reminder on Review extraction.
+  private: {
+    padding: 0,
+    overflow: 'hidden',
   },
 }));

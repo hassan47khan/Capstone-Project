@@ -236,7 +236,7 @@ Built and tested (1,350 tests at 98% coverage, measured 2026-10-30):
   confirmed, and an eval on 25 hand-labelled emails (`docs/ai/extraction-eval.md`).
 - **AI insight card (`08 §2.0`):** one sentence about computed facts, with every number checked.
 - **Shared plans (`11 §2.6`):** split a bill equally to the cent, track who has paid each month,
-  and remind by email or share sheet (once a day). Totals still count the full bill.
+  and remind by email (once a day) or share sheet. Totals still count the full bill.
 - **Family (`10`):** a family total and member totals the server works out, roles and
   per-member permissions enforced on every subscription write, private subscriptions (counted,
   never named), last-admin guards, and emailed invitations (7 days, resend, revoke, seat limit).

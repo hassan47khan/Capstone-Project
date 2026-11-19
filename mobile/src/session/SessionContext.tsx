@@ -111,6 +111,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    * cache after it is emptied. Every new session empties it too, whichever way
    * the last one ended: a cold start that finds the refresh token rejected goes
    * to the auth stack without passing through either sign-out path.
+   *
+   * Keep the call in `signIn` even though sign-out already empties the cache.
+   * Between the sign-out clear and the status change the old tokens are still
+   * valid and the screen is still mounted, so an active query can refetch the
+   * last user's data straight back in. Emptying it again when the next session
+   * starts is what makes that safe.
    */
   const emptyCache = useCallback(async () => {
     await queryClient.cancelQueries();

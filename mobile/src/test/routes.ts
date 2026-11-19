@@ -42,7 +42,12 @@ import {
 } from './aiFixtures';
 
 import { confirmMockCharge, resetCharges, unconfirmedChargesFor } from './chargeFixtures';
-import { contractHomeFor, insightFor, spendFor } from './contractFixtures';
+import {
+  contractHomeFor,
+  insightFor,
+  spendFor,
+  upcomingMonthFor,
+} from './contractFixtures';
 import * as family from './familyMock';
 import {
   notificationRulesFor,
@@ -566,8 +571,11 @@ export const routes: Route[] = [
   {
     method: 'GET',
     pattern: '/analytics/upcoming',
-    handler: protectedRoute((_request, account) =>
-      ok(contractHomeFor(account.profile.email).upcoming),
+    // A start/end range is the Calendar's month (11 §1); `days` is Home's window.
+    handler: protectedRoute((request, account) =>
+      request.query.start
+        ? ok(upcomingMonthFor(account.profile.email, request.query.start))
+        : ok(contractHomeFor(account.profile.email).upcoming),
     ),
   },
 

@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 from accounts.models import User, settings_for
 from family.models import Family, Membership
 from subscriptions import seed
-from subscriptions.models import Subscription
+from subscriptions.models import SharedPlan, Subscription
 
 FAMILY = "/api/v1/family"
 SUBS = "/api/v1/subscriptions"
@@ -444,6 +444,24 @@ def test_a_viewer_cant_confirm_an_extraction_or_decide_a_trial(sam):
     decide = api.post(f"/api/v1/trials/{_sub_of(sam).pk}/decision", {"decision": "keep"})
     assert (confirm.status_code, confirm.json()["error"]["code"]) == (403, "family_cannot_add")
     assert (decide.status_code, decide.json()["error"]["code"]) == (403, "family_cannot_edit")
+
+
+def test_a_viewer_cant_share_a_subscription(sam):
+    sub = _sub_of(sam)
+    response = signed_in(sam).post(
+        "/api/v1/shared-plans",
+        {
+            "subscription_id": str(sub.pk),
+            "split_mode": "equal",
+            "participants": [{"display_name": "Riley"}],
+        },
+        format="json",
+    )
+    assert (response.status_code, response.json()["error"]["code"]) == (
+        403,
+        "family_cannot_edit",
+    )
+    assert not SharedPlan.objects.filter(subscription=sub).exists()
 
 
 ADMIN_ONLY = {
