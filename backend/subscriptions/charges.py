@@ -26,6 +26,7 @@ from notifications import price_alerts
 
 from . import operations
 from .models import Charge, Subscription
+from .services.validation import currency_precision_message, fits_currency
 
 Outcome = Charge.Outcome
 
@@ -80,6 +81,10 @@ def confirm(charge: Charge, *, amount: Decimal | None, today: date) -> Charge:
     The price is only moved when it is still the one this charge expected,
     so a confirmation never undoes an edit the user made after the bill.
     """
+    # Checked before anything is written: ¥1000.50 is not a charge that happened.
+    if amount is not None and not fits_currency(amount, charge.currency):
+        message = currency_precision_message(charge.currency)
+        raise ApiError(400, "validation_error", message, fields={"amount": [message]})
     # Conditional, so two confirmations racing cannot both act.
     taken = Charge.objects.filter(pk=charge.pk, confirmed=False).update(
         confirmed=True, confirmed_at=timezone.now()

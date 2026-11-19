@@ -14,6 +14,8 @@ from .services.cycles import CUSTOM_UNITS, CYCLES, Cycle
 from .services.validation import (
     PAYMENT_LABEL_MAX,
     PRICE_MESSAGE,
+    currency_precision_message,
+    fits_currency,
     is_valid_price,
     looks_like_card_number,
 )
@@ -196,6 +198,10 @@ class Subscription(models.Model):
             errors["name"] = "Enter a name."
         if not is_valid_price(self.billing_price):
             errors["billing_price"] = PRICE_MESSAGE
+        elif not fits_currency(self.billing_price, self.billing_currency):
+            # Checked here so POST, PATCH (a currency change too) and Confirm
+            # and track all refuse it.
+            errors["billing_price"] = currency_precision_message(self.billing_currency)
         if self.start_date is None:
             errors["start_date"] = "Choose a start date."
         if self.category_id is None:
