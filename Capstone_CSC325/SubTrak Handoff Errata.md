@@ -113,3 +113,10 @@ charge cards → upcoming rows → "View all". It sits above upcoming on purpose
 it asks about a bill that already went by. Each card reads as one sentence
 ("Spotify billed on September 4, 2026. We expected $10.99. Was the charge
 different?") and its two buttons stay separately focusable.
+
+**2026-11-19. 08 §2.0 AI insight card (#195): the label isn't always "AI insight".**
+§2.0 labels the card "AI insight". It says that only when the model wrote the
+sentence (`generated: true`). For the template fallback (`generated: false`: no
+model key, the model is unavailable, or its sentence failed the number check)
+it says "Insight". Labelling a template sentence "AI insight" would claim an AI
+wrote something it didn't. Don't "fix" `InsightCard.tsx` back to one label.
