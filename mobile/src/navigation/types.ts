@@ -79,6 +79,11 @@ export type AppStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList>;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
+  /**
+   * One category's spend and subscriptions, from a bar on Home. `slug` is the
+   * category slug, or "uncategorized"; `name` is shown while data loads.
+   */
+  CategoryDetail: { slug: string; name: string };
   EditSubscription: { id: string };
   EditHistory: { id: string };
   /** "Was the charge different?" for one unconfirmed charge (US-19). */
