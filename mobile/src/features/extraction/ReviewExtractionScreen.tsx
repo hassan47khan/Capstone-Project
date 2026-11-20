@@ -54,6 +54,7 @@ import {
   SkeletonGroup,
   useToast,
 } from '@/components';
+import { useAskForPush } from '@/features/notifications/PushProvider';
 import type { AppStackParamList } from '@/navigation/types';
 import {
   CATEGORY_LABELS,
@@ -231,6 +232,7 @@ function Review({
   const navigation = useNavigation<Navigation>();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const askForPush = useAskForPush();
 
   const [initial] = useState(() => valuesFromExtraction(extraction));
   const [values, setValues] = useState<ReviewValues>(initial);
@@ -262,6 +264,8 @@ function Review({
       void queryClient.invalidateQueries({ queryKey: extractionKeys.pending() });
       toast.show(`Now tracking ${saved.name}.`);
       onClose();
+      // A tracked subscription gets reminders: the moment to ask (spec §10).
+      void askForPush();
     },
     onError: (error) => {
       const fields = error instanceof ApiError ? formErrorsFromServer(error.fields) : {};

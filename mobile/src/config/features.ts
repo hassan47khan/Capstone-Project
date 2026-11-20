@@ -31,12 +31,12 @@ export const FEATURE_EXTRACTION = false;
 /**
  * Epic E — Trial Shield and Notifications (US-12, US-13).
  *
- * Gates push registration and the notification inbox. While false,
- * `registerForPush()` is a no-op and the app never asks for notification
- * permission — asking for a permission the app cannot yet honour trains users
- * to deny it.
+ * Gates push registration, tapped-push deep links and the foreground handler
+ * (src/features/notifications/push.ts). The app still asks only after the
+ * first save of a trial or a reminder, never at launch. A build with no EAS
+ * project id skips registration quietly; the inbox works either way.
  */
-export const FEATURE_PUSH = false;
+export const FEATURE_PUSH = true;
 
 /**
  * Epic G/H — Billing history, price-change and contract alerts (US-16 to US-19).

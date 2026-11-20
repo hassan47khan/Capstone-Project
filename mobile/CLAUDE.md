@@ -72,7 +72,19 @@ src/
   call `useDiscardGuard(isDirty)` and render its `sheet`.
 - **Deep links.** `verify-email`, `reset-password` and `subscription/:id`. An
   App link that arrives while signed out is parked in `pendingLink.ts` and
-  opened after sign-in.
+  opened after sign-in. A tapped push becomes a `subscription/:id` link in
+  `linking.ts`, so it is parked the same way.
+
+## Push (Epic E)
+
+- `features/notifications/push.ts` registers with `POST /devices`. Only
+  `useAskForPush()` (from `PushProvider`) may show the system prompt, and only
+  after a save that gets reminders: Add Subscription, Confirm and track, Trial
+  Shield's Remind me. Never at launch. Sign out deletes the device.
+- With no EAS project id (`EAS_PROJECT_ID`) or on a simulator, registration is
+  skipped quietly; the inbox (bell on Home) still has every alert.
+- Tests: `src/test/pushMock.ts` fakes the native modules. It defaults to a
+  simulator, so screen tests never register a device.
 
 ## Mocks
 

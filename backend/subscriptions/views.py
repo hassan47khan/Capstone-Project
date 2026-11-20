@@ -48,10 +48,15 @@ def query(serializer_class, request) -> dict:
     return serializer.validated_data
 
 
-def body(serializer_class, request, *, partial=False) -> dict:
-    serializer = serializer_class(data=request.data, partial=partial)
+def body(serializer_class, request, *, partial=False, context=None) -> dict:
+    serializer = serializer_class(data=request.data, partial=partial, context=context or {})
     serializer.is_valid(raise_exception=True)
     return serializer.validated_data
+
+
+def input_context(request) -> dict:
+    """What SubscriptionInputSerializer checks dates against: the caller's today."""
+    return {"today": today_for(request.user)}
 
 
 def context(request) -> presenters.Context:
@@ -160,7 +165,7 @@ class SubscriptionsView(APIView):
         raise idempotency.still_in_progress()
 
     def _create(self, request) -> Subscription:
-        fields = body(SubscriptionInputSerializer, request)
+        fields = body(SubscriptionInputSerializer, request, context=input_context(request))
         return operations.create_subscription(
             today=today_for(request.user), owner=request.user, **fields
         )
@@ -195,7 +200,9 @@ class SubscriptionDetailView(APIView):
         """
         sub = owned(request, subscription_id)
         require_edit(request.user)
-        changes = body(SubscriptionInputSerializer, request, partial=True)
+        changes = body(
+            SubscriptionInputSerializer, request, partial=True, context=input_context(request)
+        )
         operations.update_subscription(sub, today=today_for(request.user), **changes)
         return Response(detail(sub, request))
 

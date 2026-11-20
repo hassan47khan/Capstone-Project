@@ -24,6 +24,8 @@ import { ConfirmChargeScreen } from '@/features/charges/ConfirmChargeScreen';
 import { GalleryScreen } from '@/features/dev/GalleryScreen';
 import { ReviewExtractionScreen } from '@/features/extraction/ReviewExtractionScreen';
 import { FamilyInviteScreen } from '@/features/family/FamilyInviteScreen';
+import { NotificationsScreen } from '@/features/notifications/NotificationsScreen';
+import { PushProvider } from '@/features/notifications/PushProvider';
 import { ConfirmCurrencyChangeSheet } from '@/features/settings/ConfirmCurrencyChangeSheet';
 import { NotificationRulesScreen } from '@/features/settings/NotificationRulesScreen';
 import { ProfileAccountScreen } from '@/features/settings/ProfileAccountScreen';
@@ -44,38 +46,43 @@ export function AppNavigator() {
   const m = useMotion();
 
   return (
-    <Stack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={TabNavigator} />
+    // PushProvider lives as long as the session: it refreshes this phone's
+    // registration, and owns the one place the app may ask for permission.
+    <PushProvider>
+      <Stack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="MainTabs" component={TabNavigator} />
 
-      <Stack.Group
-        screenOptions={{
-          presentation: 'modal',
-          animation: m.moves ? 'slide_from_bottom' : 'fade',
-          animationDuration: m.modal,
-        }}
-      >
-        <Stack.Screen name="AddSubscription" component={AddSubscriptionScreen} />
-        <Stack.Screen name="SubscriptionDetail" component={SubscriptionDetailScreen} />
-        <Stack.Screen name="EditSubscription" component={EditSubscriptionScreen} />
-        <Stack.Screen name="EditHistory" component={EditHistoryScreen} />
-        <Stack.Screen name="ConfirmCharge" component={ConfirmChargeScreen} />
-        <Stack.Screen name="SelectCurrency" component={SelectCurrencyScreen} />
-        <Stack.Screen name="SelectTimeZone" component={SelectTimeZoneScreen} />
-        <Stack.Screen name="NotificationRules" component={NotificationRulesScreen} />
-        <Stack.Screen name="ProfileAccount" component={ProfileAccountScreen} />
-        <Stack.Screen name="ReviewExtraction" component={ReviewExtractionScreen} />
-        <Stack.Screen name="FamilyInvite" component={FamilyInviteScreen} />
+        <Stack.Group
+          screenOptions={{
+            presentation: 'modal',
+            animation: m.moves ? 'slide_from_bottom' : 'fade',
+            animationDuration: m.modal,
+          }}
+        >
+          <Stack.Screen name="AddSubscription" component={AddSubscriptionScreen} />
+          <Stack.Screen name="SubscriptionDetail" component={SubscriptionDetailScreen} />
+          <Stack.Screen name="EditSubscription" component={EditSubscriptionScreen} />
+          <Stack.Screen name="EditHistory" component={EditHistoryScreen} />
+          <Stack.Screen name="ConfirmCharge" component={ConfirmChargeScreen} />
+          <Stack.Screen name="SelectCurrency" component={SelectCurrencyScreen} />
+          <Stack.Screen name="SelectTimeZone" component={SelectTimeZoneScreen} />
+          <Stack.Screen name="NotificationRules" component={NotificationRulesScreen} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          <Stack.Screen name="ProfileAccount" component={ProfileAccountScreen} />
+          <Stack.Screen name="ReviewExtraction" component={ReviewExtractionScreen} />
+          <Stack.Screen name="FamilyInvite" component={FamilyInviteScreen} />
 
-        {/* Development only: absent from a release bundle, so unreachable there. */}
-        {__DEV__ ? <Stack.Screen name="DevGallery" component={GalleryScreen} /> : null}
-      </Stack.Group>
+          {/* Development only: absent from a release bundle, so unreachable there. */}
+          {__DEV__ ? <Stack.Screen name="DevGallery" component={GalleryScreen} /> : null}
+        </Stack.Group>
 
-      {/* A sheet over Select Currency: the screen below stays visible. */}
-      <Stack.Screen
-        name="ConfirmCurrencyChange"
-        component={ConfirmCurrencyChangeSheet}
-        options={{ presentation: 'transparentModal', animation: 'none' }}
-      />
-    </Stack.Navigator>
+        {/* A sheet over Select Currency: the screen below stays visible. */}
+        <Stack.Screen
+          name="ConfirmCurrencyChange"
+          component={ConfirmCurrencyChangeSheet}
+          options={{ presentation: 'transparentModal', animation: 'none' }}
+        />
+      </Stack.Navigator>
+    </PushProvider>
   );
 }

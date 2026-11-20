@@ -184,6 +184,8 @@ export function canConfirmAsIs(values: ReviewValues, key: RowKey): boolean {
 export const REVIEW_COPY = {
   trialEndRequired: 'Add the date the trial ends.',
   trialEndBeforeStart: 'The trial has to end after it starts.',
+  /** US-12, word for word; the server sends the same. */
+  trialEndPast: 'Trial end date must be in the future.',
 } as const;
 
 export interface ReviewErrors extends FormErrors {
@@ -197,6 +199,9 @@ export function validateReview(values: ReviewValues, today: string): ReviewError
     if (!values.trialEndsOn) errors.trialEndsOn = REVIEW_COPY.trialEndRequired;
     else if (values.startDate && (trialLength(values) ?? 0) < 1) {
       errors.trialEndsOn = REVIEW_COPY.trialEndBeforeStart;
+    } else if ((daysUntil(values.trialEndsOn, today) ?? 1) < 1) {
+      // Ending today or earlier: nothing left to warn about (US-12).
+      errors.trialEndsOn = REVIEW_COPY.trialEndPast;
     }
   }
   return errors;
