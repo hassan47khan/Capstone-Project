@@ -31,7 +31,7 @@ from .serializers import (
     TrialListSerializer,
     TrialSerializer,
 )
-from .views import body, detail
+from .views import body, detail, input_context
 
 
 def _trials(request) -> dict:
@@ -86,7 +86,7 @@ class ConfirmExtractionView(APIView):
         delete the pending record. The body is the same as POST /subscriptions.
         403 `family_cannot_add`, as for POST /subscriptions."""
         require_add(request.user)
-        fields = body(SubscriptionInputSerializer, request)
+        fields = body(SubscriptionInputSerializer, request, context=input_context(request))
         sub = reviews.confirm(request.user, extraction_id, fields)
         sub.refresh_from_db()  # as stored, like POST /subscriptions
         return Response(detail(sub, request), status=status.HTTP_201_CREATED)

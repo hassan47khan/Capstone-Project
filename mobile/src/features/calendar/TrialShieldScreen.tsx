@@ -51,6 +51,7 @@ import {
   SkeletonGroup,
   useToast,
 } from '@/components';
+import { useAskForPush } from '@/features/notifications/PushProvider';
 import { makeStyles, radius, sizes, spacing, useTheme } from '@/theme';
 
 import { describeCycle } from '../subscriptions/formRules';
@@ -202,6 +203,7 @@ function TrialCard({ trial, onGuide }: { trial: Trial; onGuide: () => void }) {
   const styles = useStyles();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const askForPush = useAskForPush();
   const price = formatMoney(trial.price.amount, trial.price.currency).display;
   const cycle = describeCycle(trial).toLowerCase();
   const then =
@@ -221,6 +223,8 @@ function TrialCard({ trial, onGuide }: { trial: Trial; onGuide: () => void }) {
           ? `Got it. We'll stop reminding you about ${trial.name}.`
           : `We'll remind you before ${trial.name} ends.`,
       );
+      // A reminder is what push is for: the moment to ask (spec §10).
+      if (decision === 'remind') void askForPush();
     },
     onError: (error) => toast.show(messageFor(error), 'neutral'),
   });

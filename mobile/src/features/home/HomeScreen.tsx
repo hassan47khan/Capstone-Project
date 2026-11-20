@@ -40,6 +40,7 @@ import { Button, EmptyState, ErrorState, Screen } from '@/components';
 import { FEATURE_EXTRACTION } from '@/config/features';
 import { chargesKey, listCharges } from '@/features/charges/api';
 import { ChargePromptList } from '@/features/charges/ChargePrompt';
+import { listNotifications, notificationsKey } from '@/features/notifications/api';
 import { CHARGE_COPY } from '@/features/charges/chargeCopy';
 import type { AppStackParamList } from '@/navigation/types';
 import { makeStyles, spacing } from '@/theme';
@@ -118,6 +119,8 @@ export function HomeScreen() {
   });
 
   const charges = useQuery({ queryKey: chargesKey, queryFn: listCharges });
+  // Only the bell's count. A failed load just shows no badge.
+  const inbox = useQuery({ queryKey: notificationsKey, queryFn: listNotifications });
 
   const sections = [summary, spend, urgent, upcoming];
   // Charges aren't in `sections` (they never count toward the full-screen
@@ -127,6 +130,7 @@ export function HomeScreen() {
     sections.forEach((q) => q.refetch());
     profile.refetch();
     charges.refetch();
+    inbox.refetch();
   };
 
   const openCalendar = () =>
@@ -228,6 +232,8 @@ export function HomeScreen() {
         name={profile.data?.name ?? null}
         hour={new Date().getHours()}
         onProfile={() => navigation.navigate('ProfileAccount')}
+        unread={inbox.data?.unread_count ?? 0}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
 
       {stale ? (

@@ -93,6 +93,8 @@ export type AppStackParamList = {
   ConfirmCurrencyChange: { currency: string };
   SelectTimeZone: undefined;
   NotificationRules: undefined;
+  /** The in-app inbox, from the bell on Home (US-13, spec §10). */
+  Notifications: undefined;
   ProfileAccount: undefined;
   /** One pending extraction from a Gmail scan, by id (handoff 11 §2.4). */
   ReviewExtraction: { id: string };

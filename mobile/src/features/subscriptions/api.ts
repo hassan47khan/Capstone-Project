@@ -110,6 +110,10 @@ export interface SubscriptionInput {
   category: string; // category slug, e.g. "entertainment"
   notes: string;
   payment_label: string;
+  // Only sent for a free trial (US-12). Length is start to end, in days.
+  is_trial?: boolean;
+  trial_ends_on?: DateOnly;
+  trial_length_days?: number | null;
   // Hidden from the rest of the family; still counts in the family total (10 §2).
   is_private: boolean;
 }
