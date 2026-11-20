@@ -21,6 +21,8 @@
  *   breaks one. Adjust the token until it passes — never the test.
  */
 
+import { contrastRatio } from './contrast';
+
 // --- Colour ----------------------------------------------------------------
 
 /**
@@ -28,6 +30,7 @@
  * component ever references a theme directly — it asks `useTheme()` for
  * `colors.text` and gets whichever is live.
  */
+
 export interface ColorTokens {
   /** Warm cream page background. */
   bg: string;
@@ -333,6 +336,45 @@ export function serviceTint(
   }
   // The palette is a non-empty constant, so the index is always in range.
   return palette[hash % palette.length] as ServiceColors;
+}
+
+/** Mixes `a` into `b` by `t` (0 = all `b`, 1 = all `a`). Both `#rrggbb`. */
+function mixHex(a: string, b: string, t: number): string {
+  const channel = (hex: string, at: number) => parseInt(hex.slice(at, at + 2), 16);
+  return `#${[1, 3, 5]
+    .map((at) => Math.round(channel(a, at) * t + channel(b, at) * (1 - t)))
+    .map((c) => c.toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+/** How much of the brand colour a dark-theme tile keeps: Figma's 13% tile alpha, rounded up. */
+const DARK_BRAND_TINT = 0.2;
+
+/**
+ * A catalog service's brand pair, for the live scheme (11 §3.5).
+ *
+ * The catalog's pairs are drawn for the cream theme: a pale tint (Netflix
+ * `#ffecee`) with the brand colour as ink. On a dark surface that tint is a
+ * bright disc, the brightest thing in a list row. In dark, the tile becomes the
+ * brand colour at a low mix over `surface`, and the ink is the brand colour
+ * lifted towards `text` until it reads at 3:1 on that tile, the bar 01 §3 sets
+ * for the user-entered palette's graphics. A pair that is already dark (the
+ * Family screen passes the dark service palette) is left alone.
+ */
+export function brandColorsFor(
+  brand: ServiceColors,
+  scheme: 'light' | 'dark',
+): ServiceColors {
+  const hex = /^#[0-9a-f]{6}$/i;
+  if (scheme === 'light' || !hex.test(brand.tint) || !hex.test(brand.ink)) return brand;
+  if (contrastRatio(brand.tint, darkColors.surface) < 2) return brand;
+
+  const tint = mixHex(brand.ink, darkColors.surface, DARK_BRAND_TINT);
+  let ink = brand.ink;
+  for (let lift = 0.1; contrastRatio(ink, tint) < 3 && lift <= 1; lift += 0.1) {
+    ink = mixHex(darkColors.text, brand.ink, lift);
+  }
+  return { tint, ink };
 }
 
 // --- Spacing, radius, sizing -----------------------------------------------

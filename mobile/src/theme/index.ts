@@ -25,6 +25,7 @@ export type {
   ThemeProviderProps,
 } from './ThemeProvider';
 export {
+  brandColorsFor,
   CATEGORY_KEYS,
   CATEGORY_LABELS,
   UNCATEGORIZED_LABEL,

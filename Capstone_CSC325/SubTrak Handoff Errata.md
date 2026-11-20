@@ -120,3 +120,12 @@ sentence (`generated: true`). For the template fallback (`generated: false`: no
 model key, the model is unavailable, or its sentence failed the number check)
 it says "Insight". Labelling a template sentence "AI insight" would claim an AI
 wrote something it didn't. Don't "fix" `InsightCard.tsx` back to one label.
+
+**2026-11-18. 11 §3.5 dark theme: catalog brand marks get a dark pair (#104).** The
+catalog's service marks (`service_mark.tint_hex` / `brand_hex`) are drawn for the
+cream theme, so in dark a pale tint like Netflix's `#ffecee` was the brightest
+thing in a list row. `brandColorsFor` (`src/theme/tokens.ts`) leaves light alone;
+in dark it mixes the brand colour 20% over `surface` for the tile and lifts the
+ink towards `text` until it reads 3:1 on that tile. A pair that is already dark
+(Family passes the dark service palette) is untouched. The API still sends one
+pair; nothing server-side changed.

@@ -16,7 +16,9 @@
  *   Service brand colour, not category colour. A catalog service passes its
  *   `brand` tint/ink (e.g. Netflix #ffecee / #e50914). A user-entered service
  *   with no catalog entry gets `serviceTint(name)` — deterministic from the name,
- *   so the same name is always the same colour, never random.
+ *   so the same name is always the same colour, never random. In dark, a
+ *   catalog pair is re-derived by `brandColorsFor`, since its pale tint would be
+ *   a bright disc on a dark surface.
  *
  * Why it is hidden from screen readers
  *   The mark shows initials of a name that is already read out on the very next
@@ -42,6 +44,7 @@
 import { Text, View } from 'react-native';
 
 import {
+  brandColorsFor,
   fontFamily,
   makeStyles,
   radius,
@@ -121,8 +124,11 @@ export function ServiceMark({
   testID,
 }: ServiceMarkProps) {
   const styles = useStyles();
-  const { servicePalette } = useTheme();
-  const palette = brand ?? serviceTint(name, servicePalette);
+  const { servicePalette, scheme } = useTheme();
+  // A catalog pair is drawn for the cream theme; dark gets its own (11 §3.5).
+  const palette = brand
+    ? brandColorsFor(brand, scheme)
+    : serviceTint(name, servicePalette);
 
   // The square is only ever drawn at 28, so the shape pins the diameter rather
   // than letting a caller pair `square` with `large` and get something the
