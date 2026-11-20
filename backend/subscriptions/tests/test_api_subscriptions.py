@@ -287,6 +287,39 @@ def test_create_rejects_a_bad_price_with_the_spec_message(api, contract, price):
     }
 
 
+YEN_MESSAGE = "Enter a whole number. JPY prices have no cents."
+
+
+def test_create_rejects_a_price_finer_than_its_currency(api, alex, contract):
+    """¥1000.50 can't be charged: yen has no cents (#192)."""
+    before = Subscription.objects.filter(owner=alex).count()
+    response = api.post(
+        "/api/v1/subscriptions",
+        new_subscription(billing_price="1000.50", billing_currency="JPY"),
+        format="json",
+    )
+    body = contract(response, "/subscriptions")
+
+    assert response.status_code == 400
+    assert body["error"] == {
+        "code": "price_invalid",
+        "message": YEN_MESSAGE,
+        "fields": {"billing_price": [YEN_MESSAGE]},
+    }
+    assert Subscription.objects.filter(owner=alex).count() == before
+
+
+def test_create_takes_a_whole_yen_price(api, contract):
+    response = api.post(
+        "/api/v1/subscriptions",
+        new_subscription(billing_price="1000", billing_currency="JPY"),
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert contract(response, "/subscriptions")["billing_price"] == "1000.00"
+
+
 @pytest.mark.parametrize(
     ("overrides", "field", "message"),
     [
@@ -383,6 +416,36 @@ def test_patch_rejects_a_zero_price(api, alex):
     )
 
     assert response.json()["error"]["code"] == "price_invalid"
+
+
+def test_patch_rejects_a_price_finer_than_its_currency(api, alex):
+    spotify = sub_id(alex, "Spotify")
+    api.patch(
+        f"/api/v1/subscriptions/{spotify}",
+        {"billing_currency": "JPY", "billing_price": "1000"},
+        format="json",
+    )
+
+    response = api.patch(
+        f"/api/v1/subscriptions/{spotify}", {"billing_price": "1000.50"}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["fields"] == {"billing_price": [YEN_MESSAGE]}
+    assert Subscription.objects.get(pk=spotify).billing_price == Decimal("1000")
+
+
+def test_patch_rejects_a_currency_the_stored_price_does_not_fit(api, alex):
+    """Spotify's $10.99 can't become ¥10.99; the price has to change with it."""
+    spotify = sub_id(alex, "Spotify")
+
+    response = api.patch(
+        f"/api/v1/subscriptions/{spotify}", {"billing_currency": "JPY"}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "price_invalid"
+    assert Subscription.objects.get(pk=spotify).billing_currency == "USD"
 
 
 def test_cancel_reports_what_is_saved_per_year(api, alex, contract):

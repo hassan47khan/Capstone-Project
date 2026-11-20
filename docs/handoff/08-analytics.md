@@ -193,7 +193,7 @@ All chart animation skipped under reduced motion — render final state.
 
 ## 8. Definition of done
 
-- [ ] Spend-over-time chart is the first thing on the screen.
+- [ ] The AI insight card is the first thing on the screen (§2.0), with the spend-over-time chart right below it.
 - [ ] Subscription list is last, not first.
 - [ ] Every non-zero category appears — verified: seed data shows all 6.
 - [ ] Category colors identical to Home's donut.

@@ -414,6 +414,21 @@ def test_a_confirm_that_fails_validation_keeps_the_review(api, alex, connected, 
 
 
 @pytest.mark.django_db
+def test_confirm_refuses_a_price_finer_than_its_currency(api, alex, connected, model):
+    deliver(connected, "figma-receipt")
+    scan(api)
+    row = api.get(PENDING).json()["results"][0]
+    body = {**confirm_body(row), "billing_price": "1000.50", "billing_currency": "JPY"}
+
+    response = api.post(f"/api/v1/extractions/{row['id']}/confirm", body, format="json")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "price_invalid"
+    assert not Subscription.objects.filter(owner=alex, name="Figma").exists()
+    assert PendingExtraction.objects.filter(owner=alex).count() == 1
+
+
+@pytest.mark.django_db
 def test_someone_elses_review_is_not_found_and_not_created(api, alex, connected, model, other):
     deliver(connected, "figma-receipt")
     scan(api)

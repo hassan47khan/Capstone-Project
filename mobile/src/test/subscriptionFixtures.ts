@@ -373,7 +373,7 @@ export function createMockSubscription(email: string, body: unknown): CreateResu
     trial_length_days: null,
     trial_reminder_enabled: true,
     trial_decision: 'none',
-    is_private: false,
+    is_private: input.is_private ?? false,
     counts_toward_totals: true,
     normalized_monthly: monthlyFor(price, cycle, input, currency),
     service_mark: null,
@@ -517,6 +517,7 @@ export function updateMockSubscription(
     category: Object.values(CATEGORIES).find((c) => c.slug === slug) ?? null,
     notes: input.notes ?? current.notes,
     payment_label: input.payment_label ?? current.payment_label,
+    is_private: input.is_private ?? current.is_private,
     // Same figure as before unless the price or cycle changed (mock can't do money math).
     normalized_monthly:
       price !== current.billing_price || cycleChanged
