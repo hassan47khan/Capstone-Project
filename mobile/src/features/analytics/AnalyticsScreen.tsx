@@ -1,13 +1,18 @@
 /**
  * Analytics tab (handoff 08, board card #99; US-16 comes with spend over time).
  *
- * Insight first, list last (08 §1): the spend-over-time headline with the
- * projected yearly spend (§2.1, US-16), then "Spending by category" with the
- * monthly total (§2.2, §2.3), then the subscription list, last (§2.4). Still
- * to come: the AI insight card at the top (§2.0, once GET /analytics/insight
- * exists).
+ * Insight first, list last (08 §1): the AI insight card (§2.0), then the
+ * spend-over-time headline with the projected yearly spend (§2.1, US-16), then
+ * "Spending by category" with the monthly total (§2.2, §2.3), then the
+ * subscription list, last (§2.4).
  *
- * Each section loads, fails and retries on its own (08 §4).
+ * The insight card comes first, as §2.0 says ("build it first on the screen").
+ * §8's older checklist puts the spend chart first; §2.0 was written later, for
+ * this card. It is one sentence, so the chart still shows right below it.
+ *
+ * Each section loads, fails and retries on its own (08 §4). The insight is the
+ * exception: an optional extra, so it shows nothing while loading or when it
+ * fails, rather than a skeleton or an error above the headline.
  *
  * The header has no Add button: the FAB is the only way to add (03 §2).
  *
@@ -41,6 +46,8 @@ import { makeStyles, sizes } from '@/theme';
 import { listSubscriptions } from '@/features/subscriptions/api';
 
 import { CategoryCard } from './CategoryCard';
+import { getInsight, insightKey } from './insight';
+import { InsightCard } from './InsightCard';
 import { SpendTrend } from './SpendTrend';
 import { SubscriptionList } from './SubscriptionList';
 
@@ -78,6 +85,10 @@ export function AnalyticsScreen() {
     queryFn: listSubscriptions,
   });
   const sections = [spend, summary, list];
+  // Not one of the sections: it never shows loading, an error or "stale".
+  const insight = useQuery({ queryKey: insightKey(), queryFn: getInsight });
+  const openSubscription = (id: string) =>
+    navigation.navigate('SubscriptionDetail', { id });
 
   const data = summary.data;
   // Nothing to show at all. active_count only counts subscriptions the server
@@ -94,7 +105,7 @@ export function AnalyticsScreen() {
   return (
     <Screen
       testID="analytics-screen"
-      onRefresh={() => sections.forEach((q) => q.refetch())}
+      onRefresh={() => [...sections, insight].forEach((q) => q.refetch())}
       refreshing={sections.some((q) => q.isRefetching)}
     >
       <Header title={ANALYTICS_COPY.title} />
@@ -120,7 +131,12 @@ export function AnalyticsScreen() {
         />
       ) : (
         <>
-          {/* 08 §2.1: the headline, first on the screen. */}
+          {/* 08 §2.0: the insight first; nothing at all until there is one. */}
+          {insight.data?.insight ? (
+            <InsightCard insight={insight.data.insight} onOpen={openSubscription} />
+          ) : null}
+
+          {/* 08 §2.1: the headline. */}
           {spend.data ? (
             <SpendTrend spend={spend.data} annual={data?.annual_total} />
           ) : spend.isError ? (

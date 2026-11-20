@@ -49,7 +49,12 @@ import {
   registerMockDevice,
   resetNotifications,
 } from './notificationFixtures';
-import { contractHomeFor, spendFor, upcomingMonthFor } from './contractFixtures';
+import {
+  contractHomeFor,
+  insightFor,
+  spendFor,
+  upcomingMonthFor,
+} from './contractFixtures';
 import * as family from './familyMock';
 import {
   notificationRulesFor,
@@ -531,6 +536,12 @@ export const routes: Route[] = [
     handler: protectedRoute((request, account) =>
       ok(spendFor(account.profile.email, Number(request.query.months ?? 12))),
     ),
+  },
+
+  {
+    method: 'GET',
+    pattern: '/analytics/insight',
+    handler: protectedRoute((_request, account) => ok(insightFor(account.profile.email))),
   },
 
   {
