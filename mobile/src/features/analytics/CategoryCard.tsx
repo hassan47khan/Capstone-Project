@@ -20,7 +20,7 @@ import { Text, View } from 'react-native';
 import type { AnalyticsSummary, CategorySpend } from '@/api/analyticsTypes';
 import { formatMoney } from '@/api/format';
 import { Card } from '@/components';
-import { colorKeyFor } from '@/features/home/CategoryDonut';
+import { colorKeyFor } from '@/features/home/CategoryBars';
 import { makeStyles, radius, sizes, spacing, useTheme } from '@/theme';
 
 export const CATEGORY_COPY = {

@@ -20,6 +20,7 @@
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { CategoryDetailScreen } from '@/features/home/CategoryDetailScreen';
 import { ConfirmChargeScreen } from '@/features/charges/ConfirmChargeScreen';
 import { GalleryScreen } from '@/features/dev/GalleryScreen';
 import { ReviewExtractionScreen } from '@/features/extraction/ReviewExtractionScreen';
@@ -46,6 +47,12 @@ export function AppNavigator() {
   return (
     <Stack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={TabNavigator} />
+      {/* Pushed from a bar on Home, with a back button; its rows open Detail. */}
+      <Stack.Screen
+        name="CategoryDetail"
+        component={CategoryDetailScreen}
+        options={{ animation: m.moves ? 'slide_from_right' : 'fade' }}
+      />
 
       <Stack.Group
         screenOptions={{

@@ -13,6 +13,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import type {
   AnalyticsSummary,
+  CategorySpend,
   PriceChangeItem,
   SpendOverTime,
   Upcoming,
@@ -32,7 +33,7 @@ import {
 } from '@/components';
 import { makeStyles, opacity, radius, sizes, spacing, useTheme } from '@/theme';
 
-import { CategoryDonut, colorKeyFor } from './CategoryDonut';
+import { CategoryBars } from './CategoryBars';
 import { alertFor, deltaFor, greetingFor, initialsFor, notCountedFor } from './homeCopy';
 
 /** 06 §2.4 and §2.5: how many cards and rows Home shows. */
@@ -220,41 +221,19 @@ export function SpendCard({
   );
 }
 
-// Spending by category (06 §2.3) ---------------------------------------------------
+// Spending by category (06 §2.3, now a tappable bar graph) ----------------------
 
-export function CategoryCard({ summary }: { summary: AnalyticsSummary }) {
+export function CategoryCard({
+  summary,
+  onOpen,
+}: {
+  summary: AnalyticsSummary;
+  onOpen: (row: CategorySpend) => void;
+}) {
   const styles = useStyles();
-  const { categoryColors } = useTheme();
   return (
     <Card style={styles.categoryCard} testID="category-card">
-      <CategoryDonut rows={summary.categories} />
-      <View style={styles.legend}>
-        {summary.categories.map((row, index) => {
-          const name = row.category?.display_name ?? 'Uncategorized';
-          return (
-            <View
-              key={row.category?.slug ?? `uncategorized-${index}`}
-              style={styles.spaceBetween}
-              accessible
-              accessibilityLabel={`${name}, ${row.percent} percent.`}
-              testID={`legend-${row.category?.slug ?? 'uncategorized'}`}
-            >
-              <View style={styles.legendName}>
-                <View
-                  style={[
-                    styles.dot,
-                    { backgroundColor: categoryColors[colorKeyFor(row)] },
-                  ]}
-                />
-                <Text style={styles.legendLabel} numberOfLines={1} ellipsizeMode="tail">
-                  {name}
-                </Text>
-              </View>
-              <Text style={styles.legendPercent}>{row.percent}%</Text>
-            </View>
-          );
-        })}
-      </View>
+      <CategoryBars rows={summary.categories} onOpen={onOpen} />
     </Card>
   );
 }
@@ -485,34 +464,8 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     color: colors.textMuted,
   },
   categoryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.lg,
-    gap: spacing.lg,
-  },
-  legend: {
-    flex: 1,
-    gap: spacing.sm,
-  },
-  legendName: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 1,
-  },
-  dot: {
-    width: sizes.dot,
-    height: sizes.dot,
-    borderRadius: radius.badge,
-  },
-  legendLabel: {
-    ...typography.captionStrong,
-    color: colors.textMuted,
-    flexShrink: 1,
-  },
-  legendPercent: {
-    ...typography.captionStrong,
-    color: colors.text,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   list: {
     gap: spacing.sm,

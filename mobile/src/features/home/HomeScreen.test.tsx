@@ -42,6 +42,7 @@ async function renderHome({
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="MainTabs" component={Stub} />
           <Stack.Screen name="SubscriptionDetail" component={Stub} />
+          <Stack.Screen name="CategoryDetail" component={Stub} />
           <Stack.Screen name="ProfileAccount" component={Stub} />
           <Stack.Screen name="AddSubscription" component={Stub} />
         </Stack.Navigator>
@@ -86,25 +87,34 @@ describe('loaded with the seed data (06 §9)', () => {
     expect(within(card).queryByText(/Converted/)).toBeNull();
   });
 
-  it('us8_legend_percentages_are_the_servers_and_sum_to_100', async () => {
+  it('us8_category_bars_read_the_servers_figures_largest_first', async () => {
     await renderHome();
     await screen.findByTestId('category-card');
 
-    const rows = alexSummary.categories.map((row) =>
-      screen.getByTestId(`legend-${row.category!.slug}`),
+    const bars = alexSummary.categories.map((row) =>
+      screen.getByTestId(`category-bar-${row.category!.slug}`),
     );
-    expect(rows.map((r) => r.props.accessibilityLabel)).toEqual([
-      'Productivity, 43 percent.',
-      'Entertainment, 31 percent.',
-      'AI Tools, 16 percent.',
-      'Health & Wellness, 5 percent.',
-      'News & Media, 3 percent.',
-      'Cloud Storage, 2 percent.',
+    expect(bars.map((b) => b.props.accessibilityLabel)).toEqual([
+      'Productivity, $54.99, 43 percent.',
+      'Entertainment, $40.47, 31 percent.',
+      'AI Tools, $20.00, 16 percent.',
+      'Health & Wellness, $6.50, 5 percent.',
+      'News & Media, $4.25, 3 percent.',
+      'Cloud Storage, $2.99, 2 percent.',
     ]);
-    // The donut is decorative; the legend is the accessible version.
+    // Each bar is a button; the figures are text beside the bar (06 §8).
+    expect(screen.getAllByRole('button', { name: /percent\.$/ })).toHaveLength(6);
     expect(
-      screen.getByTestId('category-donut', { includeHiddenElements: true }),
-    ).toBeTruthy();
+      screen.queryByTestId('category-donut', { includeHiddenElements: true }),
+    ).toBeNull();
+  });
+
+  it('tapping a category bar opens that category', async () => {
+    await renderHome();
+    await fireEvent.press(await screen.findByTestId('category-bar-entertainment'));
+    expect(await screen.findByTestId('stub')).toHaveTextContent(
+      'CategoryDetail {"slug":"entertainment","name":"Entertainment"}',
+    );
   });
 
   it('urgent attention shows the trial ending and the Netflix rise, trial first', async () => {
