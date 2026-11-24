@@ -77,9 +77,9 @@ Main was merged into it once before it landed (after #195, #196 and #199), with
 a conflict only in the handoff errata, where both entries were kept. The figure
 is a local `npm run verify` on that merge before pushing, 1219 Jest tests
 passing, not re-run on `main`. Also merged since `ecb04f8` and not written up
-here: #201 (Ankit), #202 and #204. The contrast report in
-`docs/qa/contrast-by-screen.md` was generated before #197, #201 and #202 landed,
-so it is stale for Home, Profile and Add until it is regenerated.
+here: #201 (Ankit) and #202 (#204 is the write-up for #197). The contrast
+report in `docs/qa/contrast-by-screen.md` was generated before #197, #201 and
+#202 landed; #208 regenerates it and adds Notifications and Category.
 
 ## One line per area
 
