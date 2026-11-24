@@ -229,6 +229,15 @@ def _pair_sources(pair: dict) -> list[pipeline.Source]:
     ]
 
 
+def _versus(name: str, fields_a: dict, fields_b: dict, out_a: dict, out_b: dict) -> str:
+    """One differing field of a counterfactual pair, with both values."""
+    if fields_a.get(name) != fields_b.get(name):
+        a, b = fields_a.get(name), fields_b.get(name)
+    else:
+        a, b = out_a.get(name), out_b.get(name)
+    return f"`{name}` (`{a}` vs `{b}`)"
+
+
 def run(*, read: Read | None = None, meter: Meter | None = None) -> SuiteReport:
     """Every check. `read` asks the model live; without it, stored answers are replayed."""
     live = read is not None
@@ -274,7 +283,7 @@ def run(*, read: Read | None = None, meter: Meter | None = None) -> SuiteReport:
         (out_a, fields_a), (out_b, fields_b) = results
         bad = sorted(set(differing(out_a, out_b)) | set(differing(fields_a, fields_b)))
         if bad:
-            biased.append((pair["id"], bad))
+            biased.append((pair["id"], [_versus(n, fields_a, fields_b, out_a, out_b) for n in bad]))
 
     checks = [
         Check(
@@ -398,7 +407,13 @@ def render(report: SuiteReport) -> str:
         lines.append("")
     if report.golden.wrong_green:
         lines.append("Wrong values shown green:")
-        lines += [f"- `{case}`: `{name}`" for case, name in report.golden.wrong_green]
+        shown = {o.case["id"]: o for o in report.golden.outcomes}
+        for case, name in report.golden.wrong_green:
+            outcome = shown[case]
+            value = outcome.candidate.fields[name] if outcome.candidate else None
+            lines.append(
+                f"- `{case}`: `{name}` showed `{value}`, expected `{outcome.case['truth'][name]}`"
+            )
         lines.append("")
     if report.inconsistent:
         lines.append("Answers that changed between runs:")
@@ -407,7 +422,7 @@ def render(report: SuiteReport) -> str:
     if report.biased:
         lines.append("Counterfactual pairs that extracted differently:")
         for case, names in report.biased:
-            lines.append(f"- `{case}`: " + ", ".join(f"`{name}`" for name in names))
+            lines.append(f"- `{case}`: " + ", ".join(names))
         lines.append("")
     if not (
         report.hallucinated or report.golden.wrong_green or report.inconsistent or report.biased

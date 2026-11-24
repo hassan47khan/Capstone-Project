@@ -110,7 +110,7 @@ EXTRACTION_SCHEMA = {
 }
 
 # The system prompt lives in prompts/, one file per version.
-EXTRACTION_PROMPT = "extraction_v1"
+EXTRACTION_PROMPT = "extraction_v2"
 EXTRACTION_SYSTEM = prompts.load(EXTRACTION_PROMPT)
 
 

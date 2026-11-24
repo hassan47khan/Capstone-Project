@@ -2,7 +2,7 @@
 
 **Offline run** (`python manage.py eval_suite`): stored answers from the
 fixtures are replayed, so this measures the pipeline, not the model.
-`eval_suite --live` asks the model. Prompt `extraction_v1`.
+`eval_suite --live` asks the model. Prompt `extraction_v2`.
 
 **Result: PASS**
 

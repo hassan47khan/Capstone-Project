@@ -446,10 +446,11 @@ The prompts are plain text files, one per version, in
 
 | Prompt | Used by |
 | --- | --- |
-| [`extraction_v1.txt`](backend/extraction/prompts/extraction_v1.txt) | Email extraction (`llm.EXTRACTION_PROMPT`) |
+| [`extraction_v2.txt`](backend/extraction/prompts/extraction_v2.txt) | Email extraction (`llm.EXTRACTION_PROMPT`) |
+| [`extraction_v1.txt`](backend/extraction/prompts/extraction_v1.txt) | Retired. v2 adds how to split the service and plan names, and category hints, after the first live eval |
 | [`insight_v1.txt`](backend/extraction/prompts/insight_v1.txt) | The Analytics insight card (`insight.INSIGHT_PROMPT`) |
 
-To change a prompt, add `extraction_v2.txt` and point the constant at it. Don't edit a released
+To change a prompt, add the next version (`extraction_v3.txt`) and point the constant at it. Don't edit a released
 file in place. Every eval report names the prompt version it measured.
 
 ### API key

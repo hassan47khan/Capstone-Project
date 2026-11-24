@@ -6,7 +6,7 @@
 
 Extraction reads emails from the user's Gmail inbox and asks Claude to report
 the subscription each one describes (`backend/extraction/llm.py`, prompt
-`backend/extraction/prompts/extraction_v1.txt`). Anyone in the world can put an
+`backend/extraction/prompts/extraction_v2.txt`). Anyone in the world can put an
 email in that inbox. So the model's input is written by strangers, and some of
 them will be hostile.
 
