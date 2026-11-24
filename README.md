@@ -399,7 +399,7 @@ stage enforces that on every run by scanning the whole history.
 | `RENDER_DEPLOY_HOOK_WORKER` | GitHub Secrets (optional) | Deploy stage: deploys the Celery worker. Without this secret, Deploy ships the API alone and logs a warning. |
 | `RENDER_API_KEY` | GitHub Secrets | Deploy stage: waits for both deploys to go live |
 | `RENDER_API_URL` | GitHub Variables (not secret: it's the public URL) | Deploy stage: health check after the deploy |
-| `LLM_API_KEY` | GitHub Secrets, on the `llm-eval` environment (required reviewer: Christian) | Eval stage, live runs only. See [API key](#api-key). |
+| `ANTHROPIC_API_KEY` | GitHub Secrets, on the `llm-eval` environment (required reviewer: Christian) | Eval stage, live runs only. See [API key](#api-key). |
 | `MONGODB_URI`, `RESEND_API_KEY`, `LLM_API_KEY`, Google OAuth, `GMAIL_TOKEN_ENCRYPTION_KEY`, `EXPO_ACCESS_TOKEN` | Render's environment (`sync: false` in `render.yaml`) | The running app. They never pass through GitHub. |
 
 Test needs no secrets, and Eval only needs one for a live run. The Django secret key the tests need is generated fresh on every run
@@ -458,7 +458,7 @@ The key is never in the code or the history (gitleaks checks every commit in the
 
 | Where | Name | Used by |
 | --- | --- | --- |
-| GitHub Secrets, on the `llm-eval` environment | `LLM_API_KEY` | The Eval stage's live runs only |
+| GitHub Secrets, on the `llm-eval` environment | `ANTHROPIC_API_KEY` | The Eval stage's live runs only (passed to the suite as `LLM_API_KEY`) |
 | Render's environment | `LLM_API_KEY` | The running app |
 | `backend/.env` (gitignored) | `LLM_API_KEY` | Local live runs |
 
@@ -537,9 +537,13 @@ Live runs cost money, so they're deliberate:
 - The key lives on the `llm-eval` environment, with Christian as its required reviewer. Even an
   edited workflow can't spend it without his approval.
 
-Setting it up (once, by a repository admin): Settings > Environments > New environment `llm-eval`,
-add `christianpivaral` under Required reviewers, then add the secret `LLM_API_KEY` to that
-environment. Also create the label `eval-live`.
+Setting it up (once, by a repository admin):
+
+1. Settings > Secrets and variables > Actions > New repository secret: `ANTHROPIC_API_KEY`.
+2. Recommended: Settings > Environments > New environment `llm-eval`, add `christianpivaral` under
+   Required reviewers, and add `ANTHROPIC_API_KEY` there instead of as a repository secret. Then a
+   live run waits for Christian's approval.
+3. Issues > Labels > New label `eval-live`.
 
 ### Prompt-injection risk
 

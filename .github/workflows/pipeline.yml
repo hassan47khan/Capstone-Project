@@ -37,10 +37,10 @@
 #   from Christian's key. It happens only when christianpivaral adds the
 #   `eval-live` label to a pull request or starts this workflow by hand
 #   (Actions > pipeline > Run workflow), and only for that run: later pushes,
-#   and re-runs started by anyone else, replay. The key is the LLM_API_KEY
-#   secret on the `llm-eval` environment, whose required reviewer is
-#   Christian, so even an edited workflow cannot spend it without his OK. The
-#   suite also stops itself at EVAL_MAX_USD.
+#   and re-runs started by anyone else, replay. The key is the
+#   ANTHROPIC_API_KEY secret, best kept on the `llm-eval` environment with
+#   Christian as its required reviewer, so even an edited workflow cannot
+#   spend it without his OK. The suite also stops itself at EVAL_MAX_USD.
 #
 # Why no path filters
 #   A required check that a path filter skips never reports, and the pull
@@ -366,11 +366,11 @@ jobs:
       - name: Run the eval suite
         working-directory: backend
         env:
-          LLM_API_KEY: ${{ env.LIVE == 'true' && secrets.LLM_API_KEY || '' }}
+          LLM_API_KEY: ${{ env.LIVE == 'true' && secrets.ANTHROPIC_API_KEY || '' }}
         run: |
           if [ "$LIVE" = true ]; then
             if [ -z "$LLM_API_KEY" ]; then
-              echo "::error::A live eval run was asked for, but the LLM_API_KEY secret is not set."
+              echo "::error::A live eval run was asked for, but the ANTHROPIC_API_KEY secret is not set."
               exit 1
             fi
             echo "Live run, asked for by christianpivaral. Capped at \$${EVAL_MAX_USD}."
