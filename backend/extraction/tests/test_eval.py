@@ -97,9 +97,9 @@ def test_a_live_run_reports_latency_and_tokens(data):
         case = next(c for c in data["emails"] if c["text"] == source.text)
         return case["model_output"], {"input_tokens": 800, "output_tokens": 200}
 
-    text = evaluation.render(evaluation.run(read=read), live_model="claude-opus-5-5")
+    text = evaluation.render(evaluation.run(read=read), live_model="claude-haiku-5-5")
 
-    assert "Live run against `claude-opus-5-5`" in text
+    assert "Live run against `claude-haiku-5-5`" in text
     assert "Cost and latency" in text
 
 
@@ -154,7 +154,7 @@ def test_a_live_run_writes_its_own_report(settings, tmp_path, monkeypatch, data)
 
     def fake_model(source):
         case = next(c for c in data["emails"] if c["text"] == source.text)
-        return llm.Reply(case["model_output"], "claude-opus-5-5", {"input_tokens": 1})
+        return llm.Reply(case["model_output"], "claude-haiku-5-5", {"input_tokens": 1})
 
     monkeypatch.setattr(llm, "read_email", fake_model)
 
