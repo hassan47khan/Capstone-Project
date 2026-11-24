@@ -382,9 +382,11 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   owedFigure: {
     ...typography.displayLg,
   },
+  // `text`, not `textMuted`: muted grey on the light successSurface is 4.49:1,
+  // just under AA (the same rule as the warning tint, 01 §1). 11 §3.5's audit.
   owedCaption: {
     ...typography.labelMd,
-    color: colors.textMuted,
+    color: colors.text,
   },
   card: {
     padding: spacing.lg,
