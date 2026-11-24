@@ -312,6 +312,16 @@ def test_us12_a_paid_subscription_ignores_a_stale_trial_date(api):
     assert response.status_code == 201
 
 
+def test_us12_editing_a_paid_subscription_ignores_a_stale_trial_date(api, alex):
+    """A PATCH without is_trial uses the stored one, so a paid Netflix isn't
+    held to the trial rule."""
+    netflix = sub_id(alex, "Netflix")
+    response = api.patch(
+        f"/api/v1/subscriptions/{netflix}", {"trial_ends_on": "2026-09-01"}, format="json"
+    )
+    assert response.status_code == 200
+
+
 def test_us12_editing_a_trial_end_into_the_past_is_blocked(api, alex):
     hulu = sub_id(alex, "Hulu")
     response = api.patch(
@@ -601,3 +611,16 @@ def test_money_is_never_a_float(api):
             assert not isinstance(node, float | Decimal)
 
     walk(api.get("/api/v1/subscriptions").json())
+
+
+def test_input_serializer_without_today_fails_loudly():
+    """A call site that forgets views.input_context must not skip the US-12 check."""
+    from django.core.exceptions import ImproperlyConfigured
+
+    from subscriptions.serializers import SubscriptionInputSerializer
+
+    serializer = SubscriptionInputSerializer(
+        data={"trial_ends_on": "2020-01-01", "is_trial": True}, partial=True
+    )
+    with pytest.raises(ImproperlyConfigured):
+        serializer.is_valid()

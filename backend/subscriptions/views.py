@@ -54,9 +54,13 @@ def body(serializer_class, request, *, partial=False, context=None) -> dict:
     return serializer.validated_data
 
 
-def input_context(request) -> dict:
-    """What SubscriptionInputSerializer checks dates against: the caller's today."""
-    return {"today": today_for(request.user)}
+def input_context(request, sub: Subscription | None = None) -> dict:
+    """What SubscriptionInputSerializer checks against: the caller's today and,
+    on an edit, whether the stored subscription is a trial."""
+    context = {"today": today_for(request.user)}
+    if sub is not None:
+        context["is_trial"] = sub.is_trial
+    return context
 
 
 def context(request) -> presenters.Context:
@@ -201,7 +205,7 @@ class SubscriptionDetailView(APIView):
         sub = owned(request, subscription_id)
         require_edit(request.user)
         changes = body(
-            SubscriptionInputSerializer, request, partial=True, context=input_context(request)
+            SubscriptionInputSerializer, request, partial=True, context=input_context(request, sub)
         )
         operations.update_subscription(sub, today=today_for(request.user), **changes)
         return Response(detail(sub, request))
