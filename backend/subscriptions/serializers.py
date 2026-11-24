@@ -8,6 +8,7 @@ YYYY-MM-DD, instants ISO 8601 UTC, ids opaque strings. No response carries a
 number the client has to add up.
 """
 
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework import serializers
 
 from core.contract import MoneySerializer
@@ -147,12 +148,18 @@ class SubscriptionInputSerializer(serializers.Serializer):
     def validate(self, attrs):
         # US-12: a trial that has already ended can't be tracked as a trial.
         # "Future" is strictly after the user's own today (core.clock); the
-        # view passes it in. On an edit, a new end date is checked unless the
-        # same request turns the trial off.
-        today = self.context.get("today")
+        # view passes it in (views.input_context), and a missing one is a bug in
+        # the caller, not a reason to skip the check. On an edit, the stored
+        # subscription's is_trial applies unless the same request changes it,
+        # so a paid subscription with an old trial date can still be edited.
+        if "today" not in self.context:
+            raise ImproperlyConfigured(
+                "SubscriptionInputSerializer needs context['today'] (views.input_context)."
+            )
+        today = self.context["today"]
         ends_on = attrs.get("trial_ends_on")
-        is_trial = attrs.get("is_trial", True if self.partial else False)
-        if today and ends_on and is_trial and ends_on <= today:
+        is_trial = attrs.get("is_trial", self.context.get("is_trial", False))
+        if ends_on and is_trial and ends_on <= today:
             raise serializers.ValidationError({"trial_ends_on": [TRIAL_PAST_MESSAGE]})
 
         # A partial update is checked against the stored subscription by the
