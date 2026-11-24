@@ -23,6 +23,8 @@ screen; "pairs" counts the distinct text/ground pairs.
 | Home | 6.02 (needs 4.5) "8 active" | 12 | 4.76 (needs 4.5) "Good evening," | 11 |
 | Home, first run | 6.84 (needs 4.5) "Home" | 5 | 4.76 (needs 4.5) "Add your first subscription and SubTrak " | 5 |
 | Home, load failed | 6.84 (needs 4.5) "Home" | 5 | 4.76 (needs 4.5) "We could not load this just now. Try aga" | 5 |
+| Notifications | 7.05 (needs 4.5) "Oct 1" | 4 | 5.24 (needs 4.5) "Oct 1" | 4 |
+| Category | 6.51 (needs 4.5) "$17.99" | 6 | 4.76 (needs 4.5) "Subscriptions · 4 subscriptions" | 6 |
 | Add subscription | 7.05 (needs 4.5) "e.g. Netflix, Spotify…" | 5 | 4.76 (needs 4.5) "A label only — never enter a full card n" | 4 |
 | Subscription detail | 7.05 (needs 4.5) "Current price" | 7 | 4.76 (needs 4.5) "Price history (last 12 months)" | 7 |
 | Subscription detail, price history | 6.02 (needs 4.5) "Active" | 7 | 4.76 (needs 4.5) "Price history (last 12 months)" | 7 |
@@ -33,7 +35,7 @@ screen; "pairs" counts the distinct text/ground pairs.
 | Analytics, empty | 6.84 (needs 4.5) "Analytics" | 6 | 4.76 (needs 4.5) "Add a subscription and your spending sho" | 6 |
 | Analytics, load failed | 6.84 (needs 4.5) "Analytics" | 6 | 4.76 (needs 4.5) "We could not load this just now. Try aga" | 6 |
 | Settings | 6.14 (needs 4.5) "Sign Out" | 7 | 4.76 (needs 4.5) "Display" | 6 |
-| Profile & account | 7.05 (needs 4.5) "Phase 5 — handoff 09" | 3 | 5.24 (needs 4.5) "Phase 5 — handoff 09" | 3 |
+| Profile & account | 7.05 (needs 4.5) "alex@subtrak.test" | 5 | 4.76 (needs 4.5) "My profile" | 5 |
 | Currency | 7.05 (needs 4.5) "Phase 5 — handoff 09" | 3 | 5.24 (needs 4.5) "Phase 5 — handoff 09" | 3 |
 | Switch currency (sheet) | 7.05 (needs 4.5) "Every total will be shown in the new cur" | 3 | 5.24 (needs 4.5) "Every total will be shown in the new cur" | 3 |
 | Time zone | 7.05 (needs 4.5) "Phase 5 — handoff 09" | 3 | 5.24 (needs 4.5) "Phase 5 — handoff 09" | 3 |
