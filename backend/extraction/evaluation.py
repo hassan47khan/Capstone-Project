@@ -63,6 +63,8 @@ class Outcome:
     candidate: pipeline.Candidate | None = None
     seconds: float | None = None
     usage: dict = field(default_factory=dict)
+    # What the model said (stored or live), before the pipeline checked it.
+    output: dict | None = None
 
 
 def run_case(
@@ -87,11 +89,13 @@ def run_case(
             return Outcome(case, candidate=pipeline.blank(source))
         seconds = time.perf_counter() - started
     if not output.get("is_subscription_email"):
-        return Outcome(case, rejected=pipeline.NOT_A_SUBSCRIPTION, seconds=seconds, usage=usage)
+        return Outcome(
+            case, rejected=pipeline.NOT_A_SUBSCRIPTION, seconds=seconds, usage=usage, output=output
+        )
     candidate = pipeline.extract(
         source, output, default_currency=default_currency, catalog=catalog()
     )
-    return Outcome(case, candidate=candidate, seconds=seconds, usage=usage)
+    return Outcome(case, candidate=candidate, seconds=seconds, usage=usage, output=output)
 
 
 def _same(name: str, shown, truth, candidate, expected: dict) -> bool:
