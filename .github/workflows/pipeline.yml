@@ -3,6 +3,7 @@
 # One workflow, four stages, run on every push to main and every pull request:
 #
 #   Setup -> Dependencies -> Test -> Deploy
+#                        \-> Eval  (pull requests)
 #
 #   Setup         Checks out the full history and scans it for leaked secrets,
 #                 then works out the cache keys the later stages share.
@@ -14,6 +15,11 @@
 #                 for the mobile app. This is the required check on main.
 #   Deploy        Only on a push to main, and only after Test passed: asks
 #                 Render to deploy exactly this commit, then waits for it.
+#   Eval          On pull requests to main (and when run by hand): runs the AI
+#                 eval suite (`python manage.py eval_suite`) and fails when a
+#                 check falls below its threshold. It replays stored model
+#                 answers for free unless Christian asks for a live run (see
+#                 "Live eval runs" below).
 #
 # Audit (pip-audit) runs beside Test and only reports: advisories land in
 # unrelated packages on their own schedule, so it never blocks a merge.
@@ -26,6 +32,16 @@
 #   the LLM) live in Render's environment and never pass through GitHub. CI
 #   needs none of them: the Django secret key below is generated per run.
 #
+# Live eval runs
+#   A live run asks Claude about every eval email and costs about 2 cents, paid
+#   from Christian's key. It happens only when christianpivaral adds the
+#   `eval-live` label to a pull request or starts this workflow by hand
+#   (Actions > pipeline > Run workflow), and only for that run: later pushes,
+#   and re-runs started by anyone else, replay. The key is the LLM_API_KEY
+#   secret on the `llm-eval` environment, whose required reviewer is
+#   Christian, so even an edited workflow cannot spend it without his OK. The
+#   suite also stops itself at EVAL_MAX_USD.
+#
 # Why no path filters
 #   A required check that a path filter skips never reports, and the pull
 #   request waits on it forever. Every stage always runs.
@@ -37,6 +53,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # `labeled` is how a live eval run is asked for (see "Live eval runs").
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
 
 # A new push to a pull request cancels its previous run. Runs on main are never
 # cancelled, so a deploy is never cut off halfway.
@@ -300,6 +319,74 @@ jobs:
       - name: Audit runtime dependencies
         working-directory: backend
         run: .venv/bin/pip-audit -r requirements.txt
+
+  eval:
+    name: Eval
+    needs: [setup, dependencies]
+    # Pull requests and runs by hand. A push to main has already passed Eval
+    # on its pull request.
+    if: ${{ github.event_name != 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Live only when Christian himself asked for this run: he added the
+    # `eval-live` label, or started the workflow by hand. triggering_actor is
+    # checked too, so someone else re-running his labelled run gets a replay.
+    # A live run uses the `llm-eval` environment, where the key lives and
+    # Christian approves each run; a replay uses `eval-replay`, which holds
+    # nothing.
+    environment: ${{ (github.triggering_actor == 'christianpivaral' && ((github.event_name == 'workflow_dispatch' && github.actor == 'christianpivaral') || (github.event.action == 'labeled' && github.event.label.name == 'eval-live' && github.event.sender.login == 'christianpivaral'))) && 'llm-eval' || 'eval-replay' }}
+    env:
+      LIVE: ${{ (github.triggering_actor == 'christianpivaral' && ((github.event_name == 'workflow_dispatch' && github.actor == 'christianpivaral') || (github.event.action == 'labeled' && github.event.label.name == 'eval-live' && github.event.sender.login == 'christianpivaral'))) && 'true' || 'false' }}
+      DJANGO_DEBUG: 'False'
+      MONGODB_URI: mongodb://localhost:27017/subtrak
+      # A live run stops itself once it has spent this much.
+      EVAL_MAX_USD: '0.50'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Restore backend dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/.venv
+          key: ${{ needs.setup.outputs.backend-key }}
+          fail-on-cache-miss: true
+
+      - name: Generate a throwaway Django secret key
+        run: |
+          key=$(python -c 'import secrets; print(secrets.token_urlsafe(50))')
+          echo "::add-mask::${key}"
+          echo "DJANGO_SECRET_KEY=${key}" >> "$GITHUB_ENV"
+
+      # The key is handed to this step only on a live run, so a replay never
+      # holds it.
+      - name: Run the eval suite
+        working-directory: backend
+        env:
+          LLM_API_KEY: ${{ env.LIVE == 'true' && secrets.LLM_API_KEY || '' }}
+        run: |
+          if [ "$LIVE" = true ]; then
+            if [ -z "$LLM_API_KEY" ]; then
+              echo "::error::A live eval run was asked for, but the LLM_API_KEY secret is not set."
+              exit 1
+            fi
+            echo "Live run, asked for by christianpivaral. Capped at \$${EVAL_MAX_USD}."
+            .venv/bin/python manage.py eval_suite --live --write --summary "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Replaying stored model answers (free). Only christianpivaral can start a live run."
+            .venv/bin/python manage.py eval_suite --write --summary "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the eval reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-reports
+          path: docs/ai/
+          retention-days: 90
 
   deploy:
     name: Deploy

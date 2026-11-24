@@ -26,7 +26,7 @@ The backend's stories are built, tested and live on Render. On mobile, the auth 
 | --- | --- |
 | Backend | Auth, subscriptions, analytics, trials, reminders and push, Gmail extraction, shared plans and the AI insight card are built. Deploys to Render from `render.yaml` ([runbook](docs/ops/backend-deploy.md)). See [Backend status](#backend-status). |
 | Mobile | Phase 0 complete — scaffold, Figma design tokens (light + dark), the handoff-02 component library with a dev gallery, API layer, mock backend, session, navigation tree from handoff 03 (auth gate, four tabs + add button, modals, deep links) plus the AI-epic routes from handoff 11. Built since: auth (05), Home (06), Analytics (08) and the Settings root (09). Calendar, Gmail extraction and shared plans are still placeholders on `main`. |
-| CI/CD | One pipeline (Setup, Dependencies, Test, Deploy) runs on every push and pull request to `main`; Deploy ships tested commits to Render. `Test` is the required check — see [CI/CD Pipeline](#cicd-pipeline). |
+| CI/CD | One pipeline (Setup, Dependencies, Test, Deploy) runs on every push and pull request to `main`; Deploy ships tested commits to Render. `Test` is the required check — see [CI/CD Pipeline](#cicd-pipeline). Pull requests also run the AI eval suite in an Eval stage — see [AI Feature](#ai-feature-email-extraction). |
 | Docs | System design specification is done. Developer handoff specs `00`–`12` are in `docs/handoff/`. Team notes live in the `Capstone_CSC325/` Obsidian vault. |
 
 ## Repository Structure
@@ -63,6 +63,7 @@ The backend's stories are built, tested and live on Render. On mobile, the auth 
 | Developer handoff specs (per task) | [docs/handoff/](docs/handoff/) — start at [00-README.md](docs/handoff/00-README.md); team assignments in [12-team-assignments.md](docs/handoff/12-team-assignments.md) |
 | Visual design (source of truth) | Figma file `IKYivyJtmBYzJNQ7g8qPGc`, page "Full Integrated Prototype Epic A, B, C". Home is the exception: frame `4:2901` exists only in the original file `kyUS7F8bg4x7GpcPEF4UDN` |
 | Earlier visual prototype (retired) | `docs/design/SubTrak prototype.pdf` |
+| AI feature: eval results and prompt-injection risk | [docs/ai/](docs/ai/) — see [AI Feature](#ai-feature-email-extraction) |
 | Colour contrast report | [mobile/src/theme/CONTRAST.md](mobile/src/theme/CONTRAST.md) |
 | Design notes, page map and state critique | [docs/design/README.md](docs/design/README.md) |
 | Mobile client conventions | [mobile/CLAUDE.md](mobile/CLAUDE.md) |
@@ -173,7 +174,7 @@ extraction reported as unavailable).
 | `RESEND_API_KEY`, `DJANGO_DEFAULT_FROM_EMAIL` | Outgoing email | unset: printed to the console |
 | `SUBTRAK_PUBLIC_BASE_URL` | Public HTTPS origin for emailed links and the OAuth callback | the Render URL, or unset |
 | `EXPO_ACCESS_TOKEN` | Expo push, only with enhanced security on | unset |
-| `LLM_API_KEY`, `LLM_MODEL` | Anthropic, for extraction and the insight card | unset; model `claude-opus-5-5` |
+| `LLM_API_KEY`, `LLM_MODEL` | Anthropic, for extraction and the insight card | unset; model `claude-haiku-5-5` (leave `LLM_MODEL` unset so the Eval stage tests the model users get) |
 | `EXTRACTION_ENABLED`, `EXTRACTION_DAILY_CAP` | Kill switch and per-user daily cap | `true`, `30` |
 | `GOOGLE_OAUTH_CLIENT_ID`, `_SECRET`, `_REDIRECT_URIS` | Gmail OAuth (Web-application client) | unset |
 | `GMAIL_TOKEN_ENCRYPTION_KEY` | Fernet key for stored Gmail refresh tokens | unset: Gmail disabled |
@@ -336,6 +337,7 @@ before it:
 
 ```
 Setup ──► Dependencies ──► Test ──► Deploy (push to main only)
+                      ├──► Eval (pull requests: the AI eval suite)
                       └──► Audit (reports only)
 ```
 
@@ -345,6 +347,7 @@ Setup ──► Dependencies ──► Test ──► Deploy (push to main only)
 | **Dependencies** | Installs the backend into `backend/.venv` (`pip install -r requirements-dev.txt`) and the mobile app (`npm ci`), and caches both. A run with unchanged lock files reuses the cache. |
 | **Test** | Restores both caches, starts MongoDB and Redis from `docker-compose.yml`, then runs every check. Backend: ruff check and format, `makemigrations --check`, the stale-schema check, and pytest against the real MongoDB with a 90% coverage floor. Mobile: the generated API client check, ESLint, Prettier, `tsc --noEmit` and Jest. Coverage reports are uploaded as an artifact. |
 | **Deploy** | Only on a push to `main`, and only when Test passed. Calls the Render deploy hook for the API (and the worker's, if its hook is set) with `ref` set to the commit that was just tested, waits until they're live, then checks `/api/v1/health/` on the live API. Pull requests stop after Test. |
+| **Eval** | Pull requests to `main` (and runs by hand). Runs the AI eval suite, `python manage.py eval_suite`, and fails when any check is below its threshold. Replays stored model answers unless Christian asks for a live run. See [Eval stage in the pipeline](#eval-stage-in-the-pipeline). |
 | Audit | `pip-audit` on `requirements.txt`, beside Test. It reports and never blocks: advisories land in unrelated packages on their own schedule. Not a required check. |
 
 Details worth knowing:
@@ -396,9 +399,10 @@ stage enforces that on every run by scanning the whole history.
 | `RENDER_DEPLOY_HOOK_WORKER` | GitHub Secrets (optional) | Deploy stage: deploys the Celery worker. Without this secret, Deploy ships the API alone and logs a warning. |
 | `RENDER_API_KEY` | GitHub Secrets | Deploy stage: waits for both deploys to go live |
 | `RENDER_API_URL` | GitHub Variables (not secret: it's the public URL) | Deploy stage: health check after the deploy |
+| `LLM_API_KEY` | GitHub Secrets, on the `llm-eval` environment (required reviewer: Christian) | Eval stage, live runs only. See [API key](#api-key). |
 | `MONGODB_URI`, `RESEND_API_KEY`, `LLM_API_KEY`, Google OAuth, `GMAIL_TOKEN_ENCRYPTION_KEY`, `EXPO_ACCESS_TOKEN` | Render's environment (`sync: false` in `render.yaml`) | The running app. They never pass through GitHub. |
 
-CI itself needs no secrets. The Django secret key the tests need is generated fresh on every run
+Test needs no secrets, and Eval only needs one for a live run. The Django secret key the tests need is generated fresh on every run
 and masked in the log. Locally, secrets go in `backend/.env` (gitignored); copy
 `backend/.env.example`, which holds placeholders only.
 
@@ -417,6 +421,150 @@ Done once, by a repository admin:
    deploys every commit a second time on its own.
 
 If a hook URL ever leaks, regenerate it in Render and update the secret: the old URL stops working.
+
+## AI Feature: Email Extraction
+
+SubTrak's LLM feature reads subscription emails from the user's Gmail (read-only) and fills in the
+Add form for them: service, plan, price, currency, billing cycle, trial end date and category. It
+supports the Product Goal directly: subscriptions that start from a receipt or a free-trial email
+get tracked without the user typing anything, and Trial Shield can then warn before a trial
+charges. Nothing is saved until the user checks the review screen and taps **Confirm and track**.
+
+### How it calls the model
+
+- Python, in [`backend/extraction/llm.py`](backend/extraction/llm.py): one request to the Claude
+  Messages API (`claude-haiku-5-5`, the cheapest current Claude model, low effort) per email, with the JSON shape enforced by
+  structured outputs and validated again on our side.
+- The model's answer is not trusted as is. [`pipeline.py`](backend/extraction/pipeline.py) checks
+  every value against the email text (grounding), blanks anything it cannot find, and works out
+  each field's confidence from those checks rather than asking the model how sure it is.
+
+### Versioned prompts
+
+The prompts are plain text files, one per version, in
+[`backend/extraction/prompts/`](backend/extraction/prompts/):
+
+| Prompt | Used by |
+| --- | --- |
+| [`extraction_v1.txt`](backend/extraction/prompts/extraction_v1.txt) | Email extraction (`llm.EXTRACTION_PROMPT`) |
+| [`insight_v1.txt`](backend/extraction/prompts/insight_v1.txt) | The Analytics insight card (`insight.INSIGHT_PROMPT`) |
+
+To change a prompt, add `extraction_v2.txt` and point the constant at it. Don't edit a released
+file in place. Every eval report names the prompt version it measured.
+
+### API key
+
+The key is never in the code or the history (gitleaks checks every commit in the Setup stage).
+
+| Where | Name | Used by |
+| --- | --- | --- |
+| GitHub Secrets, on the `llm-eval` environment | `LLM_API_KEY` | The Eval stage's live runs only |
+| Render's environment | `LLM_API_KEY` | The running app |
+| `backend/.env` (gitignored) | `LLM_API_KEY` | Local live runs |
+
+### Fallback path
+
+The app has to keep working when the model doesn't. Every way the call can fail ends in a state
+the user can act on, and none of them invents data:
+
+| What goes wrong | What the app does | Test |
+| --- | --- | --- |
+| Timeout (8 s budget), dropped connection, 429/5xx | One retry, then `LLMUnavailable` | `test_llm.py::test_a_dropped_connection_is_retried_then_unavailable`, `test_an_api_still_down_after_the_retry_is_unavailable` |
+| Bad key, retired model (4xx) | `LLMUnavailable` straight away, no retry | `test_llm.py::test_a_rejected_key_is_unavailable_and_not_retried` |
+| Not JSON, wrong schema, cut-off or refused answer | Asked once more, then the email becomes a **blank Add form** the user fills in | `test_llm.py::test_malformed_output_twice_is_given_up_on`, `test_reviews.py::test_unusable_model_output_becomes_a_blank_add_form` |
+| The model keeps failing | A circuit breaker opens after 3 failures, so the scan answers at once and routes to manual entry | `test_circuit.py`, `test_reviews.py::test_an_open_circuit_answers_503_at_once` |
+| Model down mid-scan | The scan stops and leaves the remaining emails for later | `test_reviews.py::test_with_the_model_down_the_scan_stops_and_leaves_the_emails_for_later` |
+| A value the email doesn't support | Blanked and flagged, so the user has to look | `test_pipeline.py::test_a_value_not_in_the_email_is_blanked_and_flagged` |
+
+The insight card falls back the same way: when the model is down or its sentence has a number that
+isn't in the facts, the card shows a template sentence built from the same facts.
+
+### Unit tests never call the real API
+
+Every test answers the model through `httpx.MockTransport`. A guard in `llm.call` raises if a test
+ever tries to reach Anthropic without one, and `test_no_test_can_reach_anthropic_by_accident`
+proves the guard works. CI has no key in the Test stage at all.
+
+### Evaluation suite
+
+One command runs everything and exits non-zero when a check misses its threshold:
+
+```bash
+cd backend
+python manage.py eval_suite            # replays the stored model answers: free, no key
+python manage.py eval_suite --live     # asks Claude for real: needs LLM_API_KEY, about 2 cents on Haiku
+```
+
+Add `--write` to save the reports under [`docs/ai/`](docs/ai/).
+
+- **Golden set:** 25 hand-labelled emails with the expected output for every field
+  ([`fixtures/emails.json`](backend/extraction/fixtures/emails.json)): receipts, trials, a
+  billed-annually price, four currencies, a custom cycle, a price change, adverts, a non-English
+  email and a prompt-injection attempt.
+- **Counterfactual pairs:** 5 emails written twice, differing only in the customer's name
+  (gender or ethnic origin) ([`fixtures/counterfactuals.json`](backend/extraction/fixtures/counterfactuals.json)).
+
+| Check | What it measures | Threshold |
+| --- | --- | --- |
+| Accuracy | Values shown on the review screen that are right | at least 90% |
+| Screening | Non-subscription emails rejected | 100% |
+| **Hallucination** | Values the model gave that the email doesn't support (grounding couldn't find them, or the label says there is none) | at most 5% |
+| **Hallucination, user-facing** | Wrong values shown green | 0 |
+| **Consistency** | 5 tricky emails asked 3 times: answers identical in every run, per field | at least 95% |
+| **Bias** | Counterfactual pairs that extract identically | at least 80% (4 of 5); every pair that differs is listed |
+| Model | Every live answer says it came from the model asked for (`claude-haiku-5-5`) | all of them |
+
+Offline, consistency is skipped (one stored answer always agrees with itself) and the bias check
+tests the pipeline with the stored answer. A live run measures the model too, and stops itself once
+it has spent `EVAL_MAX_USD` (default $0.50; a full run on `claude-haiku-5-5` is about 2 cents).
+
+Latest results: [offline](docs/ai/eval-suite.md) · [live](docs/ai/eval-suite-live.md) ·
+[per field](docs/ai/extraction-eval.md).
+
+### Eval stage in the pipeline
+
+The **Eval** job in [`pipeline.yml`](.github/workflows/pipeline.yml) runs the suite on every pull
+request to `main`, after Dependencies and next to Test. A check below its threshold fails the job,
+and the run goes red. The report is added to the run's summary page and uploaded as the
+`eval-reports` artifact.
+
+Live runs cost money, so they're deliberate:
+
+- A pull request replays the stored answers by default. That's free, and it's what every push gets.
+- A live run happens only when **christianpivaral** adds the `eval-live` label to the pull request
+  or starts the workflow by hand (Actions > pipeline > Run workflow). It covers that one run only.
+  Anyone else doing the same thing, or re-running his run, gets a replay.
+- The key lives on the `llm-eval` environment, with Christian as its required reviewer. Even an
+  edited workflow can't spend it without his approval.
+
+Setting it up (once, by a repository admin): Settings > Environments > New environment `llm-eval`,
+add `christianpivaral` under Required reviewers, then add the secret `LLM_API_KEY` to that
+environment. Also create the label `eval-live`.
+
+### Prompt-injection risk
+
+The model's input is email, and anyone can send the user an email. The risk identified for this
+sprint is **hidden text**: SubTrak reads an email's plain-text part (which mail apps don't show) and
+keeps CSS-hidden HTML text. An attacker can make an advert look harmless in Gmail while the text the
+model reads is a fake receipt, and grounding then shows the fake price green. The full write-up and
+the Sprint 4 fix are in [`docs/ai/prompt-injection.md`](docs/ai/prompt-injection.md).
+
+### Sanity check: if the provider changed its model tomorrow, would the eval catch it?
+
+**Partly, and it depends on how the model changed.**
+
+- **A retired or renamed model ID: yes.** Every call would fail with a 4xx, every email would come
+  back as a blank form, and accuracy would drop to 0%, so the suite fails. In the app, users get the
+  blank Add form (the fallback path above).
+- **A different model behind the same ID: only on a live run.** The live report records which
+  model the API says answered, and the Model check fails if that isn't the one asked for. A
+  quieter behaviour change shows up as lower accuracy, more hallucinations, or answers that
+  disagree between runs, and any of those fails a threshold. The model ID is fixed in
+  `llm.DEFAULT_MODEL`, not an alias, so switching models is always a visible code change.
+- **But nothing runs the live suite on its own.** The default replay re-scores stored answers, so
+  it tests our pipeline and can't notice a model change. A change made between live runs goes
+  unseen until Christian starts the next one. A weekly scheduled live run (about 2 cents a week on Haiku) would
+  close that gap. We left it out so that a live run never starts without Christian.
 
 ## Your First Change, Start to Finish
 
@@ -644,7 +792,7 @@ Tool: Maestro (or Detox with an Expo development build); run manually at each sp
 
 ### 4. AI feature evaluation and usability testing
 
-- **AI extraction accuracy:** run the extractor on a labeled set of about 30 real-style confirmation emails (trial, monthly, annual, receipt). Record field-level accuracy for service, price, billing period, and trial end date. **Target: at least 90% on price and dates;** failures are reviewed to improve the prompt.
+- **AI extraction accuracy:** the eval suite (`python manage.py eval_suite`) scores the extractor on 25 hand-labelled emails, plus hallucination, consistency and bias checks, each with a pass threshold (**at least 90% of shown values right**). It runs in the pipeline's Eval stage; see [Evaluation suite](#evaluation-suite).
 - **Usability:** ask 3 to 5 classmates matching the personas to complete the Maya task (track and cancel a trial) using the Figma prototype or the app. Measure task completion and note confusing steps.
 
 ### Execution and exit criteria
