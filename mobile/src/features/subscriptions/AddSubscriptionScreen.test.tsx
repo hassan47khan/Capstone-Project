@@ -787,6 +787,88 @@ describe('duplicate name warning (07 §8)', () => {
   });
 });
 
+describe('free trial (US-12)', () => {
+  async function pickTrialEnd(year: number, monthIndex: number, day: number) {
+    await fireEvent.press(screen.getByTestId('form-trial-ends'));
+    const picker = screen.getByTestId('form-trial-ends-picker');
+    await act(async () => {
+      picker.props.onChange({ type: 'set' }, new Date(year, monthIndex, day));
+    });
+  }
+
+  it('hides the trial end date until Free trial is on', async () => {
+    await renderAdd();
+    expect(screen.getByTestId('form-trial-toggle')).not.toBeChecked();
+    expect(screen.queryByTestId('form-trial-ends')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('form-trial-toggle'));
+    expect(screen.getByTestId('form-trial-toggle')).toBeChecked();
+    expect(screen.getByTestId('form-trial-ends')).toBeOnTheScreen();
+  });
+
+  it('us12_trial_needs_an_end_date_before_saving', async () => {
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('form-trial-toggle'));
+
+    expect(screen.getByTestId('add-save')).toBeDisabled();
+    expect(screen.getByText('To save, check: trial end date.')).toBeOnTheScreen();
+  });
+
+  it('us12_trial_end_in_the_past_is_blocked', async () => {
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('form-trial-toggle'));
+    await pickTrialEnd(2025, 11, 1);
+
+    expect(screen.getByText(FORM_COPY.trialEndPast)).toBeOnTheScreen();
+    expect(screen.getByTestId('add-save')).toBeDisabled();
+  });
+
+  it('us12_trial_is_saved_with_its_end_date', async () => {
+    let sent: Record<string, unknown> | undefined;
+    server.use(
+      http.post('*/subscriptions', async ({ request }) => {
+        sent = (await request.clone().json()) as Record<string, unknown>;
+        return undefined; // the normal mock route answers
+      }),
+    );
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('form-trial-toggle'));
+    await pickTrialEnd(2099, 0, 15);
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByTestId('add-success')).toBeOnTheScreen();
+    expect(sent).toMatchObject({ is_trial: true, trial_ends_on: '2099-01-15' });
+    expect(sent?.trial_length_days).toEqual(expect.any(Number));
+  });
+
+  it('shows the server message on the trial date', async () => {
+    server.use(
+      http.post('*/subscriptions', () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'validation_error',
+              message: 'Trial end date must be in the future.',
+              fields: { trial_ends_on: ['Trial end date must be in the future.'] },
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    await renderAdd();
+    await fillHeadspace();
+    await fireEvent.press(screen.getByTestId('form-trial-toggle'));
+    await pickTrialEnd(2099, 0, 15);
+    await fireEvent.press(screen.getByTestId('add-save'));
+
+    expect(await screen.findByText(FORM_COPY.trialEndPast)).toBeOnTheScreen();
+  });
+});
+
 // #184 (10 §2). Alex is in the mock Kim family; outside a family is a 404.
 describe('Private (#184)', () => {
   /** Captures each POST /subscriptions body; the normal mock route answers. */

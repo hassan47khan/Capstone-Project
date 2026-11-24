@@ -7,7 +7,7 @@
  * No money math: the price stays the decimal string the user typed (already
  * tidied by CurrencyField). The server checks it again and does every sum.
  */
-import { minorUnits } from '@/api/format';
+import { daysUntil, minorUnits } from '@/api/format';
 import { invalidPriceMessage, isValidPrice } from '@/components';
 import { CATEGORY_SLUGS, type Category } from '@/theme';
 
@@ -33,6 +33,9 @@ export interface FormValues {
   startDate: string | null;
   notes: string;
   paymentLabel: string;
+  // A free trial (US-12): the price is what it costs once the trial ends.
+  isTrial: boolean;
+  trialEndsOn: string | null;
   // Only offered to someone in a family (#184).
   isPrivate: boolean;
 }
@@ -49,6 +52,8 @@ export const EMPTY_FORM: FormValues = {
   startDate: null,
   notes: '',
   paymentLabel: '',
+  isTrial: false,
+  trialEndsOn: null,
   isPrivate: false,
 };
 
@@ -61,18 +66,26 @@ export const FORM_COPY = {
   categoryRequired: 'Choose a category.',
   startRequired: 'Choose a start date.',
   startInFuture: "Start date can't be in the future.",
+  trialEndRequired: 'Add the date the trial ends.',
+  /** US-12, word for word; the server sends the same. */
+  trialEndPast: 'Trial end date must be in the future.',
 } as const;
 
 /** The fields that can have an error. */
 export type FormField =
-  'name' | 'price' | 'category' | 'startDate' | 'notes' | 'paymentLabel';
+  'name' | 'price' | 'category' | 'startDate' | 'notes' | 'paymentLabel' | 'trialEndsOn';
 export type FormErrors = Partial<Record<FormField, string>>;
 
 /**
  * Checks the form. Returns one message per broken field; empty means valid.
  * `today` is "YYYY-MM-DD" (dates compare correctly as text in that format).
  */
-export function validateForm(values: FormValues, today: string): FormErrors {
+export function validateForm(
+  values: FormValues,
+  today: string,
+  /** Check the trial too. Add only: Edit doesn't show it (US-12). */
+  { trial = false }: { trial?: boolean } = {},
+): FormErrors {
   const errors: FormErrors = {};
   if (!values.name.trim()) errors.name = FORM_COPY.nameRequired;
   if (!isValidPrice(values.price) || !fitsCurrency(values.price, values.currency)) {
@@ -81,6 +94,11 @@ export function validateForm(values: FormValues, today: string): FormErrors {
   if (!values.category) errors.category = FORM_COPY.categoryRequired;
   if (!values.startDate) errors.startDate = FORM_COPY.startRequired;
   else if (values.startDate > today) errors.startDate = FORM_COPY.startInFuture;
+  if (trial && values.isTrial) {
+    if (!values.trialEndsOn) errors.trialEndsOn = FORM_COPY.trialEndRequired;
+    // Ending today or earlier leaves nothing to warn about (US-12).
+    else if (values.trialEndsOn <= today) errors.trialEndsOn = FORM_COPY.trialEndPast;
+  }
   return errors;
 }
 
@@ -122,6 +140,7 @@ const HINT_NAMES: [FormField, string][] = [
   ['price', 'price'],
   ['category', 'category'],
   ['startDate', 'start date'],
+  ['trialEndsOn', 'trial end date'],
 ];
 
 /**
@@ -161,6 +180,17 @@ export function toSubscriptionInput(values: FormValues): SubscriptionInput {
     category: values.category ?? '',
     notes: values.notes.trim(),
     payment_label: values.paymentLabel.trim(),
+    // Only a trial carries the trial fields. The server needs the length too,
+    // for Trial Shield's progress bar: start to end, in days (not money).
+    ...(values.isTrial && values.trialEndsOn
+      ? {
+          is_trial: true,
+          trial_ends_on: values.trialEndsOn,
+          trial_length_days: values.startDate
+            ? daysUntil(values.trialEndsOn, values.startDate)
+            : null,
+        }
+      : {}),
     is_private: values.isPrivate,
   };
 }
@@ -203,6 +233,8 @@ const SERVER_FIELDS: Record<string, FormField> = {
   start_date: 'startDate',
   notes: 'notes',
   payment_label: 'paymentLabel',
+  trial_ends_on: 'trialEndsOn',
+  trial_length_days: 'trialEndsOn',
 };
 
 /** Maps a 400's `error.fields` onto the form's fields. Unknown keys are skipped. */
@@ -230,6 +262,8 @@ export function formFromDetail(detail: SubscriptionDetail): FormValues {
     startDate: detail.start_date,
     notes: detail.notes,
     paymentLabel: detail.payment_label,
+    isTrial: detail.is_trial,
+    trialEndsOn: detail.trial_ends_on,
     isPrivate: detail.is_private,
   };
 }

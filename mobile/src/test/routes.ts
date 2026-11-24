@@ -43,6 +43,13 @@ import {
 
 import { confirmMockCharge, resetCharges, unconfirmedChargesFor } from './chargeFixtures';
 import {
+  deleteMockDevice,
+  inboxFor,
+  markMockRead,
+  registerMockDevice,
+  resetNotifications,
+} from './notificationFixtures';
+import {
   contractHomeFor,
   insightFor,
   spendFor,
@@ -195,6 +202,7 @@ export function resetMockState(): void {
   sharedPlans = {};
   resetNotificationRules();
   resetCharges();
+  resetNotifications();
   family.resetFamilyMock();
 }
 
@@ -545,6 +553,53 @@ export const routes: Route[] = [
   },
 
   // Charges (US-19): "Was the charge different?"; see chargeFixtures.ts.
+  // --- Epic E: devices and the in-app inbox (US-13) -------------------------
+
+  {
+    method: 'POST',
+    pattern: '/devices',
+    handler: protectedRoute((request, account) => {
+      const body = (request.body ?? {}) as { token?: unknown; platform?: unknown };
+      if (typeof body.token !== 'string' || body.token.length === 0) {
+        return fail(400, 'validation_error', 'Check the highlighted fields.', {
+          token: ['This field is required.'],
+        });
+      }
+      if (body.platform !== 'ios' && body.platform !== 'android') {
+        return fail(400, 'validation_error', 'Check the highlighted fields.', {
+          platform: ['"' + String(body.platform) + '" is not a valid choice.'],
+        });
+      }
+      return ok(registerMockDevice(account.profile.email, body.token, body.platform));
+    }),
+  },
+
+  {
+    method: 'DELETE',
+    pattern: '/devices/:id',
+    handler: protectedRoute((request, account) =>
+      deleteMockDevice(account.profile.email, request.params.id ?? '')
+        ? { status: 204, body: null }
+        : fail(404, 'not_found', 'Not found.'),
+    ),
+  },
+
+  {
+    method: 'GET',
+    pattern: '/notifications',
+    handler: protectedRoute((_request, account) => ok(inboxFor(account.profile.email))),
+  },
+
+  {
+    method: 'POST',
+    pattern: '/notifications/:id/read',
+    handler: protectedRoute((request, account) =>
+      markMockRead(account.profile.email, request.params.id ?? '')
+        ? { status: 204, body: null }
+        : fail(404, 'not_found', 'Not found.'),
+    ),
+  },
+
   {
     method: 'GET',
     pattern: '/charges',

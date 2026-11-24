@@ -23,6 +23,7 @@ from .services.validation import (
 
 NOTES_MAX = 280  # 07 §2
 CARD_NUMBER_MESSAGE = "Enter a label such as 'Visa ••4242', not a card number."
+TRIAL_PAST_MESSAGE = "Trial end date must be in the future."
 STATUSES = (Subscription.Status.ACTIVE, Subscription.Status.CANCELLED)
 TRIAL_DECISIONS = tuple(Subscription.TrialDecision.values)
 
@@ -144,6 +145,16 @@ class SubscriptionInputSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
+        # US-12: a trial that has already ended can't be tracked as a trial.
+        # "Future" is strictly after the user's own today (core.clock); the
+        # view passes it in. On an edit, a new end date is checked unless the
+        # same request turns the trial off.
+        today = self.context.get("today")
+        ends_on = attrs.get("trial_ends_on")
+        is_trial = attrs.get("is_trial", True if self.partial else False)
+        if today and ends_on and is_trial and ends_on <= today:
+            raise serializers.ValidationError({"trial_ends_on": [TRIAL_PAST_MESSAGE]})
+
         # A partial update is checked against the stored subscription by the
         # model's full_clean; here only what was sent is checked together.
         if not self.partial:

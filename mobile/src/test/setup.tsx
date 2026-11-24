@@ -17,6 +17,7 @@
 // in v12.4 — importing it now fails with "Cannot find module".
 import { onlineManager } from '@tanstack/react-query';
 
+import { resetPushMock } from './pushMock';
 import { server } from './server';
 import { resetMockState } from './routes';
 
@@ -90,6 +91,34 @@ jest.mock('@react-native-community/datetimepicker', () => {
   return { __esModule: true, default: Picker };
 });
 
+/**
+ * Push: the native modules don't exist in Node. pushMock.ts is a controllable
+ * fake; by default it is a simulator, so screens never register a device.
+ */
+jest.mock('expo-notifications', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('./pushMock').mockNotificationsModule(),
+);
+
+jest.mock('expo-device', () => ({
+  get isDevice() {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('./pushMock').pushMock.isDevice;
+  },
+}));
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    get expoConfig() {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { projectId } = require('./pushMock').pushMock;
+      return { extra: projectId ? { eas: { projectId } } : {} };
+    },
+    easConfig: null,
+  },
+}));
+
 // NetInfo has native code; its own mock reports a connected phone.
 jest.mock('@react-native-community/netinfo', () =>
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -145,6 +174,7 @@ beforeAll(() => {
 afterEach(() => {
   server.resetHandlers();
   resetMockState();
+  resetPushMock();
   // A test that went offline must not leave the next one offline.
   onlineManager.setOnline(true);
 });

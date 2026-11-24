@@ -79,6 +79,11 @@ export type AppStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList>;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
+  /**
+   * One category's spend and subscriptions, from a bar on Home. `slug` is the
+   * category slug, or "uncategorized"; `name` is shown while data loads.
+   */
+  CategoryDetail: { slug: string; name: string };
   EditSubscription: { id: string };
   EditHistory: { id: string };
   /** "Was the charge different?" for one unconfirmed charge (US-19). */
@@ -88,6 +93,8 @@ export type AppStackParamList = {
   ConfirmCurrencyChange: { currency: string };
   SelectTimeZone: undefined;
   NotificationRules: undefined;
+  /** The in-app inbox, from the bell on Home (US-13, spec §10). */
+  Notifications: undefined;
   ProfileAccount: undefined;
   /** One pending extraction from a Gmail scan, by id (handoff 11 §2.4). */
   ReviewExtraction: { id: string };

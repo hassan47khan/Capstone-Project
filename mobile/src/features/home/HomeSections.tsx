@@ -7,12 +7,13 @@
  * section's request runs, an inline retry if it fails, so one slow or broken
  * endpoint never blanks the screen.
  */
-import { TrendingDown, TrendingUp } from 'lucide-react-native';
+import { Bell, TrendingDown, TrendingUp } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import type {
   AnalyticsSummary,
+  CategorySpend,
   PriceChangeItem,
   SpendOverTime,
   Upcoming,
@@ -32,7 +33,9 @@ import {
 } from '@/components';
 import { makeStyles, opacity, radius, sizes, spacing, useTheme } from '@/theme';
 
-import { CategoryDonut, colorKeyFor } from './CategoryDonut';
+import { badgeText, bellLabel } from '@/features/notifications/notificationCopy';
+
+import { CategoryBars } from './CategoryBars';
 import { alertFor, deltaFor, greetingFor, initialsFor, notCountedFor } from './homeCopy';
 
 /** 06 §2.4 and §2.5: how many cards and rows Home shows. */
@@ -45,12 +48,18 @@ export function Greeting({
   name,
   hour,
   onProfile,
+  unread,
+  onNotifications,
 }: {
   name: string | null;
   hour: number;
   onProfile: () => void;
+  /** Unread alerts for the bell's badge (US-13); 0 or unknown shows none. */
+  unread: number;
+  onNotifications: () => void;
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <View style={styles.greetingRow}>
       <View style={styles.greetingText}>
@@ -61,6 +70,21 @@ export function Greeting({
           </Text>
         ) : null}
       </View>
+      <Pressable
+        onPress={onNotifications}
+        accessibilityRole="button"
+        accessibilityLabel={bellLabel(unread)}
+        hitSlop={(sizes.minTouch - sizes.mark) / 2}
+        style={({ pressed }) => [styles.bell, pressed && styles.pressed]}
+        testID="home-bell"
+      >
+        <Bell size={sizes.icon} color={colors.text} />
+        {unread > 0 ? (
+          <View style={styles.bellBadge} testID="home-bell-badge">
+            <Text style={styles.bellBadgeText}>{badgeText(unread)}</Text>
+          </View>
+        ) : null}
+      </Pressable>
       <Pressable
         onPress={onProfile}
         accessibilityRole="button"
@@ -220,41 +244,19 @@ export function SpendCard({
   );
 }
 
-// Spending by category (06 §2.3) ---------------------------------------------------
+// Spending by category (06 §2.3, now a tappable bar graph) ----------------------
 
-export function CategoryCard({ summary }: { summary: AnalyticsSummary }) {
+export function CategoryCard({
+  summary,
+  onOpen,
+}: {
+  summary: AnalyticsSummary;
+  onOpen: (row: CategorySpend) => void;
+}) {
   const styles = useStyles();
-  const { categoryColors } = useTheme();
   return (
     <Card style={styles.categoryCard} testID="category-card">
-      <CategoryDonut rows={summary.categories} />
-      <View style={styles.legend}>
-        {summary.categories.map((row, index) => {
-          const name = row.category?.display_name ?? 'Uncategorized';
-          return (
-            <View
-              key={row.category?.slug ?? `uncategorized-${index}`}
-              style={styles.spaceBetween}
-              accessible
-              accessibilityLabel={`${name}, ${row.percent} percent.`}
-              testID={`legend-${row.category?.slug ?? 'uncategorized'}`}
-            >
-              <View style={styles.legendName}>
-                <View
-                  style={[
-                    styles.dot,
-                    { backgroundColor: categoryColors[colorKeyFor(row)] },
-                  ]}
-                />
-                <Text style={styles.legendLabel} numberOfLines={1} ellipsizeMode="tail">
-                  {name}
-                </Text>
-              </View>
-              <Text style={styles.legendPercent}>{row.percent}%</Text>
-            </View>
-          );
-        })}
-      </View>
+      <CategoryBars rows={summary.categories} onOpen={onOpen} />
     </Card>
   );
 }
@@ -411,6 +413,33 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     ...typography.labelSemibold,
     color: colors.text,
   },
+  // The avatar's circle, without the clipping, so the badge can overhang it.
+  bell: {
+    width: sizes.mark,
+    height: sizes.mark,
+    borderRadius: radius.avatar,
+    borderWidth: sizes.hairline,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // The unread count, pinned to the bell's corner. Accent, not danger: an
+  // unread reminder is news, not an error (rule 3).
+  bellBadge: {
+    position: 'absolute',
+    top: -spacing.xs,
+    right: -spacing.xs,
+    minWidth: sizes.iconSmall,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+  },
+  bellBadgeText: {
+    ...typography.captionStrong,
+    color: colors.onAccent,
+  },
   pressed: {
     opacity: opacity.pressed,
   },
@@ -485,34 +514,8 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     color: colors.textMuted,
   },
   categoryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.lg,
-    gap: spacing.lg,
-  },
-  legend: {
-    flex: 1,
-    gap: spacing.sm,
-  },
-  legendName: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 1,
-  },
-  dot: {
-    width: sizes.dot,
-    height: sizes.dot,
-    borderRadius: radius.badge,
-  },
-  legendLabel: {
-    ...typography.captionStrong,
-    color: colors.textMuted,
-    flexShrink: 1,
-  },
-  legendPercent: {
-    ...typography.captionStrong,
-    color: colors.text,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   list: {
     gap: spacing.sm,

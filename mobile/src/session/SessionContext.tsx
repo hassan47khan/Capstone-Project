@@ -44,6 +44,7 @@ import {
 import { authApi } from '@/api/endpoints';
 import { ApiError } from '@/api/errors';
 import type { TokenPair } from '@/api/types';
+import { unregisterForPush } from '@/features/notifications/push';
 
 import { biometricStore } from './biometricStore';
 import { tokenStore } from './tokenStore';
@@ -148,6 +149,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // this session is still running once the token is parked.
   const signOut = useCallback(
     async (options?: { park?: boolean }) => {
+      // First, while the session can still authenticate it: stop this phone
+      // getting this account's pushes (US-13). Bounded and never throws.
+      await unregisterForPush();
       invalidateRefresh();
       await emptyCache();
       const refresh = await tokenStore.getRefreshToken();

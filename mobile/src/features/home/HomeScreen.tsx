@@ -6,7 +6,7 @@
  *
  *   greeting            GET /me
  *   monthly spend       GET /analytics/summary + /analytics/spend-over-time?months=2
- *   category donut      GET /analytics/summary
+ *   category bars       GET /analytics/summary
  *   urgent attention    GET /analytics/price-changes?since=-30d&include_upcoming=true
  *   upcoming renewals   GET /analytics/upcoming?days=30
  *   charge prompt       GET /charges ("Was the charge different?", US-19)
@@ -28,17 +28,24 @@ import { useQuery } from '@tanstack/react-query';
 import { PlusCircle } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import type { PriceChangeItem, Upcoming, UpcomingBill } from '@/api/analyticsTypes';
+import type {
+  CategorySpend,
+  PriceChangeItem,
+  Upcoming,
+  UpcomingBill,
+} from '@/api/analyticsTypes';
 import { analyticsApi, meApi } from '@/api/endpoints';
 import { queryKeys } from '@/api/queryKeys';
 import { Button, EmptyState, ErrorState, Screen } from '@/components';
 import { FEATURE_EXTRACTION } from '@/config/features';
 import { chargesKey, listCharges } from '@/features/charges/api';
 import { ChargePromptList } from '@/features/charges/ChargePrompt';
+import { listNotifications, notificationsKey } from '@/features/notifications/api';
 import { CHARGE_COPY } from '@/features/charges/chargeCopy';
 import type { AppStackParamList } from '@/navigation/types';
 import { makeStyles, spacing } from '@/theme';
 
+import { nameFor, slugFor } from './CategoryBars';
 import {
   CategoryCard,
   Greeting,
@@ -112,6 +119,8 @@ export function HomeScreen() {
   });
 
   const charges = useQuery({ queryKey: chargesKey, queryFn: listCharges });
+  // Only the bell's count. A failed load just shows no badge.
+  const inbox = useQuery({ queryKey: notificationsKey, queryFn: listNotifications });
 
   const sections = [summary, spend, urgent, upcoming];
   // Charges aren't in `sections` (they never count toward the full-screen
@@ -121,6 +130,7 @@ export function HomeScreen() {
     sections.forEach((q) => q.refetch());
     profile.refetch();
     charges.refetch();
+    inbox.refetch();
   };
 
   const openCalendar = () =>
@@ -135,6 +145,8 @@ export function HomeScreen() {
           params: { screen: 'TrialShield' },
         })
       : navigation.navigate('SubscriptionDetail', { id: item.subscription_id });
+  const openCategory = (row: CategorySpend) =>
+    navigation.navigate('CategoryDetail', { slug: slugFor(row), name: nameFor(row) });
   const openBill = (bill: UpcomingBill) =>
     navigation.navigate('SubscriptionDetail', { id: bill.subscription_id });
 
@@ -220,6 +232,8 @@ export function HomeScreen() {
         name={profile.data?.name ?? null}
         hour={new Date().getHours()}
         onProfile={() => navigation.navigate('ProfileAccount')}
+        unread={inbox.data?.unread_count ?? 0}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
 
       {stale ? (
@@ -240,7 +254,7 @@ export function HomeScreen() {
 
       <Section title="Spending by category" testID="home-categories">
         {summary.data ? (
-          <CategoryCard summary={summary.data} />
+          <CategoryCard summary={summary.data} onOpen={openCategory} />
         ) : summary.isError ? (
           <SectionError error={summary.error} onRetry={() => summary.refetch()} />
         ) : (

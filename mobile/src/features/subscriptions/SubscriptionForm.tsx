@@ -78,6 +78,8 @@ export interface SubscriptionFormProps {
   onHistory?: () => void;
   /** "You already track a Netflix." under the name; never an error (07 §8). */
   nameWarning?: string | null;
+  /** Add only: the free-trial switch and its end date (US-12). */
+  showTrial?: boolean;
   /** Shows the Private toggle: only for someone in a family (#184). */
   showPrivate?: boolean;
 }
@@ -90,6 +92,7 @@ export function SubscriptionForm({
   disabled = false,
   onHistory,
   nameWarning,
+  showTrial = false,
   showPrivate = false,
 }: SubscriptionFormProps) {
   const styles = useStyles();
@@ -228,6 +231,34 @@ export function SubscriptionForm({
         testID="form-start"
       />
 
+      {showTrial ? (
+        <View style={styles.trial} testID="form-trial">
+          <SettingsRow
+            variant="toggle"
+            label="Free trial"
+            description="We'll remind you before it ends. Enter the price you'll pay after."
+            value={values.isTrial}
+            onValueChange={(isTrial) => onChange({ isTrial })}
+            disabled={disabled}
+            testID="form-trial-toggle"
+          />
+          {values.isTrial ? (
+            <DateField
+              label="Trial ends"
+              value={values.trialEndsOn}
+              onChange={(trialEndsOn) => {
+                onChange({ trialEndsOn });
+                onBlur('trialEndsOn');
+              }}
+              placeholder="Select date"
+              error={errors.trialEndsOn}
+              disabled={disabled}
+              testID="form-trial-ends"
+            />
+          ) : null}
+        </View>
+      ) : null}
+
       <TextField
         label="Notes (optional)"
         value={values.notes}
@@ -299,6 +330,9 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   },
   customUnit: {
     flex: 1,
+  },
+  trial: {
+    gap: spacing.lg,
   },
   // The row brings its own padding, like the reminder on Review extraction.
   private: {

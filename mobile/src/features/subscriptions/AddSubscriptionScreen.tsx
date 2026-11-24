@@ -47,6 +47,7 @@ import { newIdempotencyKey } from '@/api/client';
 import { ApiError, messageFor } from '@/api/errors';
 import { subscriptionWriteInvalidations } from '@/api/queryKeys';
 import { Button, Header, Screen } from '@/components';
+import { useAskForPush } from '@/features/notifications/PushProvider';
 import type { AppStackParamList } from '@/navigation/types';
 import { useDiscardGuard } from '@/navigation/useDiscardGuard';
 import { makeStyles, radius, spacing } from '@/theme';
@@ -100,6 +101,7 @@ export function AddSubscriptionScreen() {
   const styles = useStyles();
   const navigation = useNavigation<Navigation>();
   const queryClient = useQueryClient();
+  const askForPush = useAskForPush();
 
   const [values, setValues] = useState<FormValues>(EMPTY_FORM);
   // Fields the user has left; their errors are shown from then on.
@@ -115,7 +117,7 @@ export function AddSubscriptionScreen() {
   // True from pressing Save until the server answers.
   const saving = useRef(false);
 
-  const errors = validateForm(values, localToday());
+  const errors = validateForm(values, localToday(), { trial: true });
   const valid = Object.keys(errors).length === 0;
   const nameWarning = useDuplicateNameWarning(values.name);
   const inFamily = useInFamily();
@@ -152,6 +154,9 @@ export function AddSubscriptionScreen() {
       // starts fresh, with no errors left over from an earlier failed try.
       resetForm();
       setCreated(saved);
+      // Push permission is asked after the first save that gets reminders,
+      // never at launch (spec §10). Asks once, ever; never throws.
+      void askForPush();
     },
     onError: (error) => {
       saving.current = false;
@@ -286,6 +291,7 @@ export function AddSubscriptionScreen() {
         onBlur={blur}
         disabled={create.isPending}
         nameWarning={nameWarning}
+        showTrial
         showPrivate={inFamily}
       />
 
