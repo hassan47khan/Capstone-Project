@@ -27,7 +27,7 @@ from django.core.cache import cache
 from subscriptions import analytics
 from subscriptions.services.money import label
 
-from . import circuit, llm
+from . import circuit, llm, prompts
 
 PRICE_INCREASE, TRIAL_CONVERTING, LARGEST_CATEGORY = (
     "price_increase",
@@ -50,12 +50,9 @@ SCHEMA = {
     "required": ["sentence"],
 }
 
-SYSTEM = """\
-You write the one-sentence insight on a subscription tracker's Analytics card.
-
-Use only the facts you are given, and write every number exactly as it appears \
-in them. Add no other numbers, no dates of your own, no advice and no greeting. \
-One plain sentence, under 120 characters."""
+# The system prompt lives in prompts/, one file per version.
+INSIGHT_PROMPT = "insight_v1"
+SYSTEM = prompts.load(INSIGHT_PROMPT)
 
 
 @dataclass(frozen=True)

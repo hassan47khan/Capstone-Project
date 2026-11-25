@@ -172,6 +172,38 @@ def test_billed_annually_is_yearly_at_twelve_times_and_both_flagged():
     assert {"price", "billing_cycle"} <= set(candidate.flagged)
 
 
+def test_the_monthly_rate_of_a_yearly_charge_is_never_green():
+    text = "Thank you for your payment. Creative Cloud: $54.99/mo, billed annually."
+    candidate = read(text, output(price="54.99", billing_cycle="yearly", currency="USD"))
+
+    assert candidate.fields["price"] == "54.99"
+    assert p.band(candidate.confidence["price"]) != "green"
+
+
+@pytest.mark.parametrize(
+    ("service", "plan", "tidy_service", "tidy_plan"),
+    [
+        ("Spotify", "Spotify Premium Individual", "Spotify", "Premium Individual"),
+        ("Gym Co", "Gold membership", "Gym Co", "Gold"),
+        ("Notion", "Plus plan", "Notion", "Plus"),
+        ("ChatGPT", "Plus", "ChatGPT Plus", None),
+        ("GitHub", "Pro", "GitHub Pro", None),
+        ("GitHub Pro", "Team", "GitHub Pro", "Team"),
+        ("Spotify", "Spotify", "Spotify", "Spotify"),
+    ],
+)
+def test_the_service_and_plan_are_split_the_way_subtrak_names_them(
+    service, plan, tidy_service, tidy_plan
+):
+    catalog = {
+        p.service_key("ChatGPT Plus"): "ai-tools",
+        p.service_key("GitHub Pro"): "productivity",
+    }
+    tidy = p.tidy_names({"service_name": service, "plan_name": plan}, catalog)
+
+    assert (tidy["service_name"], tidy["plan_name"]) == (tidy_service, tidy_plan)
+
+
 def test_a_price_with_no_currency_gets_the_users_own_currency_flagged():
     text = "Your Dropbox Plus plan renews on October 15, 2026 at 11.99 per month."
     candidate = read(text, output(price="11.99", currency="USD"), default_currency="EUR")

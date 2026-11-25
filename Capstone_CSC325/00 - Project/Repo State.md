@@ -79,7 +79,23 @@ is a local `npm run verify` on that merge before pushing, 1219 Jest tests
 passing, not re-run on `main`. Also merged since `ecb04f8` and not written up
 here: #201 (Ankit) and #202 (#204 is the write-up for #197). The contrast
 report in `docs/qa/contrast-by-screen.md` was generated before #197, #201 and
-#202 landed; #208 regenerates it and adds Notifications and Category.
+#202 landed; #208 regenerated it and added Notifications and Category.
+
+**Update 2026-11-24 (Chris, after merging #206), `main` at `dcd2f0c`.** This
+covers only #206, approved by Hassan on its head (`ed4e051`) with CI green there.
+Extraction and the insight card now default to `claude-haiku-5-5` (was
+`claude-opus-5-5`), and their prompts are versioned files in
+`backend/extraction/prompts/` (extraction is on `extraction_v2`). `python manage.py
+eval_suite` runs the golden set, hallucination, consistency, bias and model checks
+against thresholds and exits non-zero below any of them. `pipeline.yml` has a new
+Eval job on pull requests and manual runs: it replays stored answers for free, and
+calls the model only when `christianpivaral` adds the `eval-live` label or runs the
+workflow, with the `ANTHROPIC_API_KEY` secret behind the `llm-eval` environment.
+The live run on `ed4e051` (run `45513662353`, 2026-11-24) passed every check for
+about $0.01; its report is `docs/ai/eval-suite-live.md`, added by this note's PR.
+The prompt-injection risk is `docs/ai/prompt-injection.md`, with the fix in #205
+(Sprint 4). Also merged since `ecb04f8` and not written up here: #201, #202, #208
+and #209 (#200 is written up above).
 
 ## One line per area
 

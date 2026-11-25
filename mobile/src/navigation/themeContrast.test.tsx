@@ -117,6 +117,12 @@ const CASES: Case[] = [
   { name: 'Home', stack: 'app', go: tab('Home') },
   { name: 'Home, first run', stack: 'app', go: tab('Home'), email: MOCK_EMAILS.empty },
   { name: 'Home, load failed', stack: 'app', go: tab('Home'), setup: failAll },
+  { name: 'Notifications', stack: 'app', go: to('Notifications') },
+  {
+    name: 'Category',
+    stack: 'app',
+    go: to('CategoryDetail', { slug: 'entertainment', name: 'Entertainment' }),
+  },
   // 07: subscriptions
   { name: 'Add subscription', stack: 'app', go: to('AddSubscription') },
   {

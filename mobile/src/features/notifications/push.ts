@@ -174,9 +174,13 @@ export async function unregisterForPush(): Promise<void> {
   if (!id) return;
   await remove(DEVICE_ID_KEY);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // If the timeout wins, the DELETE can still fail later; handle that here so
+  // it isn't an unhandled rejection.
+  const deleting = deleteDevice(id);
+  deleting.catch(() => {});
   try {
     await Promise.race([
-      deleteDevice(id),
+      deleting,
       new Promise((resolve) => {
         timer = setTimeout(resolve, UNREGISTER_TIMEOUT_MS);
       }),

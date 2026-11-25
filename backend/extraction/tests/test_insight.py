@@ -32,7 +32,7 @@ def worded(settings, monkeypatch):
         state["facts"] = user
         if state["error"]:
             raise state["error"]
-        return llm.Reply(data={"sentence": state["sentence"]}, model="claude-opus-5-5")
+        return llm.Reply(data={"sentence": state["sentence"]}, model="claude-haiku-5-5")
 
     monkeypatch.setattr(llm, "call", call)
     return state

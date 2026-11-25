@@ -202,6 +202,11 @@ export function toSubscriptionInput(values: FormValues): SubscriptionInput {
  * server since the form opened. Compared as sent, not as typed, so a hidden
  * custom count on a monthly plan, or "15.5" vs "15.50", isn't a change. The
  * three cycle fields always travel together.
+ *
+ * Only keys present in the new input are compared, so a key that disappears
+ * (the trial fields when Free trial is turned off) is never sent. Edit can't
+ * turn a trial off today; whoever adds that must send `is_trial: false`
+ * explicitly, or the server will keep the trial.
  */
 export function changedInput(
   values: FormValues,

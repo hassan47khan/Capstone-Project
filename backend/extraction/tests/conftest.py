@@ -143,7 +143,7 @@ class FakeModel:
         data = self.answers.get(source.text, self.default)
         if data is None:
             raise llm.LLMUnusable("no answer for this email")
-        return llm.Reply(data=data, model="claude-opus-5-5")
+        return llm.Reply(data=data, model="claude-haiku-5-5")
 
 
 @pytest.fixture
