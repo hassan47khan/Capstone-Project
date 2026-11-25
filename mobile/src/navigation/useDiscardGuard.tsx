@@ -56,7 +56,7 @@ export function useDiscardGuard(isDirty: boolean): DiscardGuard {
       title="Discard changes?"
       message="You have unsaved changes. If you leave now they will be lost."
       confirmLabel="Discard"
-      cancelLabel="Keep editing"
+      cancelLabel="Keep Editing"
       onCancel={() => setPending(null)}
       onConfirm={() => {
         const action = pending;

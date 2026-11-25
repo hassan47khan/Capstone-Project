@@ -140,7 +140,7 @@ export function LoginScreen() {
       <FormError message={formError ?? (waiting ? limitError : undefined)} />
 
       <TextField
-        label="Email address"
+        label="Email Address"
         placeholder="you@example.com"
         value={email}
         onChangeText={(next) => {
@@ -178,7 +178,7 @@ export function LoginScreen() {
         />
         <View style={styles.forgot}>
           <Button
-            label="Forgot password?"
+            label="Forgot Password?"
             variant="ghost"
             onPress={() => navigation.navigate('ForgotPassword')}
             testID="login-forgot"
@@ -219,7 +219,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   passwordGroup: {
     gap: spacing.xs,
   },
-  // 05 §5: "Forgot password" trailing-aligned with the password field.
+  // 05 §5: "Forgot Password" trailing-aligned with the password field.
   forgot: {
     alignItems: 'flex-end',
   },

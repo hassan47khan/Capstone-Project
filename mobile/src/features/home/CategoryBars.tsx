@@ -6,7 +6,8 @@
  * shows the amount above its bar and the share below it, so the figures are
  * beside the chart (06 §8); a two-column legend under the chart names the
  * colours. Tapping a column opens that category's screen, which lists its
- * subscriptions. Each column is one button that reads name, amount and share.
+ * subscriptions. Each column is its own bordered box, like a Settings row, so it
+ * reads as tappable, and dims while pressed.
  *
  * Bar heights are the server's whole-number percentages, scaled so the largest
  * category fills the plot. That scaling is geometry only: nothing here adds or
@@ -80,7 +81,7 @@ export function CategoryBars({
               accessibilityRole="button"
               accessibilityLabel={`${nameFor(row)}, ${amount}, ${row.percent} percent.`}
               accessibilityHint="Opens the category"
-              style={({ pressed }) => [styles.column, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.column, pressed && styles.highlight]}
               testID={`category-bar-${slug}`}
             >
               <Text
@@ -111,6 +112,7 @@ export function CategoryBars({
         })}
       </View>
 
+      {/* The colour key. The bars above are the buttons; this only names them. */}
       <View
         style={styles.legend}
         accessibilityElementsHidden
@@ -136,11 +138,18 @@ const useStyles = makeStyles(({ colors, typography }) => ({
   plot: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-around',
+    gap: spacing.xs,
     paddingTop: spacing.sm,
   },
+  // Each category sits in its own bordered box, like a Settings row, so it
+  // reads as something to tap.
   column: {
     flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: sizes.hairline,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
     gap: spacing.xs,
     minHeight: sizes.minTouch,
@@ -157,7 +166,7 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     ...typography.caption,
     color: colors.textMuted,
   },
-  pressed: {
+  highlight: {
     opacity: opacity.pressed,
   },
   legend: {

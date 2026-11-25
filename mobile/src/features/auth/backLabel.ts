@@ -9,13 +9,13 @@ import type { AuthStackParamList } from '@/navigation/types';
 
 const LABELS: Record<keyof AuthStackParamList, string> = {
   Login: 'Log In',
-  Register: 'Create your account',
-  VerifyEmailSent: 'Check your email',
-  EmailConfirmed: 'Email confirmed',
-  ForgotPassword: 'Forgot password',
-  ResetLinkSent: 'Check your email',
-  CreateNewPassword: 'Create a new password',
-  PasswordResetSuccess: 'Password updated',
+  Register: 'Create Your Account',
+  VerifyEmailSent: 'Check Your Email',
+  EmailConfirmed: 'Email Confirmed',
+  ForgotPassword: 'Forgot Password',
+  ResetLinkSent: 'Check Your Email',
+  CreateNewPassword: 'Create a New Password',
+  PasswordResetSuccess: 'Password Updated',
 };
 
 export function backLabelFor(

@@ -45,10 +45,10 @@ import {
 } from './spendSeries';
 
 export const SPEND_COPY = {
-  title: 'Spending this month',
+  title: 'Spending This Month',
   placeholder:
     "Your spending trend appears once you've been tracking for a couple of months.",
-  projected: 'Projected for the year',
+  projected: 'Projected for the Year',
   projectedNote: "At today's prices. Trials aren't counted.",
 } as const;
 

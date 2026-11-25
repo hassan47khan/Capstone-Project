@@ -13,10 +13,10 @@ import { describeCycle } from './formRules';
 export const SUCCESS_COPY = {
   title: 'Subscription added',
   body: (name: string) => `${name} has been added to your subscriptions.`,
-  billingPrice: 'Billing price',
+  billingPrice: 'Billing Price',
   frequency: 'Frequency',
   viewDashboard: 'View on Dashboard',
-  addAnother: 'Add another',
+  addAnother: 'Add Another',
   // US-4: no exchange rate means it's left out of totals; say so, don't hide it.
   noRate: (currency: string) =>
     `Not in your monthly total yet: there's no exchange rate for ${currency}.`,

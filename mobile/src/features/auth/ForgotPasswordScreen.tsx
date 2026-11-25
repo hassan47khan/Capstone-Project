@@ -91,7 +91,7 @@ export function ForgotPasswordScreen() {
       testID="forgot-password-screen"
     >
       <TextField
-        label="Email address"
+        label="Email Address"
         placeholder="you@example.com"
         value={email}
         onChangeText={setEmail}

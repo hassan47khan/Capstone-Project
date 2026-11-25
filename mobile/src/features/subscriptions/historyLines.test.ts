@@ -25,7 +25,7 @@ describe('describeEvent (07 §6)', () => {
       id: 'evt-1',
       date: 'Oct 1, 2026',
       spokenDate: 'October 1, 2026',
-      badge: { label: 'Price update', tone: 'warning' },
+      badge: { label: 'Price Update', tone: 'warning' },
       text: 'Price changed from $13.99 to $15.49',
     });
   });
@@ -147,7 +147,7 @@ describe('historyLines', () => {
   it('turns the Netflix seed into three lines, newest first', () => {
     const lines = historyLines(netflixDetail.history, 'USD');
     expect(lines.map((l) => l.badge.label)).toEqual([
-      'Price update',
+      'Price Update',
       'Category',
       'Creation',
     ]);
@@ -225,7 +225,7 @@ describe('review fixes', () => {
       }),
       'EUR',
     );
-    expect(line.badge).toEqual({ label: 'Price update', tone: 'warning' });
+    expect(line.badge).toEqual({ label: 'Price Update', tone: 'warning' });
     expect(line.text).toBe('Price changed from $10.99 to €9.99');
   });
 

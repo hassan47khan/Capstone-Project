@@ -369,7 +369,7 @@ describe('token refresh', () => {
   );
 
   /**
-   * The sign-out race. A refresh is in flight when the user taps Sign out; the
+   * The sign-out race. A refresh is in flight when the user taps Sign Out; the
    * refresh then resolves with a brand-new token pair. Persisting it would put
    * a live refresh token back in the keychain of a signed-out app, and the next
    * cold start would quietly restore the session the user ended.
@@ -404,7 +404,7 @@ describe('token refresh', () => {
 
     const pending = request('/dashboard');
 
-    // Sign out while the refresh is on the wire, then let it come back.
+    // Sign Out while the refresh is on the wire, then let it come back.
     await refreshHasStarted;
     invalidateRefresh();
     releaseRefresh();

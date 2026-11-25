@@ -18,7 +18,7 @@ export function listTrials(): Promise<TrialList> {
   return request<TrialList>('/trials');
 }
 
-/** "Keep it" (stop nagging) or "Remind me". */
+/** "Keep It" (stop nagging) or "Remind Me". */
 export function decideTrial(
   subscriptionId: string,
   decision: TrialDecisionEnum,

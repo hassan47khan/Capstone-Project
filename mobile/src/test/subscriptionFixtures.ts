@@ -536,7 +536,7 @@ export function updateMockSubscription(
   return { detail: updated };
 }
 
-// "Saved per year" the real server gives on cancel (operations.cancel_subscription:
+// "Saved per Year" the real server gives on cancel (operations.cancel_subscription:
 // the unrounded monthly equivalent x 12, rounded at the end). Captured from the
 // real backend for all 11 of Alex's seed subscriptions on 2026-10-27.
 const KNOWN_ANNUAL: Record<string, string> = {

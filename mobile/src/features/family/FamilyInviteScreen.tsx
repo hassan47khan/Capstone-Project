@@ -49,7 +49,7 @@ import {
 import { ROLE_PHRASES } from './FamilyScreen';
 
 export const ACCEPT_COPY = {
-  title: 'Family invitation',
+  title: 'Family Invitation',
   close: 'Close',
   loading: 'Checking the invitation',
   heading: (family: string) => `Join ${family}`,
@@ -59,9 +59,9 @@ export const ACCEPT_COPY = {
       : `You're invited as ${ROLE_PHRASES[role]}.`,
   disclosure:
     'Family admins can see your subscriptions and what they cost. You can mark any subscription private: it still counts in the family total, but its name is hidden.',
-  accept: 'Join family',
+  accept: 'Join Family',
   decline: 'Not now',
-  openFamily: 'Open family',
+  openFamily: 'Open Family',
   invalidTitle: "This invitation link isn't valid",
   invalidMessage: 'Ask the family admin to send you a new invitation.',
 } as const;

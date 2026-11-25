@@ -112,7 +112,7 @@ export function SubscriptionForm({
           onPress={onHistory}
           disabled={disabled}
           accessibilityRole="link"
-          accessibilityLabel="Edit history"
+          accessibilityLabel="Edit History"
           // Grow the touch area to the 44pt minimum around the 16pt icon.
           hitSlop={HISTORY_HIT_SLOP}
           style={styles.historyLink}
@@ -129,7 +129,7 @@ export function SubscriptionForm({
       ) : null}
 
       <TextField
-        label="Subscription name"
+        label="Subscription Name"
         value={values.name}
         // 07 §8: cap at 60 characters.
         onChangeText={(name) => onChange({ name: name.slice(0, LIMITS.name) })}
@@ -153,7 +153,7 @@ export function SubscriptionForm({
       />
 
       <Select
-        label="Billing currency"
+        label="Billing Currency"
         options={CURRENCY_OPTIONS}
         value={values.currency}
         // Re-fit the typed price to the new currency's decimals (JPY has none).
@@ -219,7 +219,7 @@ export function SubscriptionForm({
       </View>
 
       <DateField
-        label="Start date"
+        label="Start Date"
         value={values.startDate}
         onChange={(startDate) => {
           onChange({ startDate });
@@ -235,7 +235,7 @@ export function SubscriptionForm({
         <View style={styles.trial} testID="form-trial">
           <SettingsRow
             variant="toggle"
-            label="Free trial"
+            label="Free Trial"
             description="We'll remind you before it ends. Enter the price you'll pay after."
             value={values.isTrial}
             onValueChange={(isTrial) => onChange({ isTrial })}
@@ -244,7 +244,7 @@ export function SubscriptionForm({
           />
           {values.isTrial ? (
             <DateField
-              label="Trial ends"
+              label="Trial Ends"
               value={values.trialEndsOn}
               onChange={(trialEndsOn) => {
                 onChange({ trialEndsOn });

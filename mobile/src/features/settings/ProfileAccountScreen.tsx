@@ -56,14 +56,14 @@ import {
 import { clearCache, formatBytes, useCacheBytes } from './cache';
 
 export const PROFILE_COPY = {
-  title: 'Profile & account',
-  myProfile: 'My profile',
-  preferences: 'App preferences',
+  title: 'Profile & Account',
+  myProfile: 'My Profile',
+  preferences: 'App Preferences',
   data: 'Data',
-  theme: 'App theme',
+  theme: 'App Theme',
   language: 'Language',
   english: 'English',
-  clearCache: 'Clear cache',
+  clearCache: 'Clear Cache',
   clearHint: "Removes saved data and reloads what's open.",
   clearOffline: 'Connect to the internet to clear the cache.',
   cleared: 'Cache cleared',

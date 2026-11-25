@@ -109,7 +109,7 @@ export function useBiometricUnlock(): BiometricUnlock {
       }
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: BIOMETRIC_PROMPT,
-        cancelLabel: 'Use password',
+        cancelLabel: 'Use Password',
       });
       if (!result.success) {
         autoPromptDeclined = true;

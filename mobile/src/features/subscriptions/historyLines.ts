@@ -105,7 +105,7 @@ export function describeEvent(event: HistoryEvent, currency: string): HistoryLin
     case 'currency_change':
       return {
         ...base,
-        badge: { label: 'Price update', tone: 'warning' },
+        badge: { label: 'Price Update', tone: 'warning' },
         text: priceSentence(before, after, currency),
       };
     case 'category_change':

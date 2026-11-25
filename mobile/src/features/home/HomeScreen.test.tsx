@@ -127,7 +127,7 @@ describe('loaded with the seed data (06 §9)', () => {
     expect(toggle.props.accessibilityState).toMatchObject({ expanded: true });
     await fireEvent.press(toggle);
     expect(screen.queryByTestId('category-card')).toBeNull();
-    expect(screen.getByText('Spending by category')).toBeOnTheScreen();
+    expect(screen.getByText('Spending by Category')).toBeOnTheScreen();
     expect(
       screen.getByTestId('home-categories-toggle').props.accessibilityState,
     ).toMatchObject({
@@ -195,7 +195,7 @@ describe('loaded with the seed data (06 §9)', () => {
     expect(within(rows[1]!).getByText('in 2 days')).toBeOnTheScreen();
   });
 
-  it('View all and a renewal row go where they say', async () => {
+  it('View All and a renewal row go where they say', async () => {
     await renderHome();
 
     await fireEvent.press(await screen.findByTestId('home-view-all'));
@@ -238,11 +238,11 @@ describe('states (06 §5, §6)', () => {
     // The email CTA waits for the AI epic flag.
     expect(screen.queryByTestId('home-find-in-email')).toBeNull();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Add a subscription' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Add a Subscription' }));
     expect(await screen.findByTestId('stub')).toHaveTextContent(/^AddSubscription/);
   });
 
-  it('hides Urgent attention entirely when there is nothing urgent', async () => {
+  it('hides Urgent Attention entirely when there is nothing urgent', async () => {
     server.use(
       http.get('*/analytics/price-changes', () =>
         HttpResponse.json({ display_currency: 'USD', items: [] }),
@@ -252,7 +252,7 @@ describe('states (06 §5, §6)', () => {
     await screen.findByTestId('spend-card');
 
     await waitFor(() => expect(screen.queryByTestId('home-urgent')).toBeNull());
-    expect(screen.queryByText('Urgent attention')).toBeNull();
+    expect(screen.queryByText('Urgent Attention')).toBeNull();
   });
 
   it('says so when no renewals are due in 30 days', async () => {

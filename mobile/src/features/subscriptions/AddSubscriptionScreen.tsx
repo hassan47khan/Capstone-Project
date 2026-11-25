@@ -17,7 +17,7 @@
  *   failed      a field message, or a banner when the error has no field;
  *               everything typed is kept
  *   saved       the form is replaced by "Subscription added" (AddSuccess);
- *               "Add another" brings back a fresh, error-free form
+ *               "Add Another" brings back a fresh, error-free form
  *
  * Closing a form with something typed in asks "Discard changes?" first; an
  * untouched form closes straight away (07 §1, useDiscardGuard).
@@ -75,7 +75,7 @@ import { useDuplicateNameWarning } from './useDuplicateNameWarning';
 import { useInFamily } from './useInFamily';
 
 export const ADD_COPY = {
-  title: 'Add subscription',
+  title: 'Add Subscription',
   save: 'Save',
   saving: 'Saving subscription',
   offline: "You're offline, so this wasn't saved. Connect and try again.",
@@ -150,7 +150,7 @@ export function AddSubscriptionScreen() {
       for (const queryKey of subscriptionWriteInvalidations) {
         void queryClient.invalidateQueries({ queryKey });
       }
-      // Clear the form now, so leaving doesn't ask to discard and "Add another"
+      // Clear the form now, so leaving doesn't ask to discard and "Add Another"
       // starts fresh, with no errors left over from an earlier failed try.
       resetForm();
       setCreated(saved);

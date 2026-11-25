@@ -1,5 +1,5 @@
 /**
- * Add subscription (07 §1–3, §9, §12) against the mock API.
+ * Add Subscription (07 §1–3, §9, §12) against the mock API.
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -166,7 +166,7 @@ describe('saving', () => {
 
     expect(await screen.findByText(SUCCESS_COPY.title)).toBeOnTheScreen();
     expect(screen.getByText(SUCCESS_COPY.body('Headspace'))).toBeOnTheScreen();
-    expect(screen.getByLabelText('Billing price, $12.99')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Billing Price, $12.99')).toBeOnTheScreen();
     expect(screen.getByLabelText('Frequency, Every 2 months')).toBeOnTheScreen();
     // Required: $12.99 every 2 months adds $6.50 a month.
     expect(screen.getByTestId('add-success-monthly')).toHaveTextContent('≈ $6.50/mo');
@@ -196,7 +196,7 @@ describe('saving', () => {
     expect(screen.queryByText(FORM_COPY.nameRequired)).toBeNull(); // fresh form, no errors
   });
 
-  it('Add another after a failed try shows no leftover error', async () => {
+  it('Add Another after a failed try shows no leftover error', async () => {
     server.use(
       http.post(
         '*/subscriptions',
@@ -796,7 +796,7 @@ describe('free trial (US-12)', () => {
     });
   }
 
-  it('hides the trial end date until Free trial is on', async () => {
+  it('hides the trial end date until Free Trial is on', async () => {
     await renderAdd();
     expect(screen.getByTestId('form-trial-toggle')).not.toBeChecked();
     expect(screen.queryByTestId('form-trial-ends')).toBeNull();

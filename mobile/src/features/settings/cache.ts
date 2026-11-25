@@ -1,5 +1,5 @@
 /**
- * Profile's "Clear cache" row (09 §6): how much API data the app is holding,
+ * Profile's "Clear Cache" row (09 §6): how much API data the app is holding,
  * and clearing it.
  *
  * The app keeps API responses only in TanStack Query's in-memory cache;

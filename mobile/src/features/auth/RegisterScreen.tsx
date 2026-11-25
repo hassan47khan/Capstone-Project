@@ -41,7 +41,7 @@ import {
 import { isValidEmail, isValidPassword, PASSWORD_RULE } from './validation';
 
 export const REGISTER_COPY = {
-  title: 'Create your account',
+  title: 'Create Your Account',
   subtitle: 'Track every subscription in one place.',
   invalidEmail: 'Enter a valid email address.',
   duplicateEmail: 'An account with this email already exists.',
@@ -164,7 +164,7 @@ export function RegisterScreen() {
     >
       <View style={styles.emailGroup}>
         <TextField
-          label="Email address"
+          label="Email Address"
           placeholder="you@example.com"
           value={email}
           onChangeText={(next) => {
@@ -185,7 +185,7 @@ export function RegisterScreen() {
         {duplicate ? (
           <View style={styles.duplicate}>
             <Button
-              label="Log in instead"
+              label="Log In Instead"
               variant="ghost"
               onPress={goToLogin}
               testID="register-duplicate-login"

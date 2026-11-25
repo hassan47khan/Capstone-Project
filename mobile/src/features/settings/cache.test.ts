@@ -1,5 +1,5 @@
 /**
- * Clear cache's size and clearing (09 §6), see cache.ts.
+ * Clear Cache's size and clearing (09 §6), see cache.ts.
  */
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 

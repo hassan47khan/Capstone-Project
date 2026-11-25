@@ -67,7 +67,7 @@ export const SHARED_COPY = {
   paid: 'Paid',
   pending: 'Pending',
   remind: 'Remind',
-  markPaid: 'Mark paid',
+  markPaid: 'Mark Paid',
   undo: 'Undo',
 } as const;
 

@@ -3,14 +3,14 @@
  * failed `110:496`.
  *
  * Pushed inside the Settings tab (from Settings → Connected email and Home's
- * "Find them in my email"), so it goes back rather than closing.
+ * "Find Them in My Email"), so it goes back rather than closing.
  *
  * The flow
  *   Connect Gmail → Google's consent screen (gmailAuth.ts) → POST
  *   /integrations/gmail/connect → POST /extractions/scan → GET
  *   /extractions/pending, polled every 2 seconds while `scanning` is true.
  *   Each result opens Review extraction. Nothing is ever added from here:
- *   only Review's "Confirm and track" creates a subscription (11 §2.7).
+ *   only Review's "Confirm and Track" creates a subscription (11 §2.7).
  *
  * States
  *   connect     benefits card, Connect Gmail, "Not now — add manually"
@@ -65,7 +65,7 @@ import {
 import { authorizeGmail } from './gmailAuth';
 
 export const CONNECT_COPY = {
-  title: 'Connect email',
+  title: 'Connect Email',
   back: 'Settings',
   headline: 'Find subscriptions in your inbox',
   subcopy:
@@ -78,24 +78,24 @@ export const CONNECT_COPY = {
   failedMessage:
     'Access was denied or timed out. You can try again or add subscriptions yourself.',
   retry: 'Try again',
-  addManually: 'Add a subscription manually',
+  addManually: 'Add a Subscription Manually',
   scanning: 'Scanning your inbox…',
   scanningHint: 'Anything we find shows up below as it arrives.',
   cancel: 'Cancel',
-  found: 'Found in your email',
+  found: 'Found in Your Email',
   foundHint: 'Check each one before it’s added. Nothing is saved until you confirm.',
   nothingTitle: 'No subscriptions found',
   nothingMessage:
     'We didn’t find any receipts or trial emails. You can add subscriptions yourself.',
-  addOne: 'Add one manually',
+  addOne: 'Add One Manually',
   unavailableTitle: 'Email scanning is unavailable right now',
   unavailableMessage: 'Try again later, or add the subscription yourself.',
-  scanAgain: 'Scan again',
+  scanAgain: 'Scan Again',
   disconnect: 'Disconnect Gmail',
   disconnectTitle: 'Disconnect Gmail?',
   disconnectMessage:
     'SubTrak stops reading your email and deletes everything waiting for review. Subscriptions you already added stay.',
-  checkThis: 'Check this',
+  checkThis: 'Check This',
 } as const;
 
 const BENEFITS: { icon: LucideIcon; title: string; description: string }[] = [
@@ -389,7 +389,7 @@ function BenefitRow({
   );
 }
 
-/** One result: the service, the email it came from, and a "Check this" flag. */
+/** One result: the service, the email it came from, and a "Check This" flag. */
 function ResultRow({ row, onPress }: { row: PendingExtraction; onPress: () => void }) {
   const styles = useStyles();
   const name = row.fields.service_name ?? row.source.subject;

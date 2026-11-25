@@ -9,7 +9,7 @@
  *                                Back cannot return to a spent link
  *   token_expired              → "This link has expired." (05 §8)
  *   token_invalid              → "This link has already been used." (05 §8)
- *     both with "Request a new link" → Forgot Password
+ *     both with "Request a New Link" → Forgot Password
  *   400 with fields            → under the field
  *   offline                    → a toast; the password is kept
  *
@@ -31,7 +31,7 @@ import { AuthShell, FormError } from './AuthShell';
 import { isValidPassword, PASSWORD_RULE } from './validation';
 
 export const NEW_PASSWORD_COPY = {
-  title: 'Create a new password',
+  title: 'Create a New Password',
   subtitle: 'Choose a password you have not used for SubTrak before.',
   expired: 'This link has expired.',
   used: 'This link has already been used.',
@@ -94,7 +94,7 @@ export function CreateNewPasswordScreen() {
         testID="create-new-password-screen"
       >
         <Button
-          label="Request a new link"
+          label="Request a New Link"
           onPress={() => navigation.navigate('ForgotPassword')}
           fullWidth
           testID="new-password-request-again"
@@ -120,7 +120,7 @@ export function CreateNewPasswordScreen() {
       testID="create-new-password-screen"
     >
       <TextField
-        label="New password"
+        label="New Password"
         placeholder="Create a password"
         value={password}
         onChangeText={(next) => {
@@ -141,7 +141,7 @@ export function CreateNewPasswordScreen() {
       <FormError message={formError} />
 
       <Button
-        label="Save new password"
+        label="Save New Password"
         onPress={submit}
         disabled={password.length === 0 || confirm.isPending}
         loading={confirm.isPending}

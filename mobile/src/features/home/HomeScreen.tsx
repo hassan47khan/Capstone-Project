@@ -59,7 +59,7 @@ import {
 } from './HomeSections';
 
 export const HOME_COPY = {
-  emptyTitle: 'Start tracking',
+  emptyTitle: 'Start Tracking',
   emptyBody:
     "Add your first subscription and SubTrak will keep an eye on what you're spending.",
   stalePrefix: 'Showing data from',
@@ -177,13 +177,13 @@ export function HomeScreen() {
             icon={PlusCircle}
             title={HOME_COPY.emptyTitle}
             message={HOME_COPY.emptyBody}
-            actionLabel="Add a subscription"
+            actionLabel="Add a Subscription"
             onAction={() => navigation.navigate('AddSubscription')}
             testID="home-empty"
           />
           {FEATURE_EXTRACTION ? (
             <Button
-              label="Find them in my email"
+              label="Find Them in My Email"
               variant="secondary"
               onPress={() =>
                 navigation.navigate('MainTabs', {
@@ -256,7 +256,7 @@ export function HomeScreen() {
       </Section>
 
       <Section
-        title="Spending by category"
+        title="Spending by Category"
         collapsed={categoriesHidden}
         onToggle={() => setCategoriesHidden((hidden) => !hidden)}
         testID="home-categories"
@@ -272,7 +272,7 @@ export function HomeScreen() {
 
       {/* 06 §2.4: hidden entirely when empty, header and all. */}
       {urgentContent ? (
-        <Section title="Urgent attention" testID="home-urgent">
+        <Section title="Urgent Attention" testID="home-urgent">
           {urgentContent}
         </Section>
       ) : null}
@@ -284,10 +284,10 @@ export function HomeScreen() {
       ) : null}
 
       <Section
-        title="Upcoming renewals"
+        title="Upcoming Renewals"
         action={
           <Button
-            label="View all"
+            label="View All"
             variant="ghost"
             onPress={openCalendar}
             accessibilityHint="Opens the Calendar"

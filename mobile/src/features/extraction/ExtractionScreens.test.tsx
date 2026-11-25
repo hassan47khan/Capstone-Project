@@ -1,5 +1,5 @@
 /**
- * Connect email and Review extraction (11 §2.3, §2.4, §2.8).
+ * Connect Email and Review Extraction (11 §2.3, §2.4, §2.8).
  *
  * The mock inbox (src/test/routes.ts) finds Hulu's trial email, whose end
  * date scored 54% (frame `110:432`), and a clean Spotify receipt (`110:125`).
@@ -92,7 +92,7 @@ beforeEach(async () => {
   authorize.mockReset();
 });
 
-describe('Connect email (11 §2.3)', () => {
+describe('Connect Email (11 §2.3)', () => {
   it('us9_connect_gmail_scans_and_lists_what_it_found_for_review', async () => {
     authorize.mockResolvedValue(GRANTED);
     await renderScreen('ConnectEmail');
@@ -103,10 +103,10 @@ describe('Connect email (11 §2.3)', () => {
     expect(screen.getByTestId('connect-result-ext-spotify')).toBeOnTheScreen();
     // Hulu has a field to check; the clean receipt doesn't.
     expect(
-      within(screen.getByTestId('connect-result-ext-hulu')).getByText('Check this'),
+      within(screen.getByTestId('connect-result-ext-hulu')).getByText('Check This'),
     ).toBeOnTheScreen();
     expect(
-      within(screen.getByTestId('connect-result-ext-spotify')).queryByText('Check this'),
+      within(screen.getByTestId('connect-result-ext-spotify')).queryByText('Check This'),
     ).toBeNull();
     // "Confirm all" is deliberately not offered (11 §2.8).
     expect(screen.queryByText(/confirm all/i)).toBeNull();
@@ -134,7 +134,7 @@ describe('Connect email (11 §2.3)', () => {
     expect(screen.getByText("Couldn't connect to Gmail")).toBeOnTheScreen();
     expect(screen.getByTestId('connect-gmail')).toHaveTextContent('Try again');
     expect(screen.getByTestId('connect-add-manually')).toHaveTextContent(
-      'Add a subscription manually',
+      'Add a Subscription Manually',
     );
   });
 
@@ -207,7 +207,7 @@ describe('Connect email (11 §2.3)', () => {
   });
 });
 
-describe('Review extraction (11 §2.4)', () => {
+describe('Review Extraction (11 §2.4)', () => {
   it('quotes the email and labels the result as AI-detected', async () => {
     servePending(huluExtraction);
     await renderScreen('ReviewExtraction');
@@ -324,7 +324,7 @@ describe('Review extraction (11 §2.4)', () => {
     expect(reminder).toBeChecked();
   });
 
-  it('Edit details opens the full form, prefilled', async () => {
+  it('Edit Details opens the full form, prefilled', async () => {
     servePending(huluExtraction);
     await renderScreen('ReviewExtraction');
 

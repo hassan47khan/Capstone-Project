@@ -1,5 +1,5 @@
 /**
- * The rules behind Review extraction (11 §2.2, §2.4).
+ * The rules behind Review Extraction (11 §2.2, §2.4).
  */
 import { huluExtraction, spotifyExtraction } from '@/test/aiFixtures';
 
@@ -43,7 +43,7 @@ describe('rows', () => {
     expect(price.band).toBe('high');
   });
 
-  it('a trial gets a "Trial ends" row; a paid plan does not', () => {
+  it('a trial gets a "Trial Ends" row; a paid plan does not', () => {
     const hulu = rowsFor(huluExtraction, valuesFromExtraction(huluExtraction));
     const spotify = rowsFor(spotifyExtraction, valuesFromExtraction(spotifyExtraction));
     expect(hulu.map((r) => r.key)).toEqual([
@@ -95,7 +95,7 @@ describe('flagged fields must be resolved before saving (11 §2.4 rule 2)', () =
     expect(unresolvedRows(rows, initial, initial, new Set())).toEqual(['trial']);
   });
 
-  it('"Looks right" resolves it', () => {
+  it('"Looks Right" resolves it', () => {
     expect(unresolvedRows(rows, initial, initial, new Set(['trial']))).toEqual([]);
   });
 
@@ -110,7 +110,7 @@ describe('flagged fields must be resolved before saving (11 §2.4 rule 2)', () =
   });
 });
 
-describe('what Confirm and track sends', () => {
+describe('what Confirm and Track sends', () => {
   it('a trial carries its end date and its length in days', () => {
     const input = toConfirmInput(valuesFromExtraction(huluExtraction));
     expect(input).toMatchObject({

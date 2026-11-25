@@ -327,7 +327,7 @@ function MonthTotal({
   );
 }
 
-/** One charge: the logo, the name, its cycle (or "Trial ends"), and the amount. */
+/** One charge: the logo, the name, its cycle (or "Trial Ends"), and the amount. */
 function ChargeRow({ bill, onPress }: { bill: UpcomingBill; onPress: () => void }) {
   const styles = useStyles();
   const money = bill.amount ?? bill.billing_amount;

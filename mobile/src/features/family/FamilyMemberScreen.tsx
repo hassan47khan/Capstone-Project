@@ -17,7 +17,7 @@
  *                  Someone else's private subscription is "Private
  *                  subscription", amount only (10 §2 option A, §7)
  *   remove         `destructiveOutline` "Remove {Name} from family", or
- *                  "Leave family" on your own page, behind a confirm sheet that
+ *                  "Leave Family" on your own page, behind a confirm sheet that
  *                  says their subscriptions stay theirs and nothing is deleted
  *
  * Errors from the server: 409 `last_admin` (promote someone first) shows as a
@@ -75,24 +75,24 @@ export const MEMBER_COPY = {
   role: 'Role',
   permissions: (name: string) => `${name}'s permissions`,
   subscriptions: (name: string) => `${name}'s subscriptions`,
-  canAdd: 'Can add subscriptions',
+  canAdd: 'Can Add Subscriptions',
   canAddHint: 'Lets them add new subscriptions.',
-  canEdit: 'Can edit own subs',
+  canEdit: 'Can Edit Own Subs',
   canEditHint: 'Lets them change, cancel or delete their own subscriptions.',
-  canViewTotal: 'Can view family total',
+  canViewTotal: 'Can View Family Total',
   canViewTotalHint: "Lets them see the family total and everyone else's totals.",
-  limit: 'Spending limit',
+  limit: 'Spending Limit',
   noLimit: 'None',
-  limitTitle: 'Monthly spending limit',
-  limitSave: 'Save limit',
-  limitRemove: 'Remove limit',
+  limitTitle: 'Monthly Spending Limit',
+  limitSave: 'Save Limit',
+  limitRemove: 'Remove Limit',
   overLimit: 'Over their spending limit this month.',
-  private: 'Private subscription',
+  private: 'Private Subscription',
   privateLabel: 'Private subscription, details hidden',
   none: 'No subscriptions counted this month.',
   total: 'Total',
   remove: (name: string) => `Remove ${name} from family`,
-  leave: 'Leave family',
+  leave: 'Leave Family',
   removeTitle: (name: string) => `Remove ${name}?`,
   leaveTitle: 'Leave the family?',
   removeMessage: (name: string) =>

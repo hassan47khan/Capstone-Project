@@ -98,21 +98,21 @@ const failAll = () =>
 const CASES: Case[] = [
   // 05: auth
   { name: 'Log In', stack: 'auth', go: to('Login') },
-  { name: 'Create your account', stack: 'auth', go: to('Register') },
+  { name: 'Create Your Account', stack: 'auth', go: to('Register') },
   {
-    name: 'Check your email (verify)',
+    name: 'Check Your Email (verify)',
     stack: 'auth',
     go: to('VerifyEmailSent', { email: 'a@b.c' }),
   },
-  { name: 'Email confirmed', stack: 'auth', go: to('EmailConfirmed', { token: 't' }) },
-  { name: 'Forgot password', stack: 'auth', go: to('ForgotPassword') },
+  { name: 'Email Confirmed', stack: 'auth', go: to('EmailConfirmed', { token: 't' }) },
+  { name: 'Forgot Password', stack: 'auth', go: to('ForgotPassword') },
   { name: 'Reset link sent', stack: 'auth', go: to('ResetLinkSent', { email: 'a@b.c' }) },
   {
-    name: 'Create a new password',
+    name: 'Create a New Password',
     stack: 'auth',
     go: to('CreateNewPassword', { token: 't' }),
   },
-  { name: 'Password updated', stack: 'auth', go: to('PasswordResetSuccess') },
+  { name: 'Password Updated', stack: 'auth', go: to('PasswordResetSuccess') },
   // 06: Home, loaded, first run, and failed
   { name: 'Home', stack: 'app', go: tab('Home') },
   { name: 'Home, first run', stack: 'app', go: tab('Home'), email: MOCK_EMAILS.empty },
@@ -124,23 +124,23 @@ const CASES: Case[] = [
     go: to('CategoryDetail', { slug: 'entertainment', name: 'Entertainment' }),
   },
   // 07: subscriptions
-  { name: 'Add subscription', stack: 'app', go: to('AddSubscription') },
+  { name: 'Add Subscription', stack: 'app', go: to('AddSubscription') },
   {
-    name: 'Subscription detail',
+    name: 'Subscription Detail',
     stack: 'app',
     go: to('SubscriptionDetail', { id: 'sub-hulu' }),
   },
   {
-    name: 'Subscription detail, price history',
+    name: 'Subscription Detail, price history',
     stack: 'app',
     go: to('SubscriptionDetail', { id: 'sub-icloud-' }),
   },
   {
-    name: 'Edit subscription',
+    name: 'Edit Subscription',
     stack: 'app',
     go: to('EditSubscription', { id: 'sub-hulu' }),
   },
-  { name: 'Edit history', stack: 'app', go: to('EditHistory', { id: 'sub-netflix' }) },
+  { name: 'Edit History', stack: 'app', go: to('EditHistory', { id: 'sub-netflix' }) },
   {
     name: 'Confirm charge',
     stack: 'app',
@@ -157,15 +157,15 @@ const CASES: Case[] = [
   { name: 'Analytics, load failed', stack: 'app', go: tab('Analytics'), setup: failAll },
   // 09: settings
   { name: 'Settings', stack: 'app', go: tab('Settings') },
-  { name: 'Profile & account', stack: 'app', go: to('ProfileAccount') },
+  { name: 'Profile & Account', stack: 'app', go: to('ProfileAccount') },
   { name: 'Currency', stack: 'app', go: to('SelectCurrency') },
   {
-    name: 'Switch currency (sheet)',
+    name: 'Switch Currency (sheet)',
     stack: 'app',
     go: to('ConfirmCurrencyChange', { currency: 'EUR' }),
   },
-  { name: 'Time zone', stack: 'app', go: to('SelectTimeZone') },
-  { name: 'Notification rules', stack: 'app', go: to('NotificationRules') },
+  { name: 'Time Zone', stack: 'app', go: to('SelectTimeZone') },
+  { name: 'Notification Rules', stack: 'app', go: to('NotificationRules') },
   // 10: family
   { name: 'Family', stack: 'app', go: tab('Settings', 'Family') },
   {
@@ -193,10 +193,10 @@ const CASES: Case[] = [
     email: MOCK_EMAILS.empty,
   },
   { name: 'Trial Shield', stack: 'app', go: tab('Calendar', 'TrialShield') },
-  { name: 'Shared plans', stack: 'app', go: tab('Settings', 'SharedPlans') },
-  { name: 'Connect email', stack: 'app', go: tab('Settings', 'ConnectEmail') },
+  { name: 'Shared Plans', stack: 'app', go: tab('Settings', 'SharedPlans') },
+  { name: 'Connect Email', stack: 'app', go: tab('Settings', 'ConnectEmail') },
   {
-    name: 'Review extraction',
+    name: 'Review Extraction',
     stack: 'app',
     go: to('ReviewExtraction', { id: 'ext-hulu' }),
   },

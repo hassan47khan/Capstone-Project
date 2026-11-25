@@ -1,5 +1,5 @@
 /**
- * "Mark as cancelled" confirm sheet (handoff 07 §7; US-7).
+ * "Mark as Cancelled" confirm sheet (handoff 07 §7; US-7).
  *
  * Confirming calls POST /subscriptions/{id}/cancel. The server keeps the
  * history, takes it out of every total and sets saved_per_year; the client
@@ -9,8 +9,8 @@
  * both sheets (no backdrop tap), and ConfirmSheet only does that when it's red.
  *
  * States
- *   idle        "Mark as cancelled" + "Keep it"
- *   cancelling  confirm shows a spinner, "Keep it" disabled; the sheet can't close
+ *   idle        "Mark as Cancelled" + "Keep It"
+ *   cancelling  confirm shows a spinner, "Keep It" disabled; the sheet can't close
  *   failed      the message under the copy; both buttons work again
  *   409         "already cancelled" counts as done: refetch and close
  *   404         deleted elsewhere: close and refetch; Detail shows "Not found"
@@ -30,9 +30,9 @@ export const CANCEL_COPY = {
   // 07 §7, word for word.
   body: (name: string) =>
     `${name} will stop counting toward your monthly total. Its history stays, and you can reactivate it anytime.`,
-  confirm: 'Mark as cancelled',
+  confirm: 'Mark as Cancelled',
   confirming: 'Marking as cancelled',
-  keep: 'Keep it',
+  keep: 'Keep It',
 } as const;
 
 interface Props {

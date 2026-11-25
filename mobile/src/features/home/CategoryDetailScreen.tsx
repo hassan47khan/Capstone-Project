@@ -46,7 +46,7 @@ import { slugFor, UNCATEGORIZED_SLUG } from './CategoryBars';
 
 export const CATEGORY_DETAIL_COPY = {
   back: 'Home',
-  perMonth: 'Per month',
+  perMonth: 'Per Month',
   share: (percent: number) => `${percent}% of your monthly spending`,
   count: (n: number) => (n === 1 ? '1 subscription' : `${n} subscriptions`),
   list: 'Subscriptions',

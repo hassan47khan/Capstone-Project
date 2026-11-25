@@ -1,5 +1,5 @@
 /**
- * Profile & account (09 §6, §7, §10) against the mock API.
+ * Profile & Account (09 §6, §7, §10) against the mock API.
  */
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -45,7 +45,7 @@ let client: QueryClient | undefined;
 
 /**
  * The test client, but keeping unused data like the app's five minutes, so
- * Clear cache has something to clear (the test default drops it at once).
+ * Clear Cache has something to clear (the test default drops it at once).
  */
 function keepingClient(): QueryClient {
   const qc = createTestQueryClient();
@@ -112,8 +112,8 @@ afterEach(async () => {
   client = undefined;
 });
 
-describe('Profile & account (09 §6)', () => {
-  it('is titled "Profile & account" and Close goes back to Settings', async () => {
+describe('Profile & Account (09 §6)', () => {
+  it('is titled "Profile & Account" and Close goes back to Settings', async () => {
     await renderProfile();
     expect(screen.getByRole('header', { name: PROFILE_COPY.title })).toBeOnTheScreen();
 
@@ -123,7 +123,7 @@ describe('Profile & account (09 §6)', () => {
     expect(screen.queryByTestId('profile-account-screen')).not.toBeOnTheScreen();
   });
 
-  it('has My profile, App preferences and Data, in that order, as headings', async () => {
+  it('has My Profile, App Preferences and Data, in that order, as headings', async () => {
     await renderProfile();
     const headings = screen
       .getAllByRole('header')
@@ -152,7 +152,7 @@ describe('Profile & account (09 §6)', () => {
   });
 });
 
-describe('My profile', () => {
+describe('My Profile', () => {
   it('shows the name, the email and the initials from GET /me', async () => {
     await renderProfile();
     const card = screen.getByTestId('profile-card');
@@ -257,7 +257,7 @@ describe('My profile', () => {
   });
 });
 
-describe('App theme', () => {
+describe('App Theme', () => {
   it('offers Dark, Light and System, in that order, as one labelled group', async () => {
     await renderProfile();
     const group = screen.getByTestId('profile-theme');
@@ -323,7 +323,7 @@ describe('Language', () => {
   });
 });
 
-describe('Clear cache', () => {
+describe('Clear Cache', () => {
   const sizeShown = () => screen.getByTestId('profile-cache-size').props.children;
 
   it('shows the cached data size, and says it with the label', async () => {
@@ -359,7 +359,7 @@ describe('Clear cache', () => {
       expect(Number.parseInt(sizeShown(), 10)).toBeGreaterThanOrEqual(100),
     );
 
-    await fireEvent.press(screen.getByRole('button', { name: /^Clear cache/ }));
+    await fireEvent.press(screen.getByRole('button', { name: /^Clear Cache/ }));
 
     expect(await screen.findByText(PROFILE_COPY.cleared)).toBeOnTheScreen();
     expect(qc.getQueryData(['old-screen'])).toBeUndefined();

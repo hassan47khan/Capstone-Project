@@ -61,12 +61,12 @@ import { buildPriceSeries, describePriceHistory } from './priceHistory';
 import { utcToday } from './today';
 
 export const DETAIL_COPY = {
-  title: 'Subscription detail',
+  title: 'Subscription Detail',
   priceHistory: 'Price history (last 12 months)',
-  edit: 'Edit subscription',
-  markCancelled: 'Mark as cancelled',
+  edit: 'Edit Subscription',
+  markCancelled: 'Mark as Cancelled',
   offline: 'Connect to the internet to make changes.',
-  more: 'More options',
+  more: 'More Options',
   stalePrefix: 'Showing saved details from',
   loading: 'Loading subscription',
 } as const;
@@ -273,10 +273,10 @@ function DetailRows({ sub }: { sub: SubscriptionDetail }) {
     rows.push({ label, value, spoken, testID });
 
   const price = money(sub.billing_price, sub.billing_currency);
-  add('Current price', <Text style={styles.value}>{price}</Text>, price, 'row-price');
+  add('Current Price', <Text style={styles.value}>{price}</Text>, price, 'row-price');
 
   const cycle = describeCycle(sub);
-  add('Billing cycle', <Text style={styles.value}>{cycle}</Text>, cycle, 'row-cycle');
+  add('Billing Cycle', <Text style={styles.value}>{cycle}</Text>, cycle, 'row-cycle');
 
   const category = knownCategory(sub.category?.slug);
   add(
@@ -290,7 +290,7 @@ function DetailRows({ sub }: { sub: SubscriptionDetail }) {
   if (sub.billing_cycle !== 'monthly' && sub.normalized_monthly) {
     const monthly = money(sub.normalized_monthly.amount, sub.normalized_monthly.currency);
     add(
-      'Monthly equivalent',
+      'Monthly Equivalent',
       <Text style={styles.value}>{`${monthly}/mo`}</Text>,
       `${monthly} per month`,
       'row-monthly',
@@ -299,13 +299,13 @@ function DetailRows({ sub }: { sub: SubscriptionDetail }) {
 
   if (sub.next_bill_date) {
     const next = formatDateLong(sub.next_bill_date);
-    add('Next renewal', <Text style={styles.value}>{next}</Text>, next, 'row-next');
+    add('Next Renewal', <Text style={styles.value}>{next}</Text>, next, 'row-next');
   }
 
   // Hidden when empty (07 §4).
   if (sub.payment_label) {
     add(
-      'Paid with',
+      'Paid With',
       <Text style={styles.value}>{sub.payment_label}</Text>,
       sub.payment_label,
       'row-paid-with',
@@ -313,18 +313,18 @@ function DetailRows({ sub }: { sub: SubscriptionDetail }) {
   }
 
   const added = formatDateLong(sub.start_date);
-  add('Date added', <Text style={styles.value}>{added}</Text>, added, 'row-added');
+  add('Date Added', <Text style={styles.value}>{added}</Text>, added, 'row-added');
 
   // Only once cancelled (07 §7): what it would have cost per year.
   if (sub.saved_per_year) {
     const saved = money(sub.saved_per_year.amount, sub.saved_per_year.currency);
-    add('Saved per year', <Text style={styles.value}>{saved}</Text>, saved, 'row-saved');
+    add('Saved per Year', <Text style={styles.value}>{saved}</Text>, saved, 'row-saved');
   }
 
   // Never red: red is only for errors and destructive actions (07 §4, 01 §2).
   if (sub.total_spent_to_date) {
     const spent = money(sub.total_spent_to_date.amount, sub.total_spent_to_date.currency);
-    add('Total spent', <Text style={styles.total}>{spent}</Text>, spent, 'row-total');
+    add('Total Spent', <Text style={styles.total}>{spent}</Text>, spent, 'row-total');
   }
 
   return (

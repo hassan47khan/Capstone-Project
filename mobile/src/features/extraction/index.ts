@@ -39,7 +39,7 @@ export interface ExtractedSubscription {
   /**
    * Fields the server flagged as uncertain — a hallucinated price caught by the
    * grounding check, an ambiguous date, or a low model confidence. The review
-   * screen marks each one with an icon AND the words "Check this", never colour
+   * screen marks each one with an icon AND the words "Check This", never colour
    * alone.
    */
   low_confidence_fields?: string[];

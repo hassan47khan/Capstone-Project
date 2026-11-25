@@ -37,7 +37,7 @@ import { getSubscription } from './api';
 import { historyLines, onlyCreation } from './historyLines';
 
 export const HISTORY_COPY = {
-  title: 'Edit history',
+  title: 'Edit History',
   titleFor: (name: string) => `Edit history — ${name}`,
   loading: 'Loading history',
   emptyTitle: 'No changes yet',

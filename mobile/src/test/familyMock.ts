@@ -4,7 +4,7 @@
  * Alex runs "Kim family" with Jordan (member, $100 limit) and Sam (viewer who
  * can't see the family total), 04 §4.5's figures: $198.16 = 129.20 + 45.98 +
  * 22.98. Jordan's GitHub Pro is private here, so the admin view shows a
- * "Private subscription" row. Everyone else starts in no family.
+ * "Private Subscription" row. Everyone else starts in no family.
  *
  * Invitation tokens for the accept screen:
  *   invite-kim      to Kim family for sam@subtrak.test (the empty account)

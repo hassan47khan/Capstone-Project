@@ -249,7 +249,7 @@ describe('Member detail', () => {
       part('HuluNext: Oct 05$17.99'),
     );
     const hidden = screen.getByTestId('member-sub-private-3');
-    expect(hidden).toHaveTextContent(part('Private subscription$4.00'));
+    expect(hidden).toHaveTextContent(part('Private Subscription$4.00'));
     expect(hidden.props.accessibilityLabel).toBe(
       'Private subscription, details hidden, $4.00 per month',
     );

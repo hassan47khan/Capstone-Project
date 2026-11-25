@@ -8,18 +8,18 @@
  * The rule this screen exists for: nothing is saved until "Confirm and
  * track", and a field the AI wasn't sure about can't be waved through. Each
  * flagged row (under 60%, or not found in the email) must be edited or
- * confirmed with "Looks right" before the primary enables, with the hint
+ * confirmed with "Looks Right" before the primary enables, with the hint
  * "Check the highlighted field" (11 §2.4, the human-in-the-loop guarantee).
  *
  * Build-differently list from 11 §2.4, all done here
- *   1. One primary label, "Confirm and track".
- *   2. Flagged rows must be resolved first; tapping one offers "Looks right".
+ *   1. One primary label, "Confirm and Track".
+ *   2. Flagged rows must be resolved first; tapping one offers "Looks Right".
  *   3. Warning tokens (not the frame's failing amber), `text` helper copy,
  *      12px minimum chip text.
- *   4. Every row is tappable; "Edit details" opens the full form, prefilled.
+ *   4. Every row is tappable; "Edit Details" opens the full form, prefilled.
  *   5. Reminder date = trial end − the user's alert days; already past →
  *      "Reminder due now" (the server sends it on confirm).
- *   6. Only "Confirm and track" writes. Discard deletes the review.
+ *   6. Only "Confirm and Track" writes. Discard deletes the review.
  *
  * States
  *   loading     skeletons
@@ -27,7 +27,7 @@
  *   failed      error + Try again
  *   review      the rows, the reminder (trials), and the actions
  *   editing     the Add form (07 §2) prefilled, plus the trial end date
- *   duplicate   a note above the rows offering "Update the existing one"
+ *   duplicate   a note above the rows offering "Update the Existing One"
  */
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -97,31 +97,31 @@ import {
 } from './reviewModel';
 
 export const REVIEW_SCREEN_COPY = {
-  title: 'Review extraction',
+  title: 'Review Extraction',
   loading: 'Loading the review',
-  eyebrow: 'Review before saving',
+  eyebrow: 'Review Before Saving',
   provenance: 'AI detected from your email',
-  details: 'Extracted details',
+  details: 'Extracted Details',
   notFound: 'Nothing found in the email',
   banner: 'Nothing is saved until you confirm.',
-  confirm: 'Confirm and track',
+  confirm: 'Confirm and Track',
   confirming: 'Saving subscription',
-  edit: 'Edit details',
+  edit: 'Edit Details',
   done: 'Done',
   discard: 'Discard',
   checkHighlighted: 'Check the highlighted field',
   checked: 'Checked',
-  looksRight: 'Looks right',
-  changeIt: 'Change it',
+  looksRight: 'Looks Right',
+  changeIt: 'Change It',
   goneTitle: 'This review has expired',
   goneMessage:
     'Results from a scan are kept for 24 hours. Scan your inbox again to find it.',
   goBack: 'Go back',
   duplicateTitle: 'You already track this',
   duplicateMessage: 'Update the one you have instead of adding it twice.',
-  updateExisting: 'Update the existing one',
+  updateExisting: 'Update the Existing One',
   reminderDueNow: 'Reminder due now',
-  trialEnds: 'Trial ends',
+  trialEnds: 'Trial Ends',
 } as const;
 
 const DEFAULT_ALERT_DAYS = 3;

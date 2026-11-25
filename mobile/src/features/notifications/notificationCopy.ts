@@ -10,7 +10,7 @@ export const PUSH_COPY = {
   deniedTitle: 'Alerts will stay in the app',
   deniedBody:
     "Push is off, so SubTrak can't warn you on your lock screen. Trial and renewal alerts will still show up in Notifications, under the bell on Home.",
-  deniedOk: 'Got it',
+  deniedOk: 'Got It',
 } as const;
 
 export const INBOX_COPY = {

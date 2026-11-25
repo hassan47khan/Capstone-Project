@@ -15,7 +15,7 @@ export function SelectTimeZoneScreen() {
 
   return (
     <Placeholder
-      title="Time zone"
+      title="Time Zone"
       phase="Phase 5 — handoff 09"
       stories="US-5"
       onClose={() => navigation.goBack()}

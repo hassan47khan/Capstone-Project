@@ -1,5 +1,5 @@
 /**
- * Edit history (07 §6, §9) against the mock API, plus one run through the real
+ * Edit History (07 §6, §9) against the mock API, plus one run through the real
  * Detail -> Edit -> History screens.
  */
 import { NavigationContainer, useNavigation, useRoute } from '@react-navigation/native';
@@ -49,7 +49,7 @@ async function signIn() {
   await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
 }
 
-// Opens Edit history for `id` on top of a stub screen.
+// Opens Edit History for `id` on top of a stub screen.
 async function renderHistory(id: string) {
   await signIn();
   const OpenerFor = () => <Opener id={id} />;
@@ -82,7 +82,7 @@ describe('loaded (07 §6)', () => {
       'history-evt-netflix-1',
     ]);
     expect(screen.getByText('Price changed from $13.99 to $15.49')).toBeOnTheScreen();
-    expect(screen.getByText('Price update')).toBeOnTheScreen();
+    expect(screen.getByText('Price Update')).toBeOnTheScreen();
     expect(screen.getByText('Creation')).toBeOnTheScreen();
   });
 
@@ -97,7 +97,7 @@ describe('loaded (07 §6)', () => {
     const card = await screen.findByTestId('history-evt-netflix-3');
     expect(card).toHaveProp(
       'accessibilityLabel',
-      'October 1, 2026, Price update: Price changed from $13.99 to $15.49',
+      'October 1, 2026, Price Update: Price changed from $13.99 to $15.49',
     );
   });
 
