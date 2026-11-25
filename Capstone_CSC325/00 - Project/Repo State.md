@@ -71,6 +71,22 @@ since `d04bcb1` and not written up here: #195 and #198. No push has been
 delivered to a real phone yet (that needs an EAS project id and a Firebase
 project), so US-13 stays open until one lands.
 
+**Update 2026-11-24 (Chris, after merging #206), `main` at `dcd2f0c`.** This
+covers only #206, approved by Hassan on its head (`ed4e051`) with CI green there.
+Extraction and the insight card now default to `claude-haiku-5-5` (was
+`claude-opus-5-5`), and their prompts are versioned files in
+`backend/extraction/prompts/` (extraction is on `extraction_v2`). `python manage.py
+eval_suite` runs the golden set, hallucination, consistency, bias and model checks
+against thresholds and exits non-zero below any of them. `pipeline.yml` has a new
+Eval job on pull requests and manual runs: it replays stored answers for free, and
+calls the model only when `christianpivaral` adds the `eval-live` label or runs the
+workflow, with the `ANTHROPIC_API_KEY` secret behind the `llm-eval` environment.
+The live run on `ed4e051` (run `45513662353`, 2026-11-24) passed every check for
+about $0.01; its report is `docs/ai/eval-suite-live.md`, added by this note's PR.
+The prompt-injection risk is `docs/ai/prompt-injection.md`, with the fix in #205
+(Sprint 4). Also merged since `ecb04f8` and not written up here: #200, #201, #202,
+#208 and #209.
+
 ## One line per area
 
 | Area | State |
