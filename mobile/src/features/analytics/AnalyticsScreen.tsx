@@ -3,7 +3,7 @@
  *
  * Insight first, list last (08 §1): the AI insight card (§2.0), then the
  * spend-over-time headline with the projected yearly spend (§2.1, US-16), then
- * "Spending by category" with the monthly total (§2.2, §2.3), then the
+ * "Spending by Category" with the monthly total (§2.2, §2.3), then the
  * subscription list, last (§2.4).
  *
  * The insight card comes first, as §2.0 says ("build it first on the screen").
@@ -28,7 +28,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart3 } from 'lucide-react-native';
 import { Text } from 'react-native';
 
-import type { AnalyticsSummary } from '@/api/analyticsTypes';
+import type { AnalyticsSummary, CategorySpend } from '@/api/analyticsTypes';
 import { analyticsApi } from '@/api/endpoints';
 import { formatTimeOfDay } from '@/api/format';
 import { queryKeys } from '@/api/queryKeys';
@@ -45,6 +45,8 @@ import { makeStyles, sizes } from '@/theme';
 
 import { listSubscriptions } from '@/features/subscriptions/api';
 
+import { nameFor, slugFor } from '@/features/home/CategoryBars';
+
 import { CategoryCard } from './CategoryCard';
 import { getInsight, insightKey } from './insight';
 import { InsightCard } from './InsightCard';
@@ -58,7 +60,7 @@ export const ANALYTICS_COPY = {
   loadingList: 'Loading your subscriptions',
   emptyTitle: 'Nothing to analyze yet',
   emptyMessage: 'Add a subscription and your spending shows up here.',
-  emptyAction: 'Add a subscription',
+  emptyAction: 'Add a Subscription',
   stalePrefix: 'Showing saved figures from',
 } as const;
 
@@ -154,7 +156,15 @@ export function AnalyticsScreen() {
             </SkeletonGroup>
           )}
 
-          <CategorySection summary={summary} />
+          <CategorySection
+            summary={summary}
+            onOpen={(row) =>
+              navigation.navigate('CategoryDetail', {
+                slug: slugFor(row),
+                name: nameFor(row),
+              })
+            }
+          />
 
           {/* 08 §2.4: the list, demoted to last. */}
           {list.data ? (
@@ -180,14 +190,16 @@ export function AnalyticsScreen() {
   );
 }
 
-// "Spending by category" with its own loading and error (08 §4).
+// "Spending by Category" with its own loading and error (08 §4).
 function CategorySection({
   summary,
+  onOpen,
 }: {
   summary: ReturnType<typeof useQuery<AnalyticsSummary>>;
+  onOpen: (row: CategorySpend) => void;
 }) {
   return summary.data ? (
-    <CategoryCard summary={summary.data} />
+    <CategoryCard summary={summary.data} onOpen={onOpen} />
   ) : summary.isError ? (
     <ErrorState
       error={summary.error}

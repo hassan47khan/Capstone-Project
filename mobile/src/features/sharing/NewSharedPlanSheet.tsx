@@ -1,5 +1,5 @@
 /**
- * "New shared plan" (handoff 11 §2.8; not designed). A sheet: pick a
+ * "New Shared Plan" (handoff 11 §2.8; not designed). A sheet: pick a
  * subscription, add the people sharing it, save.
  *
  * The split is equal and worked out by the server when it saves (you're added
@@ -19,14 +19,14 @@ import { listSubscriptions } from '../subscriptions/api';
 import { createSharedPlan, sharedPlanKeys } from './api';
 
 export const NEW_PLAN_COPY = {
-  title: 'New shared plan',
+  title: 'New Shared Plan',
   subscription: 'Subscription',
-  pick: 'Choose a subscription',
+  pick: 'Choose a Subscription',
   person: 'Name',
   email: 'Email (optional)',
-  addPerson: 'Add another person',
+  addPerson: 'Add Another Person',
   split: "Everyone pays an equal share. You're added first and cover any extra cent.",
-  save: 'Save shared plan',
+  save: 'Save Shared Plan',
   cancel: 'Cancel',
   alreadyShared: 'That subscription is already shared.',
   needSomeone: 'Add at least one person.',

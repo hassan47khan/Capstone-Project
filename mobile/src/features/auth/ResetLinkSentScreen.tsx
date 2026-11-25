@@ -24,7 +24,7 @@ import { formatCountdown } from './useCountdown';
 import { useResendWithCooldown } from './useResendWithCooldown';
 
 export const RESET_SENT_COPY = {
-  title: 'Check your email',
+  title: 'Check Your Email',
   sentTo: 'We sent a password reset link to',
   resent: 'Password reset email resent',
   mailUnavailable: "Couldn't open your mail app. Open it yourself to find the link.",

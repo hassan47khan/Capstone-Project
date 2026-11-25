@@ -26,6 +26,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { PlusCircle } from 'lucide-react-native';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type {
@@ -58,7 +59,7 @@ import {
 } from './HomeSections';
 
 export const HOME_COPY = {
-  emptyTitle: 'Start tracking',
+  emptyTitle: 'Start Tracking',
   emptyBody:
     "Add your first subscription and SubTrak will keep an eye on what you're spending.",
   stalePrefix: 'Showing data from',
@@ -96,6 +97,8 @@ function timeOf(epochMs: number): string {
 export function HomeScreen() {
   const styles = useStyles();
   const navigation = useNavigation<Navigation>();
+  // Spending by category can be folded away; it starts open on each visit.
+  const [categoriesHidden, setCategoriesHidden] = useState(false);
 
   const profile = useQuery({
     queryKey: queryKeys.session.profile(),
@@ -174,13 +177,13 @@ export function HomeScreen() {
             icon={PlusCircle}
             title={HOME_COPY.emptyTitle}
             message={HOME_COPY.emptyBody}
-            actionLabel="Add a subscription"
+            actionLabel="Add a Subscription"
             onAction={() => navigation.navigate('AddSubscription')}
             testID="home-empty"
           />
           {FEATURE_EXTRACTION ? (
             <Button
-              label="Find them in my email"
+              label="Find Them in My Email"
               variant="secondary"
               onPress={() =>
                 navigation.navigate('MainTabs', {
@@ -252,7 +255,12 @@ export function HomeScreen() {
         )}
       </Section>
 
-      <Section title="Spending by category" testID="home-categories">
+      <Section
+        title="Spending by Category"
+        collapsed={categoriesHidden}
+        onToggle={() => setCategoriesHidden((hidden) => !hidden)}
+        testID="home-categories"
+      >
         {summary.data ? (
           <CategoryCard summary={summary.data} onOpen={openCategory} />
         ) : summary.isError ? (
@@ -264,7 +272,7 @@ export function HomeScreen() {
 
       {/* 06 §2.4: hidden entirely when empty, header and all. */}
       {urgentContent ? (
-        <Section title="Urgent attention" testID="home-urgent">
+        <Section title="Urgent Attention" testID="home-urgent">
           {urgentContent}
         </Section>
       ) : null}
@@ -276,10 +284,10 @@ export function HomeScreen() {
       ) : null}
 
       <Section
-        title="Upcoming renewals"
+        title="Upcoming Renewals"
         action={
           <Button
-            label="View all"
+            label="View All"
             variant="ghost"
             onPress={openCalendar}
             accessibilityHint="Opens the Calendar"

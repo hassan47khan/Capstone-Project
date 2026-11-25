@@ -1,6 +1,6 @@
 /**
  * Was the charge different? (US-19). A modal over Home, opened from a charge
- * card's "It was different".
+ * card's "It Was Different".
  *
  * The user enters what the bill really was, in the charge's own currency.
  * POST /charges/{id}/confirm decides the rest: higher moves the price and

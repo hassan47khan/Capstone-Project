@@ -1,5 +1,5 @@
 /**
- * Create your account (05 §3, §9, §11; US-1), against the shared mock routes.
+ * Create Your Account (05 §3, §9, §11; US-1), against the shared mock routes.
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';

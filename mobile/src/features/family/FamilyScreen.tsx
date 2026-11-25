@@ -11,7 +11,7 @@
  *
  * States
  *   loading      skeleton rows
- *   no family    "Start a family" with a name field (404 `no_family`)
+ *   no family    "Start a Family" with a name field (404 `no_family`)
  *   failed       full-screen error + Try again
  *   loaded       total card (when you may see it), member rows, invited rows,
  *                Invite member
@@ -68,20 +68,20 @@ export const FAMILY_COPY = {
   title: 'Family',
   back: 'Settings',
   loading: 'Loading your family',
-  total: 'Family total',
+  total: 'Family Total',
   perMonth: '/mo',
   hiddenTotal: "Your family admin hasn't shared the family total with you.",
-  invite: 'Invite member',
+  invite: 'Invite Member',
   seatsFull: 'Every seat is taken. Upgrade the plan to invite more people.',
   invited: 'Invited',
   expired: 'Expired',
   resend: 'Resend',
   revoke: 'Revoke',
-  startTitle: 'Start a family',
+  startTitle: 'Start a Family',
   startMessage:
     'See everyone’s subscriptions add up to one family total. Members can mark any subscription private.',
-  startName: 'Family name',
-  startSave: 'Start family',
+  startName: 'Family Name',
+  startSave: 'Start Family',
   unconverted: (n: number) =>
     `${n} subscription${n === 1 ? '' : 's'} left out: no exchange rate for ${n === 1 ? 'its' : 'their'} currency.`,
 } as const;

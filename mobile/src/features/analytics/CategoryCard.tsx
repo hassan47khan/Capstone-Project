@@ -1,5 +1,5 @@
 /**
- * "Spending by category" and the monthly total (handoff 08 §2.2, §2.3).
+ * "Spending by Category" and the monthly total (handoff 08 §2.2, §2.3).
  *
  * The chart contract with Home (08 §3): the same request (GET /analytics/summary),
  * the same rows in the server's order (largest first), and each colored by its
@@ -15,18 +15,18 @@
  * TODO(tokens): 08 §2.2 measures an 18 row gap and §2.3 an 18 vertical padding,
  * and the total at 28px; the nearest tokens are spacing.lg (16) and displayLg (32).
  */
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import type { AnalyticsSummary, CategorySpend } from '@/api/analyticsTypes';
 import { formatMoney } from '@/api/format';
 import { Card } from '@/components';
 import { colorKeyFor } from '@/features/home/CategoryBars';
-import { makeStyles, radius, sizes, spacing, useTheme } from '@/theme';
+import { makeStyles, opacity, radius, sizes, spacing, useTheme } from '@/theme';
 
 export const CATEGORY_COPY = {
-  title: 'Spending by category',
-  subtitle: 'Current month',
-  total: 'Monthly total',
+  title: 'Spending by Category',
+  subtitle: 'Current Month',
+  total: 'Monthly Total',
   // The same wording as Home's spend card.
   converted: "Converted at today's rate",
   leftOut: (count: number) =>
@@ -46,7 +46,14 @@ export function barFractions(rows: readonly CategorySpend[]): number[] {
   return shares.map((share) => (largest > 0 ? share / largest : 0));
 }
 
-export function CategoryCard({ summary }: { summary: AnalyticsSummary }) {
+export function CategoryCard({
+  summary,
+  onOpen,
+}: {
+  summary: AnalyticsSummary;
+  /** Opens the category's screen, the same one Home's bars open. */
+  onOpen: (row: CategorySpend) => void;
+}) {
   const styles = useStyles();
   const fractions = barFractions(summary.categories);
   const total = formatMoney(summary.monthly_total.amount, summary.monthly_total.currency);
@@ -67,6 +74,7 @@ export function CategoryCard({ summary }: { summary: AnalyticsSummary }) {
             key={row.category?.slug ?? `uncategorized-${index}`}
             row={row}
             fraction={fractions[index] ?? 0}
+            onOpen={onOpen}
           />
         ))}
       </View>
@@ -96,17 +104,27 @@ export function CategoryCard({ summary }: { summary: AnalyticsSummary }) {
   );
 }
 
-function CategoryBar({ row, fraction }: { row: CategorySpend; fraction: number }) {
+function CategoryBar({
+  row,
+  fraction,
+  onOpen,
+}: {
+  row: CategorySpend;
+  fraction: number;
+  onOpen: (row: CategorySpend) => void;
+}) {
   const styles = useStyles();
   const { categoryColors } = useTheme();
   const name = row.category?.display_name ?? 'Uncategorized';
   const amount = formatMoney(row.amount.amount, row.amount.currency).display;
 
   return (
-    <View
-      style={styles.row}
+    <Pressable
+      onPress={() => onOpen(row)}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       // One stop per category: name, amount and share together (08 §7).
-      accessible
+      accessibilityRole="button"
+      accessibilityHint="Opens the category"
       accessibilityLabel={`${name}, ${amount}, ${row.percent} percent of monthly spending.`}
       testID={`analytics-category-${row.category?.slug ?? 'uncategorized'}`}
     >
@@ -135,7 +153,7 @@ function CategoryBar({ row, fraction }: { row: CategorySpend; fraction: number }
           testID={`analytics-bar-${row.category?.slug ?? 'uncategorized'}`}
         />
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -155,10 +173,22 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     color: colors.textMuted,
   },
   rows: {
-    gap: spacing.lg,
+    gap: spacing.sm,
   },
+  // Each category is its own bordered box, like a Settings row, so it reads as
+  // something to tap.
   row: {
     gap: spacing.sm,
+    minHeight: sizes.minTouch,
+    justifyContent: 'center',
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: sizes.hairline,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+  },
+  pressed: {
+    opacity: opacity.pressed,
   },
   rowText: {
     flexDirection: 'row',

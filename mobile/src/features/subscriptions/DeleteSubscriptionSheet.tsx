@@ -2,7 +2,7 @@
  * Detail's ⋯ menu, its "Delete subscription?" confirm, and the Undo toast
  * (handoff 07 §4, §7; US-7).
  *
- * One sheet, two steps: the menu ("Delete subscription"), then the confirm in
+ * One sheet, two steps: the menu ("Delete Subscription"), then the confirm in
  * the same sheet. Two sheets would be two Modals, and iOS can't present one
  * while the other is still closing, so the confirm could fail to appear.
  *
@@ -17,7 +17,7 @@
  * take the bold "{Name} ($15.49/mo)" lead-in or a busy state.
  *
  * States
- *   menu       "Delete subscription"; disabled with a reason when offline
+ *   menu       "Delete Subscription"; disabled with a reason when offline
  *   confirm    "Delete" + "Cancel"
  *   deleting   Delete shows a spinner, Cancel disabled; the sheet can't close
  *   failed     the message under the copy; both buttons work again
@@ -38,8 +38,8 @@ import { deleteSubscription, restoreSubscription, type SubscriptionDetail } from
 import { cycleSuffix } from './historyLines';
 
 export const DELETE_COPY = {
-  menuTitle: 'More options',
-  menuDelete: 'Delete subscription',
+  menuTitle: 'More Options',
+  menuDelete: 'Delete Subscription',
   offline: 'Connect to the internet to make changes.',
   title: 'Delete subscription?',
   // 07 §7, after the bold "{Name} ({price}/{cycle})".

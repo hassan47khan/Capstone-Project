@@ -14,8 +14,10 @@ import { alexSummary, alexUpcoming } from '@/test/contractFixtures';
 import { MOCK_EMAILS } from '@/test/fixtures';
 import { createTestQueryClient, renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
+import { CHART_HEIGHT } from '@/features/subscriptions/PriceHistoryChart';
 
 import { HOME_COPY, HomeScreen } from './HomeScreen';
+import { barHeight } from './CategoryBars';
 
 // Loosely typed: the stubs stand in for routes in several navigators.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,6 +119,31 @@ describe('loaded with the seed data (06 §9)', () => {
     );
   });
 
+  it('the category chart folds away and comes back', async () => {
+    await renderHome();
+    await screen.findByTestId('category-card');
+
+    const toggle = screen.getByTestId('home-categories-toggle');
+    expect(toggle.props.accessibilityState).toMatchObject({ expanded: true });
+    await fireEvent.press(toggle);
+    expect(screen.queryByTestId('category-card')).toBeNull();
+    expect(screen.getByText('Spending by Category')).toBeOnTheScreen();
+    expect(
+      screen.getByTestId('home-categories-toggle').props.accessibilityState,
+    ).toMatchObject({
+      expanded: false,
+    });
+
+    await fireEvent.press(screen.getByTestId('home-categories-toggle'));
+    expect(screen.getByTestId('category-bar-productivity')).toBeOnTheScreen();
+  });
+
+  it('the tallest bar is the largest share', () => {
+    expect(barHeight(43, 43)).toBe(CHART_HEIGHT);
+    expect(barHeight(0, 43)).toBeGreaterThan(0);
+    expect(barHeight(31, 43)).toBeLessThan(CHART_HEIGHT);
+  });
+
   it('urgent attention shows the trial ending and the Netflix rise, trial first', async () => {
     await renderHome();
 
@@ -168,7 +195,7 @@ describe('loaded with the seed data (06 §9)', () => {
     expect(within(rows[1]!).getByText('in 2 days')).toBeOnTheScreen();
   });
 
-  it('View all and a renewal row go where they say', async () => {
+  it('View All and a renewal row go where they say', async () => {
     await renderHome();
 
     await fireEvent.press(await screen.findByTestId('home-view-all'));
@@ -211,11 +238,11 @@ describe('states (06 §5, §6)', () => {
     // The email CTA waits for the AI epic flag.
     expect(screen.queryByTestId('home-find-in-email')).toBeNull();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Add a subscription' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Add a Subscription' }));
     expect(await screen.findByTestId('stub')).toHaveTextContent(/^AddSubscription/);
   });
 
-  it('hides Urgent attention entirely when there is nothing urgent', async () => {
+  it('hides Urgent Attention entirely when there is nothing urgent', async () => {
     server.use(
       http.get('*/analytics/price-changes', () =>
         HttpResponse.json({ display_currency: 'USD', items: [] }),
@@ -225,7 +252,7 @@ describe('states (06 §5, §6)', () => {
     await screen.findByTestId('spend-card');
 
     await waitFor(() => expect(screen.queryByTestId('home-urgent')).toBeNull());
-    expect(screen.queryByText('Urgent attention')).toBeNull();
+    expect(screen.queryByText('Urgent Attention')).toBeNull();
   });
 
   it('says so when no renewals are due in 30 days', async () => {

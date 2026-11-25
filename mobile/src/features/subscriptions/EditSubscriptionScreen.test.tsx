@@ -1,5 +1,5 @@
 /**
- * Edit subscription (07 §5, §9) on top of the real Detail screen, against the mock API.
+ * Edit Subscription (07 §5, §9) on top of the real Detail screen, against the mock API.
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -63,7 +63,7 @@ async function renderFromDetail(queryClient = createTestQueryClient()) {
   await screen.findByTestId('form-name');
 }
 
-// The accessible label of a Detail row, e.g. "Current price, $15.49".
+// The accessible label of a Detail row, e.g. "Current Price, $15.49".
 const row = (testID: string) => screen.getByTestId(testID).props.accessibilityLabel;
 
 beforeEach(async () => {
@@ -71,7 +71,7 @@ beforeEach(async () => {
 });
 
 describe('opening (07 §5)', () => {
-  it('is prefilled, with Save changes disabled until something changes', async () => {
+  it('is prefilled, with Save Changes disabled until something changes', async () => {
     await renderFromDetail();
 
     expect(screen.getByText(EDIT_COPY.title)).toBeOnTheScreen();
@@ -82,14 +82,14 @@ describe('opening (07 §5)', () => {
     expect(screen.getByTestId('edit-cancel')).toBeEnabled();
   });
 
-  it('enables Save changes once a field changes', async () => {
+  it('enables Save Changes once a field changes', async () => {
     await renderFromDetail();
 
     await fireEvent.changeText(screen.getByTestId('form-notes'), 'Family plan');
     expect(screen.getByTestId('edit-save')).toBeEnabled();
   });
 
-  it('the History link opens Edit history for this subscription', async () => {
+  it('the History link opens Edit History for this subscription', async () => {
     await renderFromDetail();
 
     // Touch area: the 16pt icon plus the slop on each side reaches 44pt.
@@ -114,7 +114,7 @@ describe('saving', () => {
     await fireEvent.press(screen.getByTestId('edit-save'));
 
     // Back on Detail, which refetches: new price, and the chart's new step.
-    await waitFor(() => expect(row('row-price')).toBe('Current price, $16.99'));
+    await waitFor(() => expect(row('row-price')).toBe('Current Price, $16.99'));
     expect(screen.getByTestId('price-chart-summary')).toHaveTextContent(
       'Price history for the last 12 months: $13.99, increased to $15.49 on October 1, 2026, then increased to $16.99 on October 1, 2026.',
     );

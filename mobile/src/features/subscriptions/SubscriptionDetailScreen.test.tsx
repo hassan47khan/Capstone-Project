@@ -1,5 +1,5 @@
 /**
- * Subscription detail (07 §4, §9, §12) against the mock API, which serves the
+ * Subscription Detail (07 §4, §9, §12) against the mock API, which serves the
  * canonical seed data (04 §4: Alex at 2026-10-01).
  */
 import { readFileSync } from 'fs';
@@ -69,7 +69,7 @@ async function renderDetail(id: string) {
   );
 }
 
-/** The accessible label of one detail row, e.g. "Current price, $15.49". */
+/** The accessible label of one detail row, e.g. "Current Price, $15.49". */
 const row = (testID: string) => screen.getByTestId(testID).props.accessibilityLabel;
 
 beforeEach(async () => {
@@ -84,13 +84,13 @@ describe('Netflix with the seed data', () => {
     expect(screen.getByText(DETAIL_COPY.title)).toBeOnTheScreen();
     expect(within(screen.getByTestId('detail-status')).getByText('Active')).toBeTruthy();
 
-    expect(row('row-price')).toBe('Current price, $15.49');
-    expect(row('row-cycle')).toBe('Billing cycle, Monthly');
+    expect(row('row-price')).toBe('Current Price, $15.49');
+    expect(row('row-cycle')).toBe('Billing Cycle, Monthly');
     expect(row('row-category')).toBe('Category, Entertainment');
-    expect(row('row-next')).toBe('Next renewal, Oct 12, 2026');
-    expect(row('row-paid-with')).toBe('Paid with, Visa ••4242');
-    expect(row('row-added')).toBe('Date added, Mar 12, 2024');
-    expect(row('row-total')).toBe('Total spent, $433.69');
+    expect(row('row-next')).toBe('Next Renewal, Oct 12, 2026');
+    expect(row('row-paid-with')).toBe('Paid With, Visa ••4242');
+    expect(row('row-added')).toBe('Date Added, Mar 12, 2024');
+    expect(row('row-total')).toBe('Total Spent, $433.69');
     // Monthly plan: the monthly equivalent would just repeat the price.
     expect(screen.queryByTestId('row-monthly')).toBeNull();
   });
@@ -127,12 +127,12 @@ describe('Headspace (every 2 months, no price changes)', () => {
     await renderDetail('sub-headspace');
 
     await screen.findByText('Headspace');
-    expect(row('row-cycle')).toBe('Billing cycle, Every 2 months');
-    expect(row('row-monthly')).toBe('Monthly equivalent, $6.50 per month');
+    expect(row('row-cycle')).toBe('Billing Cycle, Every 2 months');
+    expect(row('row-monthly')).toBe('Monthly Equivalent, $6.50 per month');
     expect(screen.getByText('$6.50/mo')).toBeOnTheScreen();
   });
 
-  it('hides Paid with when there is no payment label', async () => {
+  it('hides Paid With when there is no payment label', async () => {
     await renderDetail('sub-headspace');
 
     await screen.findByText('Headspace');

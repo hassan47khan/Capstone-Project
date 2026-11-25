@@ -39,13 +39,13 @@ import {
 } from './listGroups';
 
 export const LIST_COPY = {
-  title: 'Your subscriptions',
+  title: 'Your Subscriptions',
   search: 'Search subscriptions…',
   all: 'All',
   count: (n: number) =>
     n === 0 ? 'no subscriptions' : n === 1 ? '1 subscription' : `${n} subscriptions`,
   noneInCategory: (name: string) => `No subscriptions in ${name}`,
-  clearFilter: 'Clear filter',
+  clearFilter: 'Clear Filter',
   noResults: (query: string) => `No results for '${query}'`,
 } as const;
 

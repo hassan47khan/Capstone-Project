@@ -76,7 +76,7 @@ describe('Trial Shield screen', () => {
     await renderTrials();
 
     const card = await screen.findByTestId('trials-at-risk');
-    expect(within(card).getByText('At risk soon')).toBeOnTheScreen();
+    expect(within(card).getByText('At Risk Soon')).toBeOnTheScreen();
     expect(within(card).getByText('$17.99')).toBeOnTheScreen();
     expect(
       within(card).getByText('1 trial converts to a paid plan within 3 days'),
@@ -118,7 +118,7 @@ describe('Trial Shield screen', () => {
     expect(screen.getByTestId('trial-keep-sub-hulu')).toBeDisabled();
   });
 
-  it('Remind me sets the reminder', async () => {
+  it('Remind Me sets the reminder', async () => {
     await renderTrials();
 
     await fireEvent.press(await screen.findByTestId('trial-remind-sub-duolingo-max'));
@@ -130,7 +130,7 @@ describe('Trial Shield screen', () => {
     );
   });
 
-  it('Cancel guide is guidance, with the end date and the charge', async () => {
+  it('Cancel Guide is guidance, with the end date and the charge', async () => {
     await renderTrials();
 
     await fireEvent.press(await screen.findByTestId('trial-guide-sub-hulu'));

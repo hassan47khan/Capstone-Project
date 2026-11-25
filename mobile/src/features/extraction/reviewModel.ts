@@ -6,8 +6,8 @@
  *     together. Each row's confidence is the lowest of its fields'.
  *   - Bands: ≥ 90% high (green chip), 60–89% medium (amber chip), < 60% low.
  *     A low row, or any row with a field the server flagged, is "flagged".
- *   - A flagged row must be resolved before "Confirm and track": either its
- *     value changed, or the user said "Looks right". This is the
+ *   - A flagged row must be resolved before "Confirm and Track": either its
+ *     value changed, or the user said "Looks Right". This is the
  *     human-in-the-loop guarantee (11 §2.7).
  *   - Reminder date = trial end − trial_alert_days_before. On or before today
  *     it's "Reminder due now".
@@ -64,8 +64,8 @@ const ROW_LABELS: Record<RowKey, string> = {
   plan: 'Plan',
   price: 'Price',
   category: 'Category',
-  trial: 'Trial ends',
-  start: 'Start date',
+  trial: 'Trial Ends',
+  start: 'Start Date',
 };
 
 export function bandFor(confidence: number | null): Band | null {
@@ -163,7 +163,7 @@ export function unresolvedRows(
     .map((row) => row.key);
 }
 
-/** "Looks right" needs something to look at: a blank row has to be filled in. */
+/** "Looks Right" needs something to look at: a blank row has to be filled in. */
 export function canConfirmAsIs(values: ReviewValues, key: RowKey): boolean {
   switch (key) {
     case 'name':
@@ -213,7 +213,7 @@ function trialLength(values: ReviewValues): number | null {
   return daysUntil(values.trialEndsOn, values.startDate);
 }
 
-/** The body for "Confirm and track": the same as POST /subscriptions. */
+/** The body for "Confirm and Track": the same as POST /subscriptions. */
 export function toConfirmInput(values: ReviewValues): SubscriptionInputRequest {
   const base = toSubscriptionInput(values);
   return {

@@ -58,8 +58,8 @@ import { useDuplicateNameWarning } from './useDuplicateNameWarning';
 import { useInFamily } from './useInFamily';
 
 export const EDIT_COPY = {
-  title: 'Edit subscription',
-  save: 'Save changes',
+  title: 'Edit Subscription',
+  save: 'Save Changes',
   saving: 'Saving changes',
   cancel: 'Cancel',
   loading: 'Loading subscription',

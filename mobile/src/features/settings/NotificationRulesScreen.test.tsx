@@ -143,7 +143,7 @@ describe('Notification Rules (09 §5)', () => {
 
     // The real server's defaults for a new account.
     expect(shownDays('rules-days')).toBe('3 days');
-    expect(rowLabel('rules-time')).toBe('Reminder time, 9:00 AM');
+    expect(rowLabel('rules-time')).toBe('Reminder Time, 9:00 AM');
     expect(isOn(RULES_COPY.push)).toBe(true);
     expect(isOn(RULES_COPY.email)).toBe(false);
     expect(isOn(RULES_COPY.anyChange)).toBe(true);
@@ -164,9 +164,9 @@ describe('Notification Rules (09 §5)', () => {
     await renderLoaded();
 
     expect(shownDays('rules-days')).toBe('7 days');
-    expect(rowLabel('rules-time')).toBe('Reminder time, 6:30 PM');
+    expect(rowLabel('rules-time')).toBe('Reminder Time, 6:30 PM');
     expect(isOn(RULES_COPY.email)).toBe(true);
-    expect(rowLabel('rules-delivery-day')).toBe('Report delivery day, 22nd of month');
+    expect(rowLabel('rules-delivery-day')).toBe('Report Delivery Day, 22nd of month');
     expect(shownDays('rules-trial-days')).toBe('1 day');
   });
 
@@ -320,7 +320,7 @@ describe('saving (09 §8: optimistic)', () => {
       picker.props.onChange({ type: 'set' }, new Date(2026, 10, 3, 18, 30));
     });
 
-    await waitFor(() => expect(rowLabel('rules-time')).toBe('Reminder time, 6:30 PM'));
+    await waitFor(() => expect(rowLabel('rules-time')).toBe('Reminder Time, 6:30 PM'));
     await settle();
     expect(notificationRulesFor(ALEX).reminder_time).toBe('18:30:00');
 
@@ -344,7 +344,7 @@ describe('saving (09 §8: optimistic)', () => {
         .props.onChange({ type: 'dismissed' }, new Date(2026, 10, 3, 18, 30));
     });
 
-    expect(rowLabel('rules-time')).toBe('Reminder time, 9:00 AM');
+    expect(rowLabel('rules-time')).toBe('Reminder Time, 9:00 AM');
     expect(patches).toEqual([]);
     server.events.removeAllListeners();
   });
@@ -356,7 +356,7 @@ describe('saving (09 §8: optimistic)', () => {
 
     await fireEvent.press(switchFor(RULES_COPY.monthly));
     expect(await screen.findByTestId('rules-delivery-day')).toBeOnTheScreen();
-    expect(rowLabel('rules-delivery-day')).toBe('Report delivery day, 1st of month');
+    expect(rowLabel('rules-delivery-day')).toBe('Report Delivery Day, 1st of month');
 
     await fireEvent.press(screen.getByTestId('rules-delivery-day'));
     const sheet = await screen.findByTestId('rules-day-sheet');
@@ -372,7 +372,7 @@ describe('saving (09 §8: optimistic)', () => {
     await fireEvent.press(within(sheet).getByTestId('rules-day-option-15'));
 
     await waitFor(() =>
-      expect(rowLabel('rules-delivery-day')).toBe('Report delivery day, 15th of month'),
+      expect(rowLabel('rules-delivery-day')).toBe('Report Delivery Day, 15th of month'),
     );
     await settle();
     expect(notificationRulesFor(ALEX).report_delivery_day).toBe(15);

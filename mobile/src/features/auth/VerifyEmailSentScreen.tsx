@@ -35,7 +35,7 @@ import { useResendWithCooldown } from './useResendWithCooldown';
 import { isValidEmail } from './validation';
 
 export const VERIFY_COPY = {
-  title: 'Check your email',
+  title: 'Check Your Email',
   sentTo: 'We sent a confirmation link to',
   sentToUnknown: 'We sent a confirmation link to your email address.',
   resent: 'Confirmation email resent',
@@ -121,7 +121,7 @@ export function VerifyEmailSentScreen() {
         <Skeleton height={sizes.minTouch} testID="verify-email-loading" />
       ) : knownEmail ? null : (
         <TextField
-          label="Email address"
+          label="Email Address"
           placeholder="you@example.com"
           value={typedEmail}
           onChangeText={setTypedEmail}

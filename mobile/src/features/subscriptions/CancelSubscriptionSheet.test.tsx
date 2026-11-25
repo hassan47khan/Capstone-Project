@@ -1,5 +1,5 @@
 /**
- * Mark as cancelled (07 §7, §9) from the real Detail screen, against the mock API.
+ * Mark as Cancelled (07 §7, §9) from the real Detail screen, against the mock API.
  */
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -62,7 +62,7 @@ beforeEach(async () => {
   await tokenStore.clear();
 });
 
-describe('Mark as cancelled (07 §7)', () => {
+describe('Mark as Cancelled (07 §7)', () => {
   it('is the inline secondary button under Edit', async () => {
     await renderDetail('sub-netflix');
 
@@ -85,18 +85,18 @@ describe('Mark as cancelled (07 §7)', () => {
 
   it('us7_cancel_keeps_history_and_leaves_totals', async () => {
     const queryClient = await renderDetail('sub-netflix');
-    expect(row('row-next')).toBe('Next renewal, Oct 12, 2026');
+    expect(row('row-next')).toBe('Next Renewal, Oct 12, 2026');
 
     await openSheet();
     await fireEvent.press(screen.getByTestId('cancel-sheet-confirm'));
 
-    // Cancelled: badge, no Mark as cancelled, no next renewal, saved per year shown.
+    // Cancelled: badge, no Mark as Cancelled, no next renewal, saved per year shown.
     await waitFor(() =>
       expect(screen.getByTestId('detail-status')).toHaveTextContent('Cancelled'),
     );
     expect(screen.queryByTestId('detail-cancel')).toBeNull();
     expect(screen.queryByTestId('row-next')).toBeNull();
-    expect(row('row-saved')).toBe('Saved per year, $185.88');
+    expect(row('row-saved')).toBe('Saved per Year, $185.88');
     await waitFor(() => expect(sheetOpen()).toBe(false));
 
     // Out of totals, and the history is all still there plus the cancel event.
@@ -142,7 +142,7 @@ describe('Mark as cancelled (07 §7)', () => {
     await openSheet();
     await fireEvent.press(screen.getByTestId('cancel-sheet-confirm'));
 
-    await waitFor(() => expect(row('row-saved')).toBe('Saved per year, $77.94'));
+    await waitFor(() => expect(row('row-saved')).toBe('Saved per Year, $77.94'));
   });
 
   it('a trial can be cancelled too, with the real saved-per-year (Hulu, $215.88)', async () => {
@@ -154,10 +154,10 @@ describe('Mark as cancelled (07 §7)', () => {
     await waitFor(() =>
       expect(screen.getByTestId('detail-status')).toHaveTextContent('Cancelled'),
     );
-    expect(row('row-saved')).toBe('Saved per year, $215.88');
+    expect(row('row-saved')).toBe('Saved per Year, $215.88');
   });
 
-  it('"Keep it" closes the sheet and sends nothing', async () => {
+  it('"Keep It" closes the sheet and sends nothing', async () => {
     let calls = 0;
     server.use(
       http.post('*/subscriptions/:id/cancel', () => {
@@ -193,7 +193,7 @@ describe('Mark as cancelled (07 §7)', () => {
     await waitFor(() => expect(sheetOpen()).toBe(false));
   });
 
-  it('while cancelling: confirm is busy and "Keep it" is disabled', async () => {
+  it('while cancelling: confirm is busy and "Keep It" is disabled', async () => {
     let release: () => void = () => {};
     server.use(
       http.post(

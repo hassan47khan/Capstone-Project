@@ -27,7 +27,7 @@ export const familyKeys = {
   invitation: (token: string) => [...familyKeys.all, 'invitation', token] as const,
 };
 
-/** 404 `no_family`: show "Start a family", not an error. */
+/** 404 `no_family`: show "Start a Family", not an error. */
 export function isNoFamily(error: unknown): boolean {
   return error instanceof ApiError && error.code === 'no_family';
 }

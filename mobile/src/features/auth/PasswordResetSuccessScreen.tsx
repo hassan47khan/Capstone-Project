@@ -14,7 +14,7 @@ import { AuthShell } from './AuthShell';
 import { StatusIcon } from './StatusIcon';
 
 export const RESET_SUCCESS_COPY = {
-  title: 'Password updated',
+  title: 'Password Updated',
   body: 'Your password has been changed, and you have been signed out everywhere else. Log in with your new password.',
 } as const;
 

@@ -147,7 +147,7 @@ describe('auth gate (03 §5)', () => {
     await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
     await renderApp();
 
-    await waitFor(() => expect(title()).toBe('Check your email'));
+    await waitFor(() => expect(title()).toBe('Check Your Email'));
     expect(mockLoginRenders).not.toHaveBeenCalled();
   });
 
@@ -164,7 +164,7 @@ describe('auth gate (03 §5)', () => {
     );
     await tokenStore.setRefreshToken(`mock-refresh-${MOCK_EMAILS.full}`);
     await renderApp();
-    await waitFor(() => expect(title()).toBe('Check your email'));
+    await waitFor(() => expect(title()).toBe('Check Your Email'));
     await waitFor(() => expect(screen.getByTestId('verify-wrong-email')).toBeEnabled());
 
     await fireEvent.press(screen.getByTestId('verify-wrong-email'));
@@ -227,7 +227,7 @@ describe('tab bar (03 §2)', () => {
     await waitFor(() => expect(screen.getByTestId('tab-fab')).toBeOnTheScreen());
 
     expect(screen.getByRole('button', { name: 'Add subscription' })).toBeOnTheScreen();
-    expect(screen.queryByRole('tab', { name: 'Add subscription' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Add Subscription' })).toBeNull();
   });
 
   it('gives each tab the full bar height and clears the home indicator', async () => {
@@ -267,7 +267,7 @@ describe('modals (03 §3)', () => {
     await fireEvent.press(screen.getByTestId('tab-fab'));
 
     await waitFor(() =>
-      expect(screen.getByRole('header', { name: 'Add subscription' })).toBeOnTheScreen(),
+      expect(screen.getByRole('header', { name: 'Add Subscription' })).toBeOnTheScreen(),
     );
     expect(screen.getByRole('button', { name: 'Close' })).toBeOnTheScreen();
     // Rule 2: the tab the user came from stays selected; nothing else lights up.
@@ -288,7 +288,7 @@ describe('modals (03 §3)', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
 
     await waitFor(() =>
-      expect(screen.queryByRole('header', { name: 'Add subscription' })).toBeNull(),
+      expect(screen.queryByRole('header', { name: 'Add Subscription' })).toBeNull(),
     );
     expect(screen.getByTestId('tab-Home')).toBeSelected();
   });
@@ -329,7 +329,7 @@ describe('tab stacks (03 §1)', () => {
   it.each([
     ['Calendar', 'calendar-trial-shield', 'Trial Shield'],
     ['Settings', 'settings-shared-plans', 'Shared Plans'],
-    ['Settings', 'settings-connect-email', 'Connect email'],
+    ['Settings', 'settings-connect-email', 'Connect Email'],
     ['Settings', 'settings-family', 'Family Members (3 of 5)'],
   ])(
     '%s pushes %s inside the tab, with back and the tab bar kept',
@@ -367,7 +367,7 @@ describe('tab stacks (03 §1)', () => {
     expect(screen.getByTestId('calendar-title')).toBeOnTheScreen();
   });
 
-  it('Connect email opens Review extraction as a modal, and no tab changes', async () => {
+  it('Connect Email opens Review Extraction as a modal, and no tab changes', async () => {
     await renderApp();
     await waitFor(() => expect(screen.getByTestId('tab-Settings')).toBeOnTheScreen());
     await fireEvent.press(screen.getByTestId('tab-Settings'));
@@ -377,7 +377,7 @@ describe('tab stacks (03 §1)', () => {
     await fireEvent.press(await screen.findByTestId('connect-result-ext-hulu'));
 
     await waitFor(() =>
-      expect(screen.getByRole('header', { name: 'Review extraction' })).toBeOnTheScreen(),
+      expect(screen.getByRole('header', { name: 'Review Extraction' })).toBeOnTheScreen(),
     );
     expect(screen.getByRole('button', { name: 'Close' })).toBeOnTheScreen();
     expect(selectedTabs()).toEqual(['Settings']);
@@ -386,15 +386,15 @@ describe('tab stacks (03 §1)', () => {
 
 describe('the full tree is navigable (03 §1)', () => {
   const APP_ROUTES: [keyof AppStackParamList, object | undefined, string][] = [
-    ['AddSubscription', undefined, 'Add subscription'],
-    ['SubscriptionDetail', { id: 'sub_1' }, 'Subscription detail'],
-    ['EditSubscription', { id: 'sub_1' }, 'Edit subscription'],
-    ['EditHistory', { id: 'sub_1' }, 'Edit history'],
+    ['AddSubscription', undefined, 'Add Subscription'],
+    ['SubscriptionDetail', { id: 'sub_1' }, 'Subscription Detail'],
+    ['EditSubscription', { id: 'sub_1' }, 'Edit Subscription'],
+    ['EditHistory', { id: 'sub_1' }, 'Edit History'],
     ['SelectCurrency', undefined, 'Currency'],
-    ['SelectTimeZone', undefined, 'Time zone'],
-    ['NotificationRules', undefined, 'Notification rules'],
-    ['ProfileAccount', undefined, 'Profile & account'],
-    ['ReviewExtraction', { id: 'ext-hulu' }, 'Review extraction'],
+    ['SelectTimeZone', undefined, 'Time Zone'],
+    ['NotificationRules', undefined, 'Notification Rules'],
+    ['ProfileAccount', undefined, 'Profile & Account'],
+    ['ReviewExtraction', { id: 'ext-hulu' }, 'Review Extraction'],
   ];
 
   it.each(APP_ROUTES)('App: %s', async (route, params, expectedTitle) => {
@@ -442,13 +442,13 @@ describe('the full tree is navigable (03 §1)', () => {
   });
 
   const AUTH_ROUTES: [keyof AuthStackParamList, object | undefined, string][] = [
-    ['Register', undefined, 'Create your account'],
-    ['VerifyEmailSent', undefined, 'Check your email'],
-    ['EmailConfirmed', { token: 't' }, 'Email confirmed'],
+    ['Register', undefined, 'Create Your Account'],
+    ['VerifyEmailSent', undefined, 'Check Your Email'],
+    ['EmailConfirmed', { token: 't' }, 'Email Confirmed'],
     ['ForgotPassword', undefined, 'Forgot your password?'],
-    ['ResetLinkSent', { email: 'a@b.c' }, 'Check your email'],
-    ['CreateNewPassword', { token: 't' }, 'Create a new password'],
-    ['PasswordResetSuccess', undefined, 'Password updated'],
+    ['ResetLinkSent', { email: 'a@b.c' }, 'Check Your Email'],
+    ['CreateNewPassword', { token: 't' }, 'Create a New Password'],
+    ['PasswordResetSuccess', undefined, 'Password Updated'],
   ];
 
   it.each(AUTH_ROUTES)('Auth: %s', async (route, params, expectedTitle) => {
@@ -474,7 +474,7 @@ describe('the full tree is navigable (03 §1)', () => {
     );
     // Pushed over Log In, so there is somewhere to go back to. Some screens
     // also offer a "Back to Log In" link in the card, hence "at least one".
-    // Password updated is terminal (05 §1): its only way on is Log In.
+    // Password Updated is terminal (05 §1): its only way on is Log In.
     if (route === 'PasswordResetSuccess') {
       expect(screen.queryByRole('button', { name: 'Back to Log In' })).toBeNull();
     } else {
@@ -493,7 +493,7 @@ describe('the full tree is navigable (03 §1)', () => {
     await fireEvent.press(screen.getByTestId('settings-timezone'));
 
     await waitFor(() =>
-      expect(screen.getByRole('header', { name: 'Time zone' })).toBeOnTheScreen(),
+      expect(screen.getByRole('header', { name: 'Time Zone' })).toBeOnTheScreen(),
     );
   });
 });
@@ -587,7 +587,7 @@ describe('deep links (03 §6)', () => {
       .mockResolvedValue('subtrak://reset-password?token=abc');
     await renderApp();
 
-    await waitFor(() => expect(title()).toBe('Create a new password'));
+    await waitFor(() => expect(title()).toBe('Create a New Password'));
   });
 
   it('cold start, signed out: verify-email opens Email Confirmed', async () => {
@@ -596,7 +596,7 @@ describe('deep links (03 §6)', () => {
       .mockResolvedValue('subtrak://verify-email?token=abc');
     await renderApp();
 
-    await waitFor(() => expect(title()).toBe('Email confirmed'));
+    await waitFor(() => expect(title()).toBe('Email Confirmed'));
   });
 
   it('cold start, signed in: a subscription link opens its detail', async () => {
@@ -608,7 +608,7 @@ describe('deep links (03 §6)', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('header', { name: 'Subscription detail' }),
+        screen.getByRole('header', { name: 'Subscription Detail' }),
       ).toBeOnTheScreen(),
     );
   });
@@ -622,7 +622,7 @@ describe('deep links (03 §6)', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('header', { name: 'Create a new password' }),
+        screen.getByRole('header', { name: 'Create a New Password' }),
       ).toBeOnTheScreen(),
     );
   });
@@ -640,7 +640,7 @@ describe('deep links (03 §6)', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('header', { name: 'Subscription detail' }),
+        screen.getByRole('header', { name: 'Subscription Detail' }),
       ).toBeOnTheScreen(),
     );
   });
@@ -656,7 +656,7 @@ describe('deep links (03 §6)', () => {
     await fireEvent.press(screen.getByText('test-sign-in'));
 
     await waitFor(() =>
-      expect(screen.getByRole('header', { name: 'Family invitation' })).toBeOnTheScreen(),
+      expect(screen.getByRole('header', { name: 'Family Invitation' })).toBeOnTheScreen(),
     );
   });
 
@@ -670,7 +670,7 @@ describe('deep links (03 §6)', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('header', { name: 'Subscription detail' }),
+        screen.getByRole('header', { name: 'Subscription Detail' }),
       ).toBeOnTheScreen(),
     );
   });

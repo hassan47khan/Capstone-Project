@@ -17,10 +17,10 @@ import { makeStyles, spacing } from '@/theme';
 import { familyKeys, invite, type FamilyRole } from './api';
 
 export const INVITE_COPY = {
-  title: 'Invite member',
+  title: 'Invite Member',
   email: 'Email',
   role: 'Role',
-  send: 'Send invitation',
+  send: 'Send Invitation',
   note: 'The invitation works for 7 days. It says that family admins can see their subscriptions, and that they can mark any of them private.',
 } as const;
 

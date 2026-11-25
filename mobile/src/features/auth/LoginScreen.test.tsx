@@ -91,12 +91,12 @@ describe('shared shell (05 §2)', () => {
   it('matches the Figma copy: labels, placeholders, the footer link', async () => {
     await renderLogin();
 
-    expect(screen.getByText('Email address')).toBeOnTheScreen();
+    expect(screen.getByText('Email Address')).toBeOnTheScreen();
     expect(screen.getByPlaceholderText('you@example.com')).toBeOnTheScreen();
     expect(screen.getByPlaceholderText('Enter your password')).toBeOnTheScreen();
     expect(screen.getByText("Don't have an account?")).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Create Account' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Forgot password?' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Forgot Password?' })).toBeOnTheScreen();
   });
 
   it('has no back button on the first screen of the stack', async () => {

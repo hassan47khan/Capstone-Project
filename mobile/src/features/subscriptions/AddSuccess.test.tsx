@@ -71,7 +71,7 @@ it.each([
 it('a monthly plan shows no "≈ /mo" line (it would repeat the price)', async () => {
   await renderSuccess(saved('15.00', 'monthly'));
 
-  expect(screen.getByLabelText('Billing price, $15.00')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Billing Price, $15.00')).toBeOnTheScreen();
   expect(screen.queryByTestId('add-success-monthly')).toBeNull();
 });
 
@@ -102,7 +102,7 @@ describe('second review fixes', () => {
   it('a monthly plan in another currency shows what it adds in yours (€12.00 → ≈ $13.08/mo)', async () => {
     await renderSuccess(capturedAddResponses.eurMonthly);
 
-    expect(screen.getByLabelText('Billing price, €12.00')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Billing Price, €12.00')).toBeOnTheScreen();
     expect(screen.getByTestId('add-success-monthly')).toHaveTextContent('≈ $13.08/mo');
     expect(screen.queryByTestId('add-success-no-rate')).toBeNull();
   });

@@ -1,6 +1,6 @@
 /**
  * The round icon at the top of the confirmation screens (05 §4, Figma): a
- * mail glyph on "Check your email", a check on "Email confirmed" and the
+ * mail glyph on "Check Your Email", a check on "Email Confirmed" and the
  * reset success. Decorative: the heading below it says the same thing.
  *
  * `animate` is the success icon's entrance (05 §10): scale 0.8 → 1. It is the

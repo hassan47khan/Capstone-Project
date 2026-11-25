@@ -24,7 +24,7 @@ export function ConfirmCurrencyChangeSheet() {
       visible
       title={`Switch to ${params.currency}?`}
       message="Every total will be shown in the new currency. Not built yet — handoff 09."
-      confirmLabel="Switch currency"
+      confirmLabel="Switch Currency"
       onConfirm={() => navigation.goBack()}
       onCancel={() => navigation.goBack()}
       testID="confirm-currency"

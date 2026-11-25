@@ -54,21 +54,21 @@ import {
 } from './api';
 
 export const RULES_COPY = {
-  title: 'Notification rules',
+  title: 'Notification Rules',
   loading: 'Loading notification rules',
-  billing: 'Billing reminders',
-  daysBefore: 'Days before reminder',
-  reminderTime: 'Reminder time',
-  push: 'Send via push',
-  email: 'Send via email',
-  priceChanges: 'Price changes',
-  anyChange: 'Alert on any change',
+  billing: 'Billing Reminders',
+  daysBefore: 'Days Before Reminder',
+  reminderTime: 'Reminder Time',
+  push: 'Send via Push',
+  email: 'Send via Email',
+  priceChanges: 'Price Changes',
+  anyChange: 'Alert on Any Change',
   summaries: 'Summaries',
-  weekly: 'Weekly spending summary',
-  monthly: 'Monthly report',
-  deliveryDay: 'Report delivery day',
+  weekly: 'Weekly Spending Summary',
+  monthly: 'Monthly Report',
+  deliveryDay: 'Report Delivery Day',
   trials: 'Trials',
-  trialDays: 'Days before trial ends',
+  trialDays: 'Days Before Trial Ends',
   saveFailed: "Couldn't save. Try again.",
 } as const;
 

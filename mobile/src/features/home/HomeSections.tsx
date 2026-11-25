@@ -7,7 +7,13 @@
  * section's request runs, an inline retry if it fails, so one slow or broken
  * endpoint never blanks the screen.
  */
-import { Bell, TrendingDown, TrendingUp } from 'lucide-react-native';
+import {
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -103,18 +109,42 @@ export function Greeting({
 export function Section({
   title,
   action,
+  collapsed,
+  onToggle,
   children,
   testID,
 }: {
   title?: string;
   action?: ReactNode;
+  /** With onToggle, the header becomes a show/hide button and hides children. */
+  collapsed?: boolean;
+  onToggle?: () => void;
   children: ReactNode;
   testID?: string;
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
+  const Chevron = collapsed ? ChevronDown : ChevronUp;
   return (
     <View style={styles.section} testID={testID}>
-      {title ? (
+      {title && onToggle ? (
+        <Pressable
+          onPress={onToggle}
+          accessibilityRole="button"
+          accessibilityLabel={title}
+          accessibilityState={{ expanded: !collapsed }}
+          accessibilityHint={collapsed ? 'Shows the section' : 'Hides the section'}
+          style={({ pressed }) => [
+            styles.sectionHeader,
+            styles.sectionToggle,
+            pressed && styles.pressed,
+          ]}
+          testID={testID ? `${testID}-toggle` : undefined}
+        >
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Chevron size={sizes.icon} color={colors.textMuted} strokeWidth={2} />
+        </Pressable>
+      ) : title ? (
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
             {title}
@@ -122,7 +152,7 @@ export function Section({
           {action}
         </View>
       ) : null}
-      {children}
+      {collapsed ? null : children}
     </View>
   );
 }
@@ -244,7 +274,7 @@ export function SpendCard({
   );
 }
 
-// Spending by category (06 §2.3, now a tappable bar graph) ----------------------
+// Spending by category (06 §2.3, now a tappable vertical bar graph) ----------------------
 
 export function CategoryCard({
   summary,
@@ -450,6 +480,9 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  sectionToggle: {
+    minHeight: sizes.minTouch,
   },
   // TODO(tokens): 06 asks for DM Serif 18/24; displaySm (20/28) is the nearest.
   sectionTitle: {

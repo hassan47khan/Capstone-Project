@@ -146,6 +146,7 @@ async function renderAnalytics(
           <Stack.Screen name="Analytics" component={AnalyticsScreen} />
           <Stack.Screen name="AddSubscription" component={Stub} />
           <Stack.Screen name="SubscriptionDetail" component={Stub} />
+          <Stack.Screen name="CategoryDetail" component={Stub} />
         </Stack.Navigator>
       </NavigationContainer>
     </SessionProvider>,
@@ -167,7 +168,18 @@ beforeEach(async () => {
   await tokenStore.clear();
 });
 
-describe('Spending by category (08 §2.2, §3)', () => {
+describe('Spending by Category (08 §2.2, §3)', () => {
+  it('tapping a category opens its screen, the same one Home opens', async () => {
+    serve(alexReal);
+    await renderAnalytics();
+
+    await fireEvent.press(await screen.findByTestId('analytics-category-entertainment'));
+    expect(await screen.findByTestId('stub')).toHaveTextContent('CategoryDetail');
+    expect(screen.getByTestId('stub-params')).toHaveTextContent(
+      '{"slug":"entertainment","name":"Entertainment"}',
+    );
+  });
+
   it('shows every non-zero category, largest first, as the server sent them', async () => {
     serve(alexReal);
     await renderAnalytics();
@@ -222,14 +234,14 @@ describe('Spending by category (08 §2.2, §3)', () => {
   });
 });
 
-describe('Monthly total (08 §2.3)', () => {
+describe('Monthly Total (08 §2.3)', () => {
   it("matches Home's total exactly ($129.20 with seed data)", async () => {
     serve(alexReal);
     await renderAnalytics();
 
     expect(
       (await screen.findByTestId('analytics-monthly-total')).props.accessibilityLabel,
-    ).toBe('Monthly total, $129.20');
+    ).toBe('Monthly Total, $129.20');
   });
 });
 
@@ -295,7 +307,7 @@ describe('edge cases (08 §5)', () => {
 
     expect(
       (await screen.findByTestId('analytics-monthly-total')).props.accessibilityLabel,
-    ).toBe('Monthly total, $0.00');
+    ).toBe('Monthly Total, $0.00');
     expect(screen.queryByText(ANALYTICS_COPY.emptyTitle)).toBeNull();
   });
 
@@ -321,7 +333,7 @@ describe('edge cases (08 §5)', () => {
     );
     expect(screen.queryByText(ANALYTICS_COPY.emptyTitle)).toBeNull();
     expect(screen.getByTestId('analytics-monthly-total').props.accessibilityLabel).toBe(
-      'Monthly total, $0.00',
+      'Monthly Total, $0.00',
     );
   });
 
@@ -553,7 +565,7 @@ describe('Spend over time (08 §2.1)', () => {
     expect(
       (await screen.findByTestId('analytics-projected')).props.accessibilityLabel,
     ).toBe(
-      "Projected for the year, $1,550.34. At today's prices. Trials aren't counted.",
+      "Projected for the Year, $1,550.34. At today's prices. Trials aren't counted.",
     );
   });
 
@@ -715,7 +727,7 @@ describe('Subscription list (08 §2.4)', () => {
     );
   });
 
-  it('a chip whose category empties out: "No subscriptions in …" and Clear filter', async () => {
+  it('a chip whose category empties out: "No subscriptions in …" and Clear Filter', async () => {
     const queryClient = await renderAnalytics();
     await screen.findByTestId('analytics-list');
     await fireEvent.press(screen.getByTestId('analytics-chip-ai-tools'));

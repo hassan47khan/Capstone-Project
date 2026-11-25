@@ -5,7 +5,7 @@
  * isn't touched. Every type comes from the generated contract.
  *
  * Nothing here creates a subscription except `confirmExtraction`, which is
- * the "Confirm and track" button (11 §2.7 rule 1).
+ * the "Confirm and Track" button (11 §2.7 rule 1).
  */
 import { request } from '@/api/client';
 import type {
@@ -60,7 +60,7 @@ export function listPending(): Promise<PendingExtractionList> {
   return request<PendingExtractionList>('/extractions/pending');
 }
 
-/** "Confirm and track": the only call that turns a review into a subscription. */
+/** "Confirm and Track": the only call that turns a review into a subscription. */
 export function confirmExtraction(
   id: string,
   input: SubscriptionInputRequest,

@@ -1,5 +1,5 @@
 /**
- * Shared plans (11 §2.6). Alex's Netflix, split three ways by the server:
+ * Shared Plans (11 §2.6). Alex's Netflix, split three ways by the server:
  * $5.17 (Alex, owner, paid) + $5.16 (Jordan, paid) + $5.16 (Sam, pending,
  * no email).
  */
@@ -57,7 +57,7 @@ describe('helpers', () => {
   });
 });
 
-describe('Shared plans screen', () => {
+describe('Shared Plans screen', () => {
   it('us14_shows_each_share_as_the_server_split_it', async () => {
     await renderPlans();
 
@@ -143,7 +143,7 @@ describe('Shared plans screen', () => {
     );
   });
 
-  it('Mark paid moves the person to Paid and Outstanding to the server figure', async () => {
+  it('Mark Paid moves the person to Paid and Outstanding to the server figure', async () => {
     await renderPlans();
     await fireEvent.press(await screen.findByTestId('member-paid-part-sam'));
 
@@ -177,7 +177,7 @@ describe('Shared plans screen', () => {
     expect(await screen.findByTestId('shared-outstanding')).toBeOnTheScreen();
   });
 
-  it('a failed Mark paid leaves the row as it was and says why', async () => {
+  it('a failed Mark Paid leaves the row as it was and says why', async () => {
     server.use(
       http.post('*/shared-plans/:plan/payments/:payment/paid', () =>
         HttpResponse.json(
@@ -210,14 +210,14 @@ describe('Shared plans screen', () => {
     expect(await screen.findByTestId('shared-error')).toBeOnTheScreen();
   });
 
-  it('someone with no plans sees the empty state and New shared plan', async () => {
+  it('someone with no plans sees the empty state and New Shared Plan', async () => {
     await renderPlans(MOCK_EMAILS.empty);
     expect(await screen.findByTestId('shared-empty')).toBeOnTheScreen();
     expect(screen.queryByTestId('shared-outstanding')).toBeNull();
     expect(screen.getByTestId('shared-new')).toBeOnTheScreen();
   });
 
-  it('New shared plan saves, closes the sheet and shows the server split', async () => {
+  it('New Shared Plan saves, closes the sheet and shows the server split', async () => {
     await renderPlans(MOCK_EMAILS.full);
     await fireEvent.press(await screen.findByTestId('shared-new'));
 

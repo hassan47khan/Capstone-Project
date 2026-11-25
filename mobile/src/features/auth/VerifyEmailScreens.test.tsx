@@ -1,5 +1,5 @@
 /**
- * Check your email and Email confirmed (05 §4, §8; US-1), against the shared
+ * Check Your Email and Email Confirmed (05 §4, §8; US-1), against the shared
  * mock routes.
  */
 import { NavigationContainer, useRoute } from '@react-navigation/native';
@@ -71,7 +71,7 @@ beforeEach(async () => {
   await tokenStore.clear();
 });
 
-describe('Check your email (05 §4)', () => {
+describe('Check Your Email (05 §4)', () => {
   it('names the inbox and makes Open Mail app the primary', async () => {
     await renderAt('VerifyEmailSent', { email: 'new@subtrak.test' });
 
@@ -251,7 +251,7 @@ describe('Check your email (05 §4)', () => {
   });
 });
 
-describe('Email confirmed (05 §8)', () => {
+describe('Email Confirmed (05 §8)', () => {
   it('us1_confirms_the_link_then_continues_to_log_in', async () => {
     await renderAt('EmailConfirmed', { token: 'good' });
 
@@ -311,7 +311,7 @@ describe('Email confirmed (05 §8)', () => {
     expect(screen.getByTestId('session-status')).toHaveTextContent('authenticated');
   });
 
-  it('a signed-in user whose /me still says unverified goes back to Check your email', async () => {
+  it('a signed-in user whose /me still says unverified goes back to Check Your Email', async () => {
     server.use(
       http.get('*/me', () =>
         HttpResponse.json({

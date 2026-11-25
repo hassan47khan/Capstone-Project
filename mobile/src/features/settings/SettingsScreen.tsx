@@ -46,13 +46,13 @@ export const SETTINGS_COPY = {
   notificationRules: 'Notifications',
   profile: 'Profile',
   signOut: 'Sign Out',
-  sharedPlans: 'Shared plans',
+  sharedPlans: 'Shared Plans',
   family: 'Family',
-  connectedEmail: 'Connected email',
-  gallery: 'Component gallery',
+  connectedEmail: 'Connected Email',
+  gallery: 'Component Gallery',
   signOutTitle: 'Sign out?',
   signOutMessage: 'You can sign back in anytime.',
-  signOutConfirm: 'Sign out',
+  signOutConfirm: 'Sign Out',
 } as const;
 
 // "USD ($)", "EUR (€)", "JPY (¥)".

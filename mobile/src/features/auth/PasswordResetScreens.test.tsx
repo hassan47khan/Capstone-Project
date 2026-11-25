@@ -1,6 +1,6 @@
 /**
  * The password-reset flow (05 §1, §4, §8; US-3): Forgot your password?, Check
- * your email, Create a new password, Password updated. Against the shared
+ * your email, Create a New Password, Password Updated. Against the shared
  * mock routes.
  */
 import { NavigationContainer } from '@react-navigation/native';
@@ -132,8 +132,8 @@ describe('Forgot your password? (Figma "Forgot Password")', () => {
   });
 });
 
-describe('Check your email, reset (05 §4 over the frame)', () => {
-  it("starts Resend disabled with the cooldown Forgot password's request returned", async () => {
+describe('Check Your Email, reset (05 §4 over the frame)', () => {
+  it("starts Resend disabled with the cooldown Forgot Password's request returned", async () => {
     server.use(
       http.post('*/auth/password-reset/request', () =>
         HttpResponse.json({ cooldown_seconds: 45 }),
@@ -148,14 +148,14 @@ describe('Check your email, reset (05 §4 over the frame)', () => {
     expect(screen.getByTestId('reset-resend')).toBeDisabled();
   });
 
-  it('the back button names Forgot password, where it goes', async () => {
+  it('the back button names Forgot Password, where it goes', async () => {
     await renderFlow('ForgotPassword');
     await fireEvent.changeText(screen.getByTestId('forgot-email'), 'a@subtrak.test');
     await fireEvent.press(screen.getByTestId('forgot-submit'));
     await screen.findByTestId('reset-link-sent-screen');
 
     await fireEvent.press(
-      screen.getByRole('button', { name: 'Back to Forgot password' }),
+      screen.getByRole('button', { name: 'Back to Forgot Password' }),
     );
 
     expect(
@@ -251,7 +251,7 @@ describe('Check your email, reset (05 §4 over the frame)', () => {
   });
 });
 
-describe('Create a new password (05 §8)', () => {
+describe('Create a New Password (05 §8)', () => {
   const enter = async (password: string) => {
     await fireEvent.changeText(screen.getByTestId('new-password'), password);
     await fireEvent.press(screen.getByTestId('new-password-submit'));

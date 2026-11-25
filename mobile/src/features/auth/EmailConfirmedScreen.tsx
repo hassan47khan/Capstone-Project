@@ -5,7 +5,7 @@
  * The token is sent once, on open. While it is checked the primary shows its
  * loading state; there is no skeleton (05 §9: auth screens fetch nothing).
  *
- *   confirmed         check icon, "Email confirmed", Continue
+ *   confirmed         check icon, "Email Confirmed", Continue
  *   token_expired     "This link has expired." with Send a new link as the
  *                     primary (05 §8)
  *   anything else     "This link isn't valid", same way out
@@ -38,7 +38,7 @@ import { StatusIcon } from './StatusIcon';
 export const CONFIRMED_COPY = {
   checking: 'Confirming your email',
   checkingBody: 'This only takes a moment.',
-  title: 'Email confirmed',
+  title: 'Email Confirmed',
   body: 'Your email has been confirmed successfully. Your SubTrak account is ready.',
   expired: 'This link has expired.',
   expiredBody: 'Confirmation links stop working after a while. Send yourself a new one.',
@@ -143,7 +143,7 @@ export function EmailConfirmedScreen() {
           />
         ) : (
           <Button
-            label="Send a new link"
+            label="Send a New Link"
             onPress={() => navigation.navigate('VerifyEmailSent')}
             fullWidth
             testID="confirmed-resend"
