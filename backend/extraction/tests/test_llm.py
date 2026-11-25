@@ -27,12 +27,12 @@ GOOD = {
 
 
 def reply(data=GOOD, *, stop="end_turn", text=None):
-    """A Messages response: a thinking block first, as Opus 5.5 always sends."""
+    """A Messages response: a thinking block first, as Haiku 5.5 sends by default."""
     body = {
         "id": "msg_1",
         "type": "message",
         "role": "assistant",
-        "model": "claude-opus-5-5",
+        "model": "claude-haiku-5-5",
         "stop_reason": stop,
         "content": [
             {"type": "thinking", "thinking": "", "signature": "sig"},
@@ -85,21 +85,21 @@ def test_the_request_is_anthropics_documented_shape():
     assert request.headers["anthropic-version"] == "2026-10-21"
 
 
-def test_the_default_model_is_opus_5_5():
-    recorder = Recorder(reply())
-
-    llm.read_email(SOURCE, transport=recorder.transport)
-
-    assert recorder.body()["model"] == "claude-opus-5-5"
-
-
-def test_llm_model_overrides_the_default(keyed):
-    keyed.LLM_MODEL = "claude-haiku-5-5"
+def test_the_default_model_is_haiku_5_5():
     recorder = Recorder(reply())
 
     llm.read_email(SOURCE, transport=recorder.transport)
 
     assert recorder.body()["model"] == "claude-haiku-5-5"
+
+
+def test_llm_model_overrides_the_default(keyed):
+    keyed.LLM_MODEL = "claude-sonnet-5-5"
+    recorder = Recorder(reply())
+
+    llm.read_email(SOURCE, transport=recorder.transport)
+
+    assert recorder.body()["model"] == "claude-sonnet-5-5"
 
 
 def test_json_comes_from_structured_outputs_at_low_effort():
@@ -153,7 +153,7 @@ def test_the_answer_is_read_from_the_text_block_after_the_thinking():
     answer = llm.read_email(SOURCE, transport=Recorder(reply()).transport)
 
     assert answer.data["service_name"] == "Hulu"
-    assert answer.model == "claude-opus-5-5"
+    assert answer.model == "claude-haiku-5-5"
     assert answer.usage["input_tokens"] == 812
 
 
