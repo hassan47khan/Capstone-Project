@@ -26,6 +26,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { PlusCircle } from 'lucide-react-native';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type {
@@ -96,6 +97,8 @@ function timeOf(epochMs: number): string {
 export function HomeScreen() {
   const styles = useStyles();
   const navigation = useNavigation<Navigation>();
+  // Spending by category can be folded away; it starts open on each visit.
+  const [categoriesHidden, setCategoriesHidden] = useState(false);
 
   const profile = useQuery({
     queryKey: queryKeys.session.profile(),
@@ -252,7 +255,12 @@ export function HomeScreen() {
         )}
       </Section>
 
-      <Section title="Spending by category" testID="home-categories">
+      <Section
+        title="Spending by category"
+        collapsed={categoriesHidden}
+        onToggle={() => setCategoriesHidden((hidden) => !hidden)}
+        testID="home-categories"
+      >
         {summary.data ? (
           <CategoryCard summary={summary.data} onOpen={openCategory} />
         ) : summary.isError ? (

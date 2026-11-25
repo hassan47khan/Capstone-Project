@@ -32,7 +32,7 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleHelp } from 'lucide-react-native';
+import { CircleHelp, AlertTriangle } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -229,6 +229,7 @@ function Review({
   onClose: () => void;
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   const navigation = useNavigation<Navigation>();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -420,7 +421,16 @@ function Review({
         </Card>
       ) : null}
 
-      <View style={styles.banner}>
+      {/* Bold, bordered and iconed so it can't be skimmed past. Warning, not
+          danger: nothing has gone wrong, and danger is for errors (rule 3). */}
+      <View style={styles.banner} testID="review-banner">
+        <AlertTriangle
+          size={sizes.icon}
+          color={colors.warning}
+          strokeWidth={2}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
         <Text style={styles.bannerText}>{REVIEW_SCREEN_COPY.banner}</Text>
       </View>
 
@@ -708,14 +718,20 @@ const useStyles = makeStyles(({ colors, typography }) => ({
     padding: 0,
   },
   banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.warningSurface,
     borderRadius: radius.card,
+    borderWidth: sizes.borderFocus,
+    borderColor: colors.warning,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + spacing.xs / 2,
+    paddingVertical: spacing.md,
   },
   bannerText: {
-    ...typography.captionStrong,
+    ...typography.alertTitle,
     color: colors.text,
+    flex: 1,
   },
   notice: {
     gap: spacing.sm,
