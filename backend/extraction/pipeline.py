@@ -416,6 +416,37 @@ def service_key(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", normalise(name).replace("+", " plus"))
 
 
+_PLAN_WORDS = re.compile(r"\s+(?:plan|membership|subscription|tier)$", re.IGNORECASE)
+
+
+def tidy_names(output: dict, catalog: dict) -> dict:
+    """Split the service and the plan the way SubTrak names them.
+
+    Models draw the line between brand and tier differently from run to run
+    ("Spotify" + "Spotify Premium Individual", "ChatGPT" + "Plus"). The live
+    eval showed every such answer as a wrong value in green, because each part
+    is in the email. So, before grounding:
+
+    * a service and plan that together make a catalog name become that name,
+      with no plan ("ChatGPT" + "Plus" -> "ChatGPT Plus");
+    * the service's own name is taken off the front of the plan, and words
+      like "plan" or "membership" off its end ("Spotify Premium plan" ->
+      "Premium").
+    """
+    service = (output.get("service_name") or "").strip()
+    plan = (output.get("plan_name") or "").strip()
+    if not service or not plan:
+        return output
+    tidy = dict(output)
+    joined = f"{service} {plan}"
+    if service_key(service) not in catalog and service_key(joined) in catalog:
+        tidy["service_name"], tidy["plan_name"] = joined, None
+        return tidy
+    plan = re.sub(rf"^{re.escape(service)}\s+", "", plan, flags=re.IGNORECASE)
+    tidy["plan_name"] = _PLAN_WORDS.sub("", plan).strip() or None
+    return tidy
+
+
 def find_duplicate(name: str | None, existing: list[tuple[str, str]]) -> str | None:
     """The id of a subscription the user already tracks under this name, if any.
 
@@ -438,7 +469,7 @@ class _Reader:
 
     def __init__(self, source: Source, output: dict, default_currency: str, catalog: dict):
         self.source = source
-        self.output = output
+        self.output = tidy_names(output, catalog)
         self.text = source.haystack
         self.default_currency = default_currency
         self.catalog = catalog
@@ -519,6 +550,11 @@ class _Reader:
             competing = {m.amount for m in self.money if m.amount not in (0, value)}
             stated = _near(self.text, match, _ANY_CYCLE)
             if competing and not stated:
+                return self.keep("price", f"{value:.2f}", AMBIGUOUS, AMBIGUOUS_FOUND)
+            # "$54.99/mo, billed annually": the amount in the email is the
+            # monthly rate of a yearly charge, so quoting it is not enough to
+            # vouch for it as the price (found by the live eval, Sprint 3).
+            if _BILLED_YEARLY.search(self.text) and "monthly" in cycles(self.text):
                 return self.keep("price", f"{value:.2f}", AMBIGUOUS, AMBIGUOUS_FOUND)
             return self.keep("price", f"{value:.2f}", VERBATIM, FOUND)
         # "$9/mo, billed annually" -> 108.00 a year: right, but not in the email.

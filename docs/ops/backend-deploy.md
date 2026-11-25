@@ -85,7 +85,7 @@ Everything the settings read. `—` means Render or the Blueprint supplies it.
 | `SUBTRAK_APP_LINK_PREFIX` | optional | — | `subtrak://` by default. |
 | `EXPO_ACCESS_TOKEN` | **ask** | **ask** | Only with enhanced push security on; otherwise leave empty. |
 | `LLM_API_KEY` | **ask** | **ask** | Anthropic. Unset makes extraction answer 503 and the insight use its template. |
-| `LLM_MODEL` | optional | optional | `claude-opus-5-5` by default. |
+| `LLM_MODEL` | optional | optional | Leave unset: `claude-haiku-5-5` by default. Setting it changes the model for the app but not for the Eval stage, so the eval would no longer test what users get. |
 | `EXTRACTION_ENABLED` | `true` | `true` | The kill switch. `false` stops every model call at once. |
 | `EXTRACTION_DAILY_CAP` | `30` | `30` | Model calls per user per rolling 24 hours. |
 | `GOOGLE_OAUTH_CLIENT_ID` | **ask** | **ask** | The Web-application client. |
